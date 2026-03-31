@@ -1,8 +1,16 @@
 // ignore_for_file: dead_code, dead_null_aware_expression
 
+import 'dart:io';
+
+import 'package:blue_thermal_printer/blue_thermal_printer.dart';
 import 'package:flutter/material.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
+import 'package:intl/intl.dart';
+import 'package:path_provider/path_provider.dart';
+import 'package:share_plus/share_plus.dart';
 import '../providers/auth_provider.dart';
+import '../../../core/database/database_helper.dart';
+import '../../../core/errors/error_handler.dart';
 import '../settings_providers.dart';
 import 'superadmin_panel_screen.dart';
 import 'expense_accounts_manager_screen.dart';
@@ -198,29 +206,65 @@ class _BillSettingsTab extends ConsumerWidget {
                 _BoolSettingField(
                   label: 'ગ્રાહકનું નામ બિલ પર',
                   value: data['module_customer_name_on_bill']!,
-                  onChanged: (value) {
-                    // TODO: Save to repository
+                  onChanged: (value) async {
+                    final repo = await ref.read(
+                      settingsRepositoryFutureProvider.future,
+                    );
+                    await repo.setBool('module_customer_name_on_bill', value);
+                    ref.invalidate(featureToggleProvider);
+                    if (context.mounted) {
+                      ScaffoldMessenger.of(context).showSnackBar(
+                        const SnackBar(content: Text('સેટિંગ સેવ થયું')),
+                      );
+                    }
                   },
                 ),
                 _BoolSettingField(
                   label: 'ચૂકવણી પ્રકાર બિલ પર',
                   value: data['module_payment_mode_on_bill']!,
-                  onChanged: (value) {
-                    // TODO: Save to repository
+                  onChanged: (value) async {
+                    final repo = await ref.read(
+                      settingsRepositoryFutureProvider.future,
+                    );
+                    await repo.setBool('module_payment_mode_on_bill', value);
+                    ref.invalidate(featureToggleProvider);
+                    if (context.mounted) {
+                      ScaffoldMessenger.of(context).showSnackBar(
+                        const SnackBar(content: Text('સેટિંગ સેવ થયું')),
+                      );
+                    }
                   },
                 ),
                 _BoolSettingField(
                   label: 'વજન બિલ પર',
                   value: data['show_weight_on_bill']!,
-                  onChanged: (value) {
-                    // TODO: Save to repository
+                  onChanged: (value) async {
+                    final repo = await ref.read(
+                      settingsRepositoryFutureProvider.future,
+                    );
+                    await repo.setBool('show_weight_on_bill', value);
+                    ref.invalidate(featureToggleProvider);
+                    if (context.mounted) {
+                      ScaffoldMessenger.of(context).showSnackBar(
+                        const SnackBar(content: Text('સેટિંગ સેવ થયું')),
+                      );
+                    }
                   },
                 ),
                 _BoolSettingField(
                   label: 'GST ગણતરી',
                   value: data['gst_enabled']!,
-                  onChanged: (value) {
-                    // TODO: Save to repository
+                  onChanged: (value) async {
+                    final repo = await ref.read(
+                      settingsRepositoryFutureProvider.future,
+                    );
+                    await repo.setBool('gst_enabled', value);
+                    ref.invalidate(featureToggleProvider);
+                    if (context.mounted) {
+                      ScaffoldMessenger.of(context).showSnackBar(
+                        const SnackBar(content: Text('સેટિંગ સેવ થયું')),
+                      );
+                    }
                   },
                 ),
               ],
@@ -250,22 +294,49 @@ class _PrintSettingsTab extends ConsumerWidget {
                 _BoolSettingField(
                   label: 'ઉધારે બિલ છાપો',
                   value: data['print_udhaar_receipt']!,
-                  onChanged: (value) {
-                    // TODO: Save to repository
+                  onChanged: (value) async {
+                    final repo = await ref.read(
+                      settingsRepositoryFutureProvider.future,
+                    );
+                    await repo.setBool('print_udhaar_receipt', value);
+                    ref.invalidate(featureToggleProvider);
+                    if (context.mounted) {
+                      ScaffoldMessenger.of(context).showSnackBar(
+                        const SnackBar(content: Text('સેટિંગ સેવ થયું')),
+                      );
+                    }
                   },
                 ),
                 _BoolSettingField(
                   label: 'ચૂકવણી રસીદ છાપો',
                   value: data['print_payment_receipt']!,
-                  onChanged: (value) {
-                    // TODO: Save to repository
+                  onChanged: (value) async {
+                    final repo = await ref.read(
+                      settingsRepositoryFutureProvider.future,
+                    );
+                    await repo.setBool('print_payment_receipt', value);
+                    ref.invalidate(featureToggleProvider);
+                    if (context.mounted) {
+                      ScaffoldMessenger.of(context).showSnackBar(
+                        const SnackBar(content: Text('સેટિંગ સેવ થયું')),
+                      );
+                    }
                   },
                 ),
                 _BoolSettingField(
                   label: 'અંતિમ ચૂકવણી રસીદ',
                   value: data['print_final_receipt']!,
-                  onChanged: (value) {
-                    // TODO: Save to repository
+                  onChanged: (value) async {
+                    final repo = await ref.read(
+                      settingsRepositoryFutureProvider.future,
+                    );
+                    await repo.setBool('print_final_receipt', value);
+                    ref.invalidate(featureToggleProvider);
+                    if (context.mounted) {
+                      ScaffoldMessenger.of(context).showSnackBar(
+                        const SnackBar(content: Text('સેટિંગ સેવ થયું')),
+                      );
+                    }
                   },
                 ),
               ],
@@ -275,14 +346,14 @@ class _PrintSettingsTab extends ConsumerWidget {
               fields: [
                 _ActionSettingField(
                   label: 'Bluetooth Printer Connect',
-                  onPressed: () {
-                    // TODO: Implement Bluetooth connection (Android only)
+                  onPressed: () async {
+                    await _SettingsActions.connectBluetoothPrinter(context);
                   },
                 ),
                 _ActionSettingField(
                   label: 'Test Print',
-                  onPressed: () {
-                    // TODO: Send test page to printer
+                  onPressed: () async {
+                    await _SettingsActions.sendTestPrint(context);
                   },
                 ),
               ],
@@ -312,22 +383,52 @@ class _ReminderSettingsTab extends ConsumerWidget {
                 _BoolSettingField(
                   label: 'WhatsApp રીમાઇન્ડર',
                   value: data['reminder_whatsapp']!,
-                  onChanged: (value) {
-                    // TODO: Save to repository
+                  onChanged: (value) async {
+                    final repo = await ref.read(
+                      settingsRepositoryFutureProvider.future,
+                    );
+                    await repo.setBool('reminder_whatsapp', value);
+                    ref.invalidate(featureToggleProvider);
+                    ref.invalidate(moduleSettingsProvider);
+                    if (context.mounted) {
+                      ScaffoldMessenger.of(context).showSnackBar(
+                        const SnackBar(content: Text('સેટિંગ સેવ થયું')),
+                      );
+                    }
                   },
                 ),
                 _BoolSettingField(
                   label: 'SMS રીમાઇન્ડર',
                   value: data['reminder_sms']!,
-                  onChanged: (value) {
-                    // TODO: Save to repository
+                  onChanged: (value) async {
+                    final repo = await ref.read(
+                      settingsRepositoryFutureProvider.future,
+                    );
+                    await repo.setBool('reminder_sms', value);
+                    ref.invalidate(featureToggleProvider);
+                    ref.invalidate(moduleSettingsProvider);
+                    if (context.mounted) {
+                      ScaffoldMessenger.of(context).showSnackBar(
+                        const SnackBar(content: Text('સેટિંગ સેવ થયું')),
+                      );
+                    }
                   },
                 ),
                 _BoolSettingField(
                   label: 'PDF સ્ટેટમેન્ટ',
                   value: data['reminder_pdf']!,
-                  onChanged: (value) {
-                    // TODO: Save to repository
+                  onChanged: (value) async {
+                    final repo = await ref.read(
+                      settingsRepositoryFutureProvider.future,
+                    );
+                    await repo.setBool('reminder_pdf', value);
+                    ref.invalidate(featureToggleProvider);
+                    ref.invalidate(moduleSettingsProvider);
+                    if (context.mounted) {
+                      ScaffoldMessenger.of(context).showSnackBar(
+                        const SnackBar(content: Text('સેટિંગ સેવ થયું')),
+                      );
+                    }
                   },
                 ),
               ],
@@ -357,15 +458,33 @@ class _SecuritySettingsTab extends ConsumerWidget {
                 _IntSettingField(
                   label: 'Session Timeout (minutes)',
                   value: data['session_timeout_minutes'] as int,
-                  onChanged: (value) {
-                    // TODO: Save to repository
+                  onChanged: (value) async {
+                    final repo = await ref.read(
+                      settingsRepositoryFutureProvider.future,
+                    );
+                    await repo.set('session_timeout_minutes', value.toString());
+                    ref.invalidate(securitySettingsProvider);
+                    if (context.mounted) {
+                      ScaffoldMessenger.of(context).showSnackBar(
+                        const SnackBar(content: Text('સેટિંગ સેવ થયું')),
+                      );
+                    }
                   },
                 ),
                 _BoolSettingField(
                   label: 'Require PIN on Open',
                   value: data['require_pin_on_open'] as bool,
-                  onChanged: (value) {
-                    // TODO: Save to repository
+                  onChanged: (value) async {
+                    final repo = await ref.read(
+                      settingsRepositoryFutureProvider.future,
+                    );
+                    await repo.setBool('require_pin_on_open', value);
+                    ref.invalidate(securitySettingsProvider);
+                    if (context.mounted) {
+                      ScaffoldMessenger.of(context).showSnackBar(
+                        const SnackBar(content: Text('સેટિંગ સેવ થયું')),
+                      );
+                    }
                   },
                 ),
               ],
@@ -423,9 +542,17 @@ class _DisplaySettingsTab extends ConsumerWidget {
                 _BoolSettingField(
                   label: 'મોટો ટેક્સ્ટ (+20%)',
                   value: largeText,
-                  onChanged: (value) {
+                  onChanged: (value) async {
                     ref.read(largeTextProvider.notifier).state = value;
-                    // TODO: Save to repository
+                    final repo = await ref.read(
+                      settingsRepositoryFutureProvider.future,
+                    );
+                    await repo.setBool('large_text', value);
+                    if (context.mounted) {
+                      ScaffoldMessenger.of(context).showSnackBar(
+                        const SnackBar(content: Text('સેટિંગ સેવ થયું')),
+                      );
+                    }
                   },
                 ),
               ],
@@ -476,29 +603,268 @@ class _DataManagementTab extends ConsumerWidget {
           fields: [
             _ActionSettingField(
               label: 'Export as JSON Backup',
-              onPressed: () {
-                // TODO: Implement export
-                ScaffoldMessenger.of(
-                  context,
-                ).showSnackBar(const SnackBar(content: Text('Exporting...')));
+              onPressed: () async {
+                await _SettingsActions.exportBackup(context);
               },
             ),
             _ActionSettingField(
               label: 'View Database Info',
-              onPressed: () {
-                // TODO: Show database stats
+              onPressed: () async {
+                await _SettingsActions.showDatabaseStats(context, ref);
               },
             ),
             _ActionSettingField(
               label: 'Reset Bill Counter',
-              onPressed: () {
-                // TODO: Implement with confirmation
+              onPressed: () async {
+                await _SettingsActions.resetBillCounterWithConfirmation(
+                  context,
+                  ref,
+                );
               },
             ),
           ],
         ),
       ],
     );
+  }
+}
+
+class _SettingsActions {
+  static final BlueThermalPrinter _printer = BlueThermalPrinter.instance;
+
+  static Future<void> connectBluetoothPrinter(BuildContext context) async {
+    if (Platform.isWindows) {
+      ScaffoldMessenger.of(context).showSnackBar(
+        const SnackBar(
+          content: Text('Windows માં USB printer Windows Settings થી કનેક્ટ કરો.'),
+        ),
+      );
+      return;
+    }
+
+    if (!Platform.isAndroid) {
+      ScaffoldMessenger.of(context).showSnackBar(
+        const SnackBar(content: Text('Bluetooth printer support Android માટે ઉપલબ્ધ છે.')),
+      );
+      return;
+    }
+
+    try {
+      final devices = await _printer.getBondedDevices();
+      if (!context.mounted) return;
+      if (devices.isEmpty) {
+        ScaffoldMessenger.of(context).showSnackBar(
+          const SnackBar(content: Text('કોઈ paired Bluetooth printer મળ્યો નહીં.')),
+        );
+        return;
+      }
+
+      await showModalBottomSheet<void>(
+        context: context,
+        builder: (sheetContext) {
+          return ListView(
+            children: devices
+                .map(
+                  (d) => ListTile(
+                    leading: const Icon(Icons.print),
+                    title: Text(d.name ?? 'Unknown Printer'),
+                    subtitle: Text(d.address ?? ''),
+                    onTap: () async {
+                      try {
+                        await _printer.connect(d);
+                        if (!sheetContext.mounted) return;
+                        Navigator.of(sheetContext).pop();
+                        if (!context.mounted) return;
+                        ScaffoldMessenger.of(context).showSnackBar(
+                          SnackBar(
+                            content: Text('Printer connected: ${d.name ?? d.address}'),
+                          ),
+                        );
+                      } catch (e, st) {
+                        if (!sheetContext.mounted) return;
+                        Navigator.of(sheetContext).pop();
+                        if (!context.mounted) return;
+                        ErrorHandler.handleAndShowSnackbar(
+                          context,
+                          e,
+                          st,
+                          contextDescription: 'Settings.connectBluetoothPrinter',
+                        );
+                      }
+                    },
+                  ),
+                )
+                .toList(),
+          );
+        },
+      );
+    } catch (e, st) {
+      if (!context.mounted) return;
+      ErrorHandler.handleAndShowSnackbar(
+        context,
+        e,
+        st,
+        contextDescription: 'Settings.connectBluetoothPrinter',
+      );
+    }
+  }
+
+  static Future<void> sendTestPrint(BuildContext context) async {
+    try {
+      final connected = await _printer.isConnected ?? false;
+      if (!connected) {
+        if (!context.mounted) return;
+        ScaffoldMessenger.of(context).showSnackBar(
+          const SnackBar(content: Text('PRINT_001: પ્રિન્ટર કનેક્ટ નથી.')),
+        );
+        return;
+      }
+
+      final now = DateTime.now();
+      await _printer.printCustom('Kirana Shop', 2, 1);
+      await _printer.printCustom(
+        DateFormat('dd/MM/yyyy HH:mm').format(now),
+        1,
+        1,
+      );
+      await _printer.printCustom('ટેસ્ટ પ્રિન્ટ સફળ', 2, 1);
+      await _printer.printNewLine();
+
+      if (!context.mounted) return;
+      ScaffoldMessenger.of(context).showSnackBar(
+        const SnackBar(content: Text('ટેસ્ટ પ્રિન્ટ મોકલાયું')),
+      );
+    } catch (e, st) {
+      if (!context.mounted) return;
+      ErrorHandler.handleAndShowSnackbar(
+        context,
+        e,
+        st,
+        contextDescription: 'Settings.sendTestPrint',
+      );
+    }
+  }
+
+  static Future<void> exportBackup(BuildContext context) async {
+    try {
+      final json = await DatabaseHelper.instance.exportToJson();
+      final dir = await getApplicationDocumentsDirectory();
+      final stamp = DateFormat('yyyyMMdd_HHmmss').format(DateTime.now());
+      final path = '${dir.path}${Platform.pathSeparator}KiranaBackup_$stamp.json';
+      final file = File(path);
+      await file.writeAsString(json);
+      await Share.shareXFiles([XFile(path)], text: 'Kirana backup');
+
+      if (!context.mounted) return;
+      ScaffoldMessenger.of(context).showSnackBar(
+        const SnackBar(content: Text('ડેટા નિકાસ થઈ ગયો')),
+      );
+    } catch (e, st) {
+      if (!context.mounted) return;
+      ErrorHandler.handleAndShowSnackbar(
+        context,
+        e,
+        st,
+        contextDescription: 'Settings.exportBackup',
+      );
+    }
+  }
+
+  static Future<void> showDatabaseStats(BuildContext context, WidgetRef ref) async {
+    try {
+      final db = await ref.read(databaseProvider.future);
+      final products = await _readCount(db, ['products', 'items']);
+      final bills = await _readCount(db, ['bills']);
+      final customers = await _readCount(db, ['customers']);
+      final stockEntries = await _readCount(db, ['stock_log', 'purchases']);
+      final udhaarEntries = await _readCount(db, ['udhaar_ledger', 'khata_entries']);
+
+      if (!context.mounted) return;
+      await showDialog<void>(
+        context: context,
+        builder: (ctx) => AlertDialog(
+          title: const Text('ડેટાબેસ આંકડા'),
+          content: Column(
+            mainAxisSize: MainAxisSize.min,
+            crossAxisAlignment: CrossAxisAlignment.start,
+            children: [
+              Text('ઉત્પાદન: $products'),
+              Text('બિલ: $bills'),
+              Text('ગ્રાહકો: $customers'),
+              Text('સ્ટોક એન્ટ્રી: $stockEntries'),
+              Text('ઉધાર એન્ટ્રી: $udhaarEntries'),
+            ],
+          ),
+          actions: [
+            TextButton(
+              onPressed: () => Navigator.of(ctx).pop(),
+              child: const Text('બંધ કરો'),
+            ),
+          ],
+        ),
+      );
+    } catch (e, st) {
+      if (!context.mounted) return;
+      ErrorHandler.handleAndShowSnackbar(
+        context,
+        e,
+        st,
+        contextDescription: 'Settings.showDatabaseStats',
+      );
+    }
+  }
+
+  static Future<int> _readCount(dynamic db, List<String> tables) async {
+    for (final table in tables) {
+      try {
+        final row = await db.rawQuery('SELECT COUNT(*) as c FROM $table');
+        return (row.first['c'] as int?) ?? 0;
+      } catch (_) {
+        // Try fallback table names.
+      }
+    }
+    return 0;
+  }
+
+  static Future<void> resetBillCounterWithConfirmation(
+    BuildContext context,
+    WidgetRef ref,
+  ) async {
+    final confirmed = await showDialog<bool>(
+      context: context,
+      builder: (ctx) => AlertDialog(
+        title: const Text('ખાતરી કરો'),
+        content: const Text('શું તમે Bill Counter રીસેટ કરવા માંગો છો?'),
+        actions: [
+          TextButton(
+            onPressed: () => Navigator.of(ctx).pop(false),
+            child: const Text('રદ કરો'),
+          ),
+          ElevatedButton(
+            onPressed: () => Navigator.of(ctx).pop(true),
+            child: const Text('ખાતરી કરો'),
+          ),
+        ],
+      ),
+    );
+
+    if (confirmed != true || !context.mounted) return;
+    try {
+      final repo = await ref.read(settingsRepositoryFutureProvider.future);
+      await repo.set('bill_counter', '1');
+      if (!context.mounted) return;
+      ScaffoldMessenger.of(context).showSnackBar(
+        const SnackBar(content: Text('સેટિંગ સેવ થયું')),
+      );
+    } catch (e, st) {
+      if (!context.mounted) return;
+      ErrorHandler.handleAndShowSnackbar(
+        context,
+        e,
+        st,
+        contextDescription: 'Settings.resetBillCounter',
+      );
+    }
   }
 }
 

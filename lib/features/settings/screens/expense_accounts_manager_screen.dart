@@ -3,6 +3,9 @@ import 'package:flutter_riverpod/flutter_riverpod.dart';
 import '../providers/auth_provider.dart';
 import '../../stock/stock_providers.dart';
 import '../../../shared/models/expense_account_model.dart';
+import '../../../core/errors/error_handler.dart';
+import '../../../data/providers.dart';
+import '../../../data/repositories/expense_repository.dart';
 
 class ExpenseAccountsManagerScreen extends ConsumerStatefulWidget {
   const ExpenseAccountsManagerScreen({super.key});
@@ -66,15 +69,28 @@ class _ExpenseAccountsManagerScreenState
                   return _ExpenseAccountTile(
                     account: account,
                     onEdit: () => _showEditAccountDialog(account),
-                    onToggle: (isActive) {
-                      // TODO: Update account status
-                      ScaffoldMessenger.of(context).showSnackBar(
-                        SnackBar(
-                          content: Text(
-                            '${account.accountNameGujarati} ${isActive ? 'activated' : 'deactivated'}',
-                          ),
-                        ),
-                      );
+                    onToggle: (isActive) async {
+                      try {
+                        final db = await ref.read(databaseProvider.future);
+                        final repo = ExpenseRepository(db);
+                        await repo.toggleExpenseAccountStatus(
+                          account.id!,
+                          isActive,
+                        );
+                        ref.invalidate(expenseAccountsProvider);
+                        if (!context.mounted) return;
+                        ScaffoldMessenger.of(context).showSnackBar(
+                          const SnackBar(content: Text('સફળતાપૂર્વક અપડેટ થયું')),
+                        );
+                      } catch (e, st) {
+                        if (!context.mounted) return;
+                        ErrorHandler.handleAndShowSnackbar(
+                          context,
+                          e,
+                          st,
+                          contextDescription: 'ExpenseAccountsManager.toggle',
+                        );
+                      }
                     },
                   );
                 }),
@@ -105,12 +121,35 @@ class _ExpenseAccountsManagerScreenState
     showDialog(
       context: context,
       builder: (context) => _AddEditAccountDialog(
-        onSave: (gujaratiName, englishName, type, typicalAmount) {
-          // TODO: Save to database
-          Navigator.of(context).pop();
-          ScaffoldMessenger.of(context).showSnackBar(
-            SnackBar(content: Text('$gujaratiName added successfully')),
-          );
+        onSave: (gujaratiName, englishName, type, typicalAmount) async {
+          try {
+            final db = await ref.read(databaseProvider.future);
+            final repo = ExpenseRepository(db);
+            await repo.addExpenseAccount(
+              ExpenseAccount(
+                accountNameGujarati: gujaratiName,
+                accountNameEnglish: englishName,
+                accountType: type.toLowerCase(),
+                typicalAmount: typicalAmount,
+                isActive: true,
+                createdAt: DateTime.now().toIso8601String(),
+              ),
+            );
+            ref.invalidate(expenseAccountsProvider);
+            if (!context.mounted) return;
+            Navigator.of(context).pop();
+            ScaffoldMessenger.of(context).showSnackBar(
+              const SnackBar(content: Text('સફળતાપૂર્વક સેવ થયું')),
+            );
+          } catch (e, st) {
+            if (!context.mounted) return;
+            ErrorHandler.handleAndShowSnackbar(
+              context,
+              e,
+              st,
+              contextDescription: 'ExpenseAccountsManager.add',
+            );
+          }
         },
       ),
     );
@@ -124,12 +163,36 @@ class _ExpenseAccountsManagerScreenState
         initialEnglishName: account.accountNameEnglish,
         initialType: account.accountType,
         initialAmount: account.typicalAmount.toString(),
-        onSave: (gujaratiName, englishName, type, typicalAmount) {
-          // TODO: Update in database
-          Navigator.of(context).pop();
-          ScaffoldMessenger.of(context).showSnackBar(
-            SnackBar(content: Text('$gujaratiName updated successfully')),
-          );
+        onSave: (gujaratiName, englishName, type, typicalAmount) async {
+          try {
+            final db = await ref.read(databaseProvider.future);
+            final repo = ExpenseRepository(db);
+            await repo.updateExpenseAccount(
+              ExpenseAccount(
+                id: account.id,
+                accountNameGujarati: gujaratiName,
+                accountNameEnglish: englishName,
+                accountType: type.toLowerCase(),
+                typicalAmount: typicalAmount,
+                isActive: account.isActive,
+                createdAt: account.createdAt,
+              ),
+            );
+            ref.invalidate(expenseAccountsProvider);
+            if (!context.mounted) return;
+            Navigator.of(context).pop();
+            ScaffoldMessenger.of(context).showSnackBar(
+              const SnackBar(content: Text('સફળતાપૂર્વક અપડેટ થયું')),
+            );
+          } catch (e, st) {
+            if (!context.mounted) return;
+            ErrorHandler.handleAndShowSnackbar(
+              context,
+              e,
+              st,
+              contextDescription: 'ExpenseAccountsManager.update',
+            );
+          }
         },
       ),
     );
@@ -139,27 +202,37 @@ class _ExpenseAccountsManagerScreenState
     showDialog(
       context: context,
       builder: (context) => AlertDialog(
-        title: const Text('Reset to Defaults?'),
-        content: const Text(
-          'This will recreate the 6 default expense accounts. Continue?',
-        ),
+        title: const Text('ડિફૉલ્ટ પર રીસેટ કરવું?'),
+        content: const Text('બધા કસ્ટમ ખાતા દૂર કરીને 6 ડિફૉલ્ટ ખાતા ફરી બનાવાશે.'),
         actions: [
           TextButton(
             onPressed: () => Navigator.of(context).pop(),
-            child: const Text('Cancel'),
+            child: const Text('રદ કરો'),
           ),
           ElevatedButton(
             style: ElevatedButton.styleFrom(backgroundColor: Colors.red),
-            onPressed: () {
-              // TODO: Reset to defaults
-              Navigator.of(context).pop();
-              ScaffoldMessenger.of(context).showSnackBar(
-                const SnackBar(
-                  content: Text('Reset to defaults - Coming soon'),
-                ),
-              );
+            onPressed: () async {
+              try {
+                final db = await ref.read(databaseProvider.future);
+                final repo = ExpenseRepository(db);
+                await repo.resetExpenseAccountsToDefaults();
+                ref.invalidate(expenseAccountsProvider);
+                if (!context.mounted) return;
+                Navigator.of(context).pop();
+                ScaffoldMessenger.of(context).showSnackBar(
+                  const SnackBar(content: Text('ડિફૉલ્ટ સફળતાપૂર્વક રીસેટ થયું')),
+                );
+              } catch (e, st) {
+                if (!context.mounted) return;
+                ErrorHandler.handleAndShowSnackbar(
+                  context,
+                  e,
+                  st,
+                  contextDescription: 'ExpenseAccountsManager.reset',
+                );
+              }
             },
-            child: const Text('Reset'),
+            child: const Text('રીસેટ'),
           ),
         ],
       ),

@@ -8,7 +8,9 @@ import '../../shared/models/expense_model.dart';
 import '../../core/utils/currency_format.dart';
 
 class AddExpenseScreen extends ConsumerStatefulWidget {
-  const AddExpenseScreen({super.key});
+  const AddExpenseScreen({super.key, this.expense});
+
+  final Expense? expense;
 
   @override
   ConsumerState<AddExpenseScreen> createState() => _AddExpenseScreenState();
@@ -23,6 +25,18 @@ class _AddExpenseScreenState extends ConsumerState<AddExpenseScreen> {
   bool _amountEdited = false;
 
   @override
+  void initState() {
+    super.initState();
+    final initial = widget.expense;
+    if (initial != null) {
+      _amountController.text = initial.amount.toString();
+      _descriptionController.text = initial.description ?? '';
+      _selectedDate = DateTime.tryParse(initial.expenseDate) ?? DateTime.now();
+      _amountEdited = true;
+    }
+  }
+
+  @override
   void dispose() {
     _amountController.dispose();
     _descriptionController.dispose();
@@ -32,7 +46,9 @@ class _AddExpenseScreenState extends ConsumerState<AddExpenseScreen> {
   @override
   Widget build(BuildContext context) {
     return Scaffold(
-      appBar: AppBar(title: const Text('Add Expense')),
+      appBar: AppBar(
+        title: Text(widget.expense == null ? 'Add Expense' : 'Edit Expense'),
+      ),
       body: Padding(
         padding: const EdgeInsets.all(16),
         child: Form(
@@ -49,7 +65,9 @@ class _AddExpenseScreenState extends ConsumerState<AddExpenseScreen> {
               const SizedBox(height: 32),
               ElevatedButton(
                 onPressed: _saveExpense,
-                child: const Text('Save Expense'),
+                child: Text(
+                  widget.expense == null ? 'Save Expense' : 'Update Expense',
+                ),
               ),
             ],
           ),
@@ -65,6 +83,11 @@ class _AddExpenseScreenState extends ConsumerState<AddExpenseScreen> {
         builder: (context, snapshot) {
           if (!snapshot.hasData) return const CircularProgressIndicator();
           final accounts = snapshot.data!;
+          if (_selectedAccount == null && widget.expense?.expenseAccountId != null) {
+            _selectedAccount = accounts
+                .where((a) => a.id == widget.expense!.expenseAccountId)
+                .firstOrNull;
+          }
           return DropdownButtonFormField<ExpenseAccount>(
             decoration: const InputDecoration(
               labelText: 'Expense Account',
@@ -161,19 +184,33 @@ class _AddExpenseScreenState extends ConsumerState<AddExpenseScreen> {
 
     final amount = double.parse(_amountController.text);
     final expense = Expense(
+      id: widget.expense?.id,
       expenseAccountId: _selectedAccount!.id!,
+      accountNameSnapshot: _selectedAccount!.accountNameGujarati,
       amount: amount,
-      description: _descriptionController.text.isEmpty ? null : _descriptionController.text,
+      description: _descriptionController.text.isEmpty
+          ? null
+          : _descriptionController.text,
       expenseDate: _selectedDate.toIso8601String(),
-      createdAt: DateTime.now().toIso8601String(),
+      createdAt: widget.expense?.createdAt ?? DateTime.now().toIso8601String(),
     );
 
     final repo = await ref.read(expenseRepositoryProvider.future);
-    await repo.addExpense(expense);
+    if (widget.expense == null) {
+      await repo.addExpense(expense);
+    } else {
+      await repo.updateExpense(expense);
+    }
 
     if (mounted) {
       ScaffoldMessenger.of(context).showSnackBar(
-        const SnackBar(content: Text('Expense added successfully')),
+        SnackBar(
+          content: Text(
+            widget.expense == null
+                ? 'Expense added successfully'
+                : 'Expense updated successfully',
+          ),
+        ),
       );
       Navigator.of(context).pop();
     }

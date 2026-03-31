@@ -4,6 +4,7 @@ import 'package:flutter_riverpod/flutter_riverpod.dart';
 import '../../core/auth/role_provider.dart';
 import '../../core/utils/currency_format.dart';
 import '../../data/repositories/report_repository.dart';
+import '../billing/bill_detail_screen.dart';
 import '../dashboard/dashboard_providers.dart';
 
 class DailyReportScreen extends ConsumerStatefulWidget {
@@ -250,7 +251,12 @@ class _DailyReportScreenState extends ConsumerState<DailyReportScreen> {
                     ),
                     trailing: Text(formatCurrency(bill.totalAmount)),
                     onTap: () {
-                      // TODO: Open bill detail
+                      Navigator.push(
+                        context,
+                        MaterialPageRoute(
+                          builder: (_) => BillDetailScreen(billId: bill.id!),
+                        ),
+                      );
                     },
                   ),
                 ),

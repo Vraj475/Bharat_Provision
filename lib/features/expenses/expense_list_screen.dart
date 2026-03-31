@@ -3,6 +3,7 @@ import 'package:flutter_riverpod/flutter_riverpod.dart';
 
 import '../../data/providers.dart';
 import '../../data/repositories/expense_repository.dart';
+import 'add_expense_screen.dart';
 import '../../shared/models/expense_account_model.dart';
 import '../../shared/models/expense_model.dart';
 import '../../core/utils/currency_format.dart';
@@ -126,11 +127,13 @@ class _ExpenseListScreenState extends ConsumerState<ExpenseListScreen> {
               accountId: _selectedAccount?.id,
             ),
             builder: (context, snapshot) {
-              if (!snapshot.hasData)
+              if (!snapshot.hasData) {
                 return const Center(child: CircularProgressIndicator());
+              }
               final expenses = snapshot.data!;
-              if (expenses.isEmpty)
+              if (expenses.isEmpty) {
                 return const Center(child: Text('No expenses found'));
+              }
 
               // Group by date
               final grouped = <String, List<Expense>>{};
@@ -217,11 +220,13 @@ class _ExpenseListScreenState extends ConsumerState<ExpenseListScreen> {
     return accounts.where((a) => a.id == accountId).firstOrNull;
   }
 
-  void _editExpense(Expense expense) {
-    // TODO: Implement edit
-    ScaffoldMessenger.of(
+  void _editExpense(Expense expense) async {
+    await Navigator.push(
       context,
-    ).showSnackBar(const SnackBar(content: Text('Edit not implemented yet')));
+      MaterialPageRoute(builder: (_) => AddExpenseScreen(expense: expense)),
+    );
+    if (!mounted) return;
+    setState(() {});
   }
 
   void _deleteExpense(Expense expense) async {

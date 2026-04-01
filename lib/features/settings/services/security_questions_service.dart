@@ -5,8 +5,12 @@ import '../models/security_question_models.dart';
 
 /// Service for managing security questions securely
 class SecurityQuestionsService {
-  static const String _questionsKeyPrefix =
-      'security_questions_'; // role-based: security_questions_superadmin
+  static const String _questionsKeyPrefix = 'security_questions_';
+  static const List<String> _supportedRoles = [
+    'superadmin',
+    'admin',
+    'employee',
+  ];
 
   final FlutterSecureStorage _storage;
 
@@ -20,21 +24,10 @@ class SecurityQuestionsService {
     try {
       final key = _getStorageKey(role);
       final jsonString = await _storage.read(key: key);
-  /// Initialize or validate security questions for a role
-  /// Users will add their own questions - this just validates they exist
-  Future<void> initializeDefaultQuestions() async {
-    try {
-      // This method is kept for compatibility but doesn't auto-initialize
-      // Users manually add questions via Settings > Security tab
-      return;
-    } catch (e) {
-      return;
-    }
-  }
       if (jsonString == null) return null;
 
-      final json = jsonDecode(jsonString) as Map<String, dynamic>;
-      return UserSecurityConfig.fromJson(json);
+      final jsonMap = jsonDecode(jsonString) as Map<String, dynamic>;
+      return UserSecurityConfig.fromJson(jsonMap);
     } catch (e) {
       return null;
     }
@@ -55,18 +48,147 @@ class SecurityQuestionsService {
         lastModifiedAt: DateTime.now(),
       );
 
-      return config != null && config.securityQuestions.isNotEmpty;
+      await _storage.write(key: key, value: jsonEncode(configToSave.toJson()));
+    } catch (e) {
+      rethrow;
+    }
+  }
 
-    int correctCount = 0;
-    for (int i = 0; i < storedQuestions.length; i++) {
-      final isCorrect = await verifyAnswer(
-        storedQuestions[i],
-        providedAnswers[i],
-      );
-      if (isCorrect) correctCount++;
+  /// Verify a single answer by question text across all configured roles.
+  Future<bool> verifyAnswer(String question, String answer) async {
+    final normalizedQuestion = question.trim();
+    final normalizedAnswer = answer.trim();
+
+    if (normalizedQuestion.isEmpty || normalizedAnswer.isEmpty) {
+      return false;
     }
 
-    return correctCount;
+    final Map<String, String> storedQuestions =
+        await _getStoredQuestionHashesAcrossRoles();
+
+    final expectedHash = storedQuestions[normalizedQuestion];
+    if (expectedHash == null) {
+      return false;
+    }
+
+    return _hashAnswer(normalizedAnswer) == expectedHash;
+  }
+
+  /// Verify multiple answers where key = question and value = plain answer.
+  Future<bool> verifyAnswers(Map<String, String> answers) async {
+    final Map<String, String> providedAnswers = {
+      for (final entry in answers.entries) entry.key.trim(): entry.value.trim(),
+    };
+
+    if (providedAnswers.isEmpty) {
+      return false;
+    }
+
+    final Map<String, String> storedQuestions =
+        await _getStoredQuestionHashesAcrossRoles();
+
+    for (final entry in providedAnswers.entries) {
+      final expectedHash = storedQuestions[entry.key];
+      if (expectedHash == null) {
+        return false;
+      }
+      if (_hashAnswer(entry.value) != expectedHash) {
+        return false;
+      }
+    }
+
+    return true;
+  }
+
+  /// Returns question text list from any configured role.
+  Future<List<String>> getQuestionsForVerification() async {
+    final Map<String, String> storedQuestions =
+        await _getStoredQuestionHashesAcrossRoles();
+    return storedQuestions.keys.toList();
+  }
+
+  /// Returns true when any role has configured questions.
+  Future<bool> hasSecurityQuestions() async {
+    final questions = await getQuestionsForVerification();
+    return questions.isNotEmpty;
+  }
+
+  /// Role-scoped helper for verification flows.
+  Future<List<String>> getQuestionsForVerificationByRole(String role) async {
+    final config = await getSecurityQuestions('', role);
+    if (config == null || config.securityQuestions.isEmpty) {
+      return [];
+    }
+    return config.securityQuestions.map((q) => q.question).toList();
+  }
+
+  /// Role-scoped helper for setup/feature gating.
+  Future<bool> hasSecurityQuestionsForRole(String role) async {
+    final questions = await getQuestionsForVerificationByRole(role);
+    return questions.isNotEmpty;
+  }
+
+  /// Role-scoped single-answer verification.
+  Future<bool> verifyAnswerForRole(
+    String role,
+    String question,
+    String answer,
+  ) async {
+    final questions = await _getStoredQuestionHashesByRole(role);
+    final expectedHash = questions[question.trim()];
+    if (expectedHash == null) {
+      return false;
+    }
+    return _hashAnswer(answer) == expectedHash;
+  }
+
+  /// Role-scoped multi-answer verification.
+  Future<bool> verifyAnswersForRole(
+    String role,
+    Map<String, String> answers,
+  ) async {
+    final storedQuestions = await _getStoredQuestionHashesByRole(role);
+    final providedAnswers = {
+      for (final entry in answers.entries) entry.key.trim(): entry.value.trim(),
+    };
+
+    if (providedAnswers.isEmpty) {
+      return false;
+    }
+
+    for (final entry in providedAnswers.entries) {
+      final expectedHash = storedQuestions[entry.key];
+      if (expectedHash == null || _hashAnswer(entry.value) != expectedHash) {
+        return false;
+      }
+    }
+
+    return true;
+  }
+
+  Future<Map<String, String>> _getStoredQuestionHashesAcrossRoles() async {
+    final Map<String, String> storedQuestions = {};
+
+    for (final role in _supportedRoles) {
+      final roleQuestions = await _getStoredQuestionHashesByRole(role);
+      storedQuestions.addAll(roleQuestions);
+    }
+
+    return storedQuestions;
+  }
+
+  Future<Map<String, String>> _getStoredQuestionHashesByRole(
+    String role,
+  ) async {
+    final config = await getSecurityQuestions('', role);
+    if (config == null || config.securityQuestions.isEmpty) {
+      return {};
+    }
+
+    return {
+      for (final question in config.securityQuestions)
+        question.question.trim(): question.answerHash,
+    };
   }
 
   /// Hash answer for secure storage
@@ -80,11 +202,10 @@ class SecurityQuestionsService {
   /// Each role gets 1 default security question that must be answered
   Future<void> initializeDefaultQuestions() async {
     try {
-      // Check if already initialized for any role
-      final superadminHasQuestions = await hasSecurityQuestions('superadmin');
-      if (superadminHasQuestions) return; // Already initialized
+      // Keep this method for compatibility; users configure questions manually.
+      final hasAnyQuestions = await hasSecurityQuestions();
+      if (hasAnyQuestions) return;
 
-      // Define default security questions for each role
       final defaultConfigs = [
         UserSecurityConfig(
           userId: '',
@@ -130,16 +251,13 @@ class SecurityQuestionsService {
         ),
       ];
 
-      // Save default configs for each role
       for (final config in defaultConfigs) {
-        // Only save if not already configured
         final existing = await getSecurityQuestions('', config.role);
         if (existing == null) {
           await saveSecurityQuestions(config);
         }
       }
     } catch (e) {
-      // Silently fail if initialization doesn't work - app can still function
       return;
     }
   }

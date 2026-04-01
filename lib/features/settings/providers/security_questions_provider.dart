@@ -22,8 +22,18 @@ final userSecurityConfigProvider =
 final questionsForVerificationProvider =
     FutureProvider.family<List<SecurityQuestion>?, String>((ref, role) async {
       final service = ref.watch(securityQuestionsServiceProvider);
-      final questions = await service.getQuestionsForVerification(role);
-      return questions;
+      final questions = await service.getQuestionsForVerificationByRole(role);
+      return questions
+          .asMap()
+          .entries
+          .map(
+            (entry) => SecurityQuestion(
+              id: (entry.key + 1).toString(),
+              question: entry.value,
+              answerHash: '',
+            ),
+          )
+          .toList();
     });
 
 // Check if security questions are configured
@@ -32,7 +42,7 @@ final hasSecurityQuestionsProvider = FutureProvider.family<bool, String>((
   role,
 ) async {
   final service = ref.watch(securityQuestionsServiceProvider);
-  return service.hasSecurityQuestions(role);
+  return service.hasSecurityQuestionsForRole(role);
 });
 
 // Forgot PIN Recovery State
@@ -87,17 +97,29 @@ final verifySingleAnswerProvider =
       params,
     ) async {
       final service = ref.watch(securityQuestionsServiceProvider);
-      return service.verifyAnswer(params.$1, params.$2);
+      return service.verifyAnswer(params.$1.question, params.$2);
     });
 
 // Verify multiple security answers
 final verifyMultipleAnswersProvider =
-    FutureProvider.family<int, (List<SecurityQuestion>, List<String>)>((
+    FutureProvider.family<bool, (List<SecurityQuestion>, List<String>)>((
       ref,
       params,
     ) async {
       final service = ref.watch(securityQuestionsServiceProvider);
-      return service.verifyAnswers(params.$1, params.$2);
+      final questions = params.$1;
+      final answers = params.$2;
+
+      final mappedAnswers = <String, String>{};
+      final length = questions.length < answers.length
+          ? questions.length
+          : answers.length;
+
+      for (var i = 0; i < length; i++) {
+        mappedAnswers[questions[i].question] = answers[i];
+      }
+
+      return service.verifyAnswers(mappedAnswers);
     });
 
 // Save security questions
@@ -121,14 +143,38 @@ final checkUserForForgotPinProvider =
       // This assumes userInput is the role for demo purposes
 
       final service = ref.watch(securityQuestionsServiceProvider);
-      return service.getQuestionsForVerification(userInput);
+      final questions = await service.getQuestionsForVerificationByRole(
+        userInput,
+      );
+      return questions
+          .asMap()
+          .entries
+          .map(
+            (entry) => SecurityQuestion(
+              id: (entry.key + 1).toString(),
+              question: entry.value,
+              answerHash: '',
+            ),
+          )
+          .toList();
     });
 
 // Forgot PIN - Get questions directly by role (no username/email step)
 final forgotPinQuestionsByRoleProvider =
     FutureProvider.family<List<SecurityQuestion>, String>((ref, role) async {
       final service = ref.watch(securityQuestionsServiceProvider);
-      return service.getQuestionsForVerification(role);
+      final questions = await service.getQuestionsForVerificationByRole(role);
+      return questions
+          .asMap()
+          .entries
+          .map(
+            (entry) => SecurityQuestion(
+              id: (entry.key + 1).toString(),
+              question: entry.value,
+              answerHash: '',
+            ),
+          )
+          .toList();
     });
 
 // Initialize default security questions for all roles (called on app startup)

@@ -74,7 +74,7 @@ class _ForgotPinVerificationScreenState
 
       for (int i = 0; i < widget.questions.length; i++) {
         final isCorrect = await service.verifyAnswer(
-          widget.questions[i],
+          widget.questions[i].question,
           answers[i],
         );
         if (isCorrect) correctCount++;

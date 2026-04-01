@@ -517,30 +517,32 @@ class _SecuritySettingsTab extends ConsumerWidget {
                 ),
               ],
             ),
-              _SettingsSection(
-                title: 'PIN પુનઃપ્રાપ્તિ',
-                fields: [
-                  _ActionSettingField(
-                    label: 'સુરક્ષા પ્રશ્નો સેટ કરો',
-                    onPressed: () {
-                      final session = ref.read(authSessionProvider);
-                      if (session != null) {
-                        Navigator.of(context)
-                            .push(MaterialPageRoute(
+            _SettingsSection(
+              title: 'PIN પુનઃપ્રાપ્તિ',
+              fields: [
+                _ActionSettingField(
+                  label: 'સુરક્ષા પ્રશ્નો સેટ કરો',
+                  onPressed: () {
+                    final session = ref.read(authSessionProvider);
+                    if (session != null) {
+                      Navigator.of(context)
+                          .push(
+                            MaterialPageRoute(
                               builder: (context) =>
                                   SecurityQuestionsSetupScreen(
                                     role: session.role,
                                   ),
-                            ))
-                            .then((_) {
-                          // Refresh after returning
-                          setState(() {});
-                        });
-                      }
-                    },
-                  ),
-                ],
-              ),
+                            ),
+                          )
+                          .then((_) {
+                            // Refresh security settings after setup flow returns.
+                            ref.invalidate(securitySettingsProvider);
+                          });
+                    }
+                  },
+                ),
+              ],
+            ),
           ],
         );
       },
@@ -661,7 +663,9 @@ class _SettingsActions {
     if (Platform.isWindows) {
       ScaffoldMessenger.of(context).showSnackBar(
         const SnackBar(
-          content: Text('Windows માં USB printer Windows Settings થી કનેક્ટ કરો.'),
+          content: Text(
+            'Windows માં USB printer Windows Settings થી કનેક્ટ કરો.',
+          ),
         ),
       );
       return;
@@ -669,7 +673,9 @@ class _SettingsActions {
 
     if (!Platform.isAndroid) {
       ScaffoldMessenger.of(context).showSnackBar(
-        const SnackBar(content: Text('Bluetooth printer support Android માટે ઉપલબ્ધ છે.')),
+        const SnackBar(
+          content: Text('Bluetooth printer support Android માટે ઉપલબ્ધ છે.'),
+        ),
       );
       return;
     }
@@ -679,7 +685,9 @@ class _SettingsActions {
       if (!context.mounted) return;
       if (devices.isEmpty) {
         ScaffoldMessenger.of(context).showSnackBar(
-          const SnackBar(content: Text('કોઈ paired Bluetooth printer મળ્યો નહીં.')),
+          const SnackBar(
+            content: Text('કોઈ paired Bluetooth printer મળ્યો નહીં.'),
+          ),
         );
         return;
       }
@@ -702,7 +710,9 @@ class _SettingsActions {
                         if (!context.mounted) return;
                         ScaffoldMessenger.of(context).showSnackBar(
                           SnackBar(
-                            content: Text('Printer connected: ${d.name ?? d.address}'),
+                            content: Text(
+                              'Printer connected: ${d.name ?? d.address}',
+                            ),
                           ),
                         );
                       } catch (e, st) {
@@ -713,7 +723,8 @@ class _SettingsActions {
                           context,
                           e,
                           st,
-                          contextDescription: 'Settings.connectBluetoothPrinter',
+                          contextDescription:
+                              'Settings.connectBluetoothPrinter',
                         );
                       }
                     },
@@ -756,9 +767,9 @@ class _SettingsActions {
       await _printer.printNewLine();
 
       if (!context.mounted) return;
-      ScaffoldMessenger.of(context).showSnackBar(
-        const SnackBar(content: Text('ટેસ્ટ પ્રિન્ટ મોકલાયું')),
-      );
+      ScaffoldMessenger.of(
+        context,
+      ).showSnackBar(const SnackBar(content: Text('ટેસ્ટ પ્રિન્ટ મોકલાયું')));
     } catch (e, st) {
       if (!context.mounted) return;
       ErrorHandler.handleAndShowSnackbar(
@@ -775,15 +786,16 @@ class _SettingsActions {
       final json = await DatabaseHelper.instance.exportToJson();
       final dir = await getApplicationDocumentsDirectory();
       final stamp = DateFormat('yyyyMMdd_HHmmss').format(DateTime.now());
-      final path = '${dir.path}${Platform.pathSeparator}KiranaBackup_$stamp.json';
+      final path =
+          '${dir.path}${Platform.pathSeparator}KiranaBackup_$stamp.json';
       final file = File(path);
       await file.writeAsString(json);
       await Share.shareXFiles([XFile(path)], text: 'Kirana backup');
 
       if (!context.mounted) return;
-      ScaffoldMessenger.of(context).showSnackBar(
-        const SnackBar(content: Text('ડેટા નિકાસ થઈ ગયો')),
-      );
+      ScaffoldMessenger.of(
+        context,
+      ).showSnackBar(const SnackBar(content: Text('ડેટા નિકાસ થઈ ગયો')));
     } catch (e, st) {
       if (!context.mounted) return;
       ErrorHandler.handleAndShowSnackbar(
@@ -795,14 +807,20 @@ class _SettingsActions {
     }
   }
 
-  static Future<void> showDatabaseStats(BuildContext context, WidgetRef ref) async {
+  static Future<void> showDatabaseStats(
+    BuildContext context,
+    WidgetRef ref,
+  ) async {
     try {
       final db = await ref.read(databaseProvider.future);
       final products = await _readCount(db, ['products', 'items']);
       final bills = await _readCount(db, ['bills']);
       final customers = await _readCount(db, ['customers']);
       final stockEntries = await _readCount(db, ['stock_log', 'purchases']);
-      final udhaarEntries = await _readCount(db, ['udhaar_ledger', 'khata_entries']);
+      final udhaarEntries = await _readCount(db, [
+        'udhaar_ledger',
+        'khata_entries',
+      ]);
 
       if (!context.mounted) return;
       await showDialog<void>(
@@ -878,9 +896,9 @@ class _SettingsActions {
       final repo = await ref.read(settingsRepositoryFutureProvider.future);
       await repo.set('bill_counter', '1');
       if (!context.mounted) return;
-      ScaffoldMessenger.of(context).showSnackBar(
-        const SnackBar(content: Text('સેટિંગ સેવ થયું')),
-      );
+      ScaffoldMessenger.of(
+        context,
+      ).showSnackBar(const SnackBar(content: Text('સેટિંગ સેવ થયું')));
     } catch (e, st) {
       if (!context.mounted) return;
       ErrorHandler.handleAndShowSnackbar(

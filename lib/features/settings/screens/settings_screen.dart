@@ -7,6 +7,7 @@ import '../settings_providers.dart';
 import 'superadmin_panel_screen.dart';
 import 'expense_accounts_manager_screen.dart';
 import 'transliteration_dictionary_screen.dart';
+import 'security_questions_setup_screen.dart';
 import '../../../data/providers.dart';
 
 class SettingsScreen extends ConsumerStatefulWidget {
@@ -397,6 +398,30 @@ class _SecuritySettingsTab extends ConsumerWidget {
                 ),
               ],
             ),
+              _SettingsSection(
+                title: 'PIN પુનઃપ્રાપ્તિ',
+                fields: [
+                  _ActionSettingField(
+                    label: 'સુરક્ષા પ્રશ્નો સેટ કરો',
+                    onPressed: () {
+                      final session = ref.read(authSessionProvider);
+                      if (session != null) {
+                        Navigator.of(context)
+                            .push(MaterialPageRoute(
+                              builder: (context) =>
+                                  SecurityQuestionsSetupScreen(
+                                    role: session.role,
+                                  ),
+                            ))
+                            .then((_) {
+                          // Refresh after returning
+                          setState(() {});
+                        });
+                      }
+                    },
+                  ),
+                ],
+              ),
           ],
         );
       },

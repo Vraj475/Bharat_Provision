@@ -126,11 +126,13 @@ class _ExpenseListScreenState extends ConsumerState<ExpenseListScreen> {
               accountId: _selectedAccount?.id,
             ),
             builder: (context, snapshot) {
-              if (!snapshot.hasData)
+              if (!snapshot.hasData) {
                 return const Center(child: CircularProgressIndicator());
+              }
               final expenses = snapshot.data!;
-              if (expenses.isEmpty)
+              if (expenses.isEmpty) {
                 return const Center(child: Text('No expenses found'));
+              }
 
               // Group by date
               final grouped = <String, List<Expense>>{};

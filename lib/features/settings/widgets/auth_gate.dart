@@ -4,8 +4,9 @@ import 'package:flutter_riverpod/flutter_riverpod.dart';
 import '../providers/auth_provider.dart';
 import '../settings_providers.dart';
 import '../screens/login_screen.dart';
+import '../screens/splash_screen.dart';
 
-/// AuthGate - Wrapper widget that checks auth status and shows login if needed
+/// AuthGate - Wrapper widget that checks auth status and shows splash/login if needed
 class AuthGate extends ConsumerStatefulWidget {
   final Widget child;
 
@@ -17,6 +18,8 @@ class AuthGate extends ConsumerStatefulWidget {
 
 class _AuthGateState extends ConsumerState<AuthGate>
     with WidgetsBindingObserver {
+  bool _showSplash = true;
+
   @override
   void initState() {
     super.initState();
@@ -44,6 +47,12 @@ class _AuthGateState extends ConsumerState<AuthGate>
         ref.read(authSessionProvider.notifier).logout();
       }
     }
+  }
+
+  void _navigateFromSplash() {
+    setState(() {
+      _showSplash = false;
+    });
   }
 
   @override
@@ -78,6 +87,11 @@ class _AuthGateState extends ConsumerState<AuthGate>
   @override
   Widget build(BuildContext context) {
     final session = ref.watch(authSessionProvider);
+
+    // Show splash screen on app startup
+    if (_showSplash) {
+      return SplashScreen(onNavigateToLogin: _navigateFromSplash);
+    }
 
     // If app requires PIN on open and no active session, show login
     if (session == null) {

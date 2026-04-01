@@ -1,8 +1,12 @@
 import 'package:flutter/material.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 import '../providers/auth_provider.dart';
+import '../providers/security_questions_provider.dart';
 import '../settings_providers.dart';
 import '../widgets/pin_numpad.dart';
+import '../models/security_question_models.dart';
+import '../screens/forgot_pin_verification_screen.dart';
+import '../screens/reset_pin_screen.dart';
 
 class LoginScreen extends ConsumerStatefulWidget {
   final Function(String role) onLoginSuccess;
@@ -21,6 +25,14 @@ class _LoginScreenState extends ConsumerState<LoginScreen>
   bool _isShaking = false;
   late AnimationController _lockoutController;
   var _lockoutCountdown = 0;
+
+  // Forgot PIN flow state
+  bool _isInForgotPinFlow = false;
+  bool _isLoadingForgotPin = false;
+  String? _forgotPinRole;
+  List<SecurityQuestion>? _forgotPinQuestions;
+  bool _isInVerificationStep = false;
+  bool _isInResetStep = false;
 
   @override
   void initState() {
@@ -154,10 +166,115 @@ class _LoginScreenState extends ConsumerState<LoginScreen>
     });
   }
 
+  Future<void> _startForgotPinFlow() async {
+    if (_selectedRole == null) {
+      _showError('Please select a role first to recover PIN');
+      return;
+    }
+
+    setState(() {
+      _isLoadingForgotPin = true;
+      _errorMessage = '';
+    });
+
+    try {
+      final questions = await ref.read(
+        forgotPinQuestionsByRoleProvider(_selectedRole!).future,
+      );
+
+      if (questions.isEmpty) {
+        _showError(
+          'No security questions found for this role. Configure security questions first.',
+        );
+        return;
+      }
+
+      setState(() {
+        _forgotPinRole = _selectedRole;
+        _forgotPinQuestions = questions;
+        _isInForgotPinFlow = true;
+        _isInVerificationStep = true;
+        _isInResetStep = false;
+      });
+    } catch (_) {
+      _showError('Unable to load security questions. Please try again.');
+    } finally {
+      if (mounted) {
+        setState(() {
+          _isLoadingForgotPin = false;
+        });
+      }
+    }
+  }
+
+  void _exitForgotPinFlow() {
+    setState(() {
+      _isInForgotPinFlow = false;
+      _forgotPinRole = null;
+      _forgotPinQuestions = null;
+      _isInVerificationStep = false;
+      _isInResetStep = false;
+    });
+  }
+
+  void _handleVerificationComplete(bool allCorrect) {
+    if (allCorrect) {
+      setState(() {
+        _isInVerificationStep = false;
+        _isInResetStep = true;
+      });
+    }
+  }
+
+  void _handleResetComplete() {
+    _exitForgotPinFlow();
+    ScaffoldMessenger.of(context).showSnackBar(
+      SnackBar(
+        content: const Text(
+          'PIN reset successfully! Please login with your new PIN.',
+        ),
+        backgroundColor: Colors.green.shade600,
+      ),
+    );
+  }
+
   @override
   Widget build(BuildContext context) {
     final attempt = ref.watch(pinAttemptProvider);
 
+    if (_isLoadingForgotPin) {
+      return const Scaffold(
+        body: Center(
+          child: Column(
+            mainAxisSize: MainAxisSize.min,
+            children: [
+              CircularProgressIndicator(),
+              SizedBox(height: 12),
+              Text('Loading security questions...'),
+            ],
+          ),
+        ),
+      );
+    }
+
+    // Show forgot PIN flow
+    if (_isInForgotPinFlow) {
+      if (_isInVerificationStep && _forgotPinQuestions != null) {
+        return ForgotPinVerificationScreen(
+          role: _forgotPinRole ?? 'user',
+          questions: _forgotPinQuestions!,
+          onVerificationComplete: _handleVerificationComplete,
+          onBackPressed: _exitForgotPinFlow,
+        );
+      } else if (_isInResetStep) {
+        return ResetPinScreen(
+          role: _forgotPinRole ?? 'user',
+          onResetComplete: _handleResetComplete,
+        );
+      }
+    }
+
+    // Show normal login flow
     return Scaffold(
       appBar: AppBar(
         title: const Text('Login'),
@@ -234,6 +351,18 @@ class _LoginScreenState extends ConsumerState<LoginScreen>
                       ),
                     ),
                   ),
+                const SizedBox(height: 20),
+                // Forgot PIN Button
+                Center(
+                  child: TextButton.icon(
+                    onPressed: _startForgotPinFlow,
+                    icon: const Icon(Icons.help_outline),
+                    label: const Text('Forgot PIN?'),
+                    style: TextButton.styleFrom(
+                      foregroundColor: Colors.blue.shade600,
+                    ),
+                  ),
+                ),
                 const SizedBox(height: 24),
                 // Back button
                 SizedBox(

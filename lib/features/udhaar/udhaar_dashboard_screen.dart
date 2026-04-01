@@ -159,21 +159,21 @@ class _UdhaarDashboardScreenState extends ConsumerState<UdhaarDashboardScreen> {
                   ),
                 ),
                 const SizedBox(height: 8),
-                // ignore: deprecated_member_use
-                RadioListTile<String>(
-                  dense: true,
-                  title: const Text('નિયમિત ગ્રાહક'),
-                  value: 'regular',
-                  groupValue: accountType,
-                  onChanged: (v) => setDlgState(() => accountType = v!),
-                ),
-                // ignore: deprecated_member_use
-                RadioListTile<String>(
-                  dense: true,
-                  title: const Text('👤 વૉક-ઇન ગ્રાહક (નવો)'),
-                  value: 'walkin',
-                  groupValue: accountType,
-                  onChanged: (v) => setDlgState(() => accountType = v!),
+                SegmentedButton<String>(
+                  segments: const [
+                    ButtonSegment<String>(
+                      value: 'regular',
+                      label: Text('નિયમિત ગ્રાહક'),
+                    ),
+                    ButtonSegment<String>(
+                      value: 'walkin',
+                      label: Text('👤 વૉક-ઇન ગ્રાહક (નવો)'),
+                    ),
+                  ],
+                  selected: {accountType},
+                  onSelectionChanged: (selection) {
+                    setDlgState(() => accountType = selection.first);
+                  },
                 ),
               ],
             ),

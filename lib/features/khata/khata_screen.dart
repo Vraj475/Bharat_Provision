@@ -3,6 +3,9 @@ import 'package:flutter_riverpod/flutter_riverpod.dart';
 
 import '../../core/utils/currency_format.dart';
 import '../../data/providers.dart';
+import '../billing/bill_detail_screen.dart';
+import '../expenses/add_expense_screen.dart';
+import '../udhaar/customer_ledger_screen.dart';
 
 class KhataScreen extends ConsumerStatefulWidget {
   const KhataScreen({super.key});
@@ -203,11 +206,60 @@ class _KhataScreenState extends ConsumerState<KhataScreen>
     }).toList();
   }
 
-  void _openEntrySource(KhataEntry entry) {
-    // TODO: Navigate to bill, expense, or payment detail
-    ScaffoldMessenger.of(
-      context,
-    ).showSnackBar(SnackBar(content: Text('Open ${entry.reference}')));
+  void _openEntrySource(KhataEntry entry) async {
+    switch (entry.source) {
+      case 'bill':
+        await Navigator.push(
+          context,
+          MaterialPageRoute(
+            builder: (_) => BillDetailScreen(billId: entry.sourceId),
+          ),
+        );
+        return;
+      case 'expense':
+        final repo = await ref.read(expenseRepositoryProvider.future);
+        final expense = await repo.getExpenseById(entry.sourceId);
+        if (!mounted) return;
+        if (expense == null) {
+          ScaffoldMessenger.of(context).showSnackBar(
+            const SnackBar(content: Text('Expense detail not found')),
+          );
+          return;
+        }
+        await Navigator.push(
+          context,
+          MaterialPageRoute(builder: (_) => AddExpenseScreen(expense: expense)),
+        );
+        return;
+      case 'payment':
+        final db = await ref.read(databaseProvider.future);
+        final rows = await db.query(
+          'udhaar_payments',
+          columns: ['customer_id'],
+          where: 'id = ?',
+          whereArgs: [entry.sourceId],
+          limit: 1,
+        );
+        if (!mounted) return;
+        if (rows.isEmpty) {
+          ScaffoldMessenger.of(context).showSnackBar(
+            const SnackBar(content: Text('Payment detail not found')),
+          );
+          return;
+        }
+        final customerId = rows.first['customer_id'] as int;
+        await Navigator.push(
+          context,
+          MaterialPageRoute(
+            builder: (_) => CustomerLedgerScreen(customerId: customerId),
+          ),
+        );
+        return;
+      default:
+        ScaffoldMessenger.of(context).showSnackBar(
+          SnackBar(content: Text('Open ${entry.reference}')),
+        );
+    }
   }
 
   Future<List<KhataEntry>> _getCreditEntries() async {

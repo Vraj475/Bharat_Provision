@@ -1,6 +1,10 @@
+import 'dart:typed_data';
+import 'dart:ui' as ui;
+
+import 'package:blue_thermal_printer/blue_thermal_printer.dart';
 import 'package:flutter/material.dart';
+import 'package:flutter/rendering.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
-// import 'package:print_bluetooth_thermal/print_bluetooth_thermal.dart'; // TODO: Add to pubspec.yaml
 
 import '../../core/constants/app_strings.dart' as strings;
 import '../../core/errors/error_handler.dart';
@@ -28,15 +32,14 @@ class BillingHomeScreen extends ConsumerStatefulWidget {
 }
 
 class _BillingHomeScreenState extends ConsumerState<BillingHomeScreen> {
+  final _billBoundaryKey = GlobalKey();
+  final BlueThermalPrinter _bluePrinter = BlueThermalPrinter.instance;
   final _searchController = TextEditingController();
   final List<BillLineItem> _billLines = [];
   double _discount = 0;
   String? _bannerMessage;
   String? _customerName;
   String? _shopName;
-  String? _shopAddress;
-  String? _shopPhone;
-  String? _shopGstin;
   bool _lowStockPopupShown = false;
 
   @override
@@ -53,15 +56,9 @@ class _BillingHomeScreenState extends ConsumerState<BillingHomeScreen> {
   Future<void> _loadShopProfileFromSettings() async {
     final repo = await ref.read(settingsRepositoryFutureProvider.future);
     final savedShopName = (await repo.get('shop_name')).trim();
-    final savedShopAddress = (await repo.get('shop_address')).trim();
-    final savedShopPhone = (await repo.get('shop_phone')).trim();
-    final savedShopGstin = (await repo.get('gstin')).trim();
     if (!mounted) return;
     setState(() {
       _shopName = savedShopName.isEmpty ? null : savedShopName;
-      _shopAddress = savedShopAddress.isEmpty ? null : savedShopAddress;
-      _shopPhone = savedShopPhone.isEmpty ? null : savedShopPhone;
-      _shopGstin = savedShopGstin.isEmpty ? null : savedShopGstin;
     });
   }
 
@@ -143,6 +140,7 @@ class _BillingHomeScreenState extends ConsumerState<BillingHomeScreen> {
                 ref.invalidate(settingsValuesProvider);
               }
 
+              if (!ctx.mounted) return;
               Navigator.of(ctx).pop();
             },
             child: const Text(strings.AppStrings.saveButton),
@@ -241,6 +239,7 @@ class _BillingHomeScreenState extends ConsumerState<BillingHomeScreen> {
     String mode = 'amount';
     bool itemAdded = false;
 
+    if (!mounted) return;
     await showDialog<void>(
       context: context,
       builder: (ctx) {
@@ -427,34 +426,30 @@ class _BillingHomeScreenState extends ConsumerState<BillingHomeScreen> {
       return;
     }
     try {
-      final billText = _generateBillText();
-      // TODO: Integrate with print_bluetooth_thermal package
-      // For now, show bill in a dialog
-      await showDialog<void>(
-        context: context,
-        builder: (ctx) => AlertDialog(
-          title: const Text('બિલ ટેક્સ્ટ'),
-          content: SingleChildScrollView(
-            child: Text(
-              billText,
-              style: const TextStyle(fontFamily: 'monospace'),
-            ),
-          ),
-          actions: [
-            TextButton(
-              onPressed: () => Navigator.of(ctx).pop(),
-              child: const Text('બંધ કરો'),
-            ),
-          ],
-        ),
-      );
+      final connected = await _bluePrinter.isConnected ?? false;
+      if (!connected) {
+        if (!mounted) return;
+        ErrorDialogue.showSnackbar(
+          context,
+          message: 'પ્રિન્ટર કનેક્ટ નથી. Bluetooth તપાસો.',
+          code: 'PRINT_001',
+          type: ErrorDialogueType.error,
+        );
+        return;
+      }
+
+      final billImageBytes = await _captureBillImageBytes();
+      if (billImageBytes == null) {
+        throw StateError('PRINT_003');
+      }
+
+      await _bluePrinter.writeBytes(billImageBytes);
       if (!mounted) return;
       ScaffoldMessenger.of(context).showSnackBar(
-        const SnackBar(
-          content: Text('બિલ તૈયાર! (Bluetooth print pending integration)'),
-        ),
+        const SnackBar(content: Text('બિલ સફળતાથી પ્રિન્ટ થયું')),
       );
-      // Automatically save bill after printing
+
+      // Save bill after successful print dispatch.
       await _saveBillAfterPrint();
     } catch (e) {
       if (!mounted) return;
@@ -462,6 +457,16 @@ class _BillingHomeScreenState extends ConsumerState<BillingHomeScreen> {
         context,
       ).showSnackBar(SnackBar(content: Text('ભૂલ: $e')));
     }
+  }
+
+  Future<Uint8List?> _captureBillImageBytes() async {
+    final boundary = _billBoundaryKey.currentContext?.findRenderObject()
+        as RenderRepaintBoundary?;
+    if (boundary == null) return null;
+
+    final ui.Image image = await boundary.toImage(pixelRatio: 2.0);
+    final byteData = await image.toByteData(format: ui.ImageByteFormat.png);
+    return byteData?.buffer.asUint8List();
   }
 
   Future<void> _saveBillAfterPrint() async {
@@ -531,52 +536,6 @@ class _BillingHomeScreenState extends ConsumerState<BillingHomeScreen> {
       return line.qtyGrams;
     }
     return line.qtyGrams;
-  }
-
-  String _generateBillText() {
-    StringBuffer buffer = StringBuffer();
-    if (_shopName != null && _shopName!.isNotEmpty) {
-      buffer.writeln('===============================');
-      buffer.writeln(_shopName!.toUpperCase());
-      buffer.writeln('===============================');
-    } else {
-      buffer.writeln('===============================');
-      buffer.writeln('            બિલ');
-      buffer.writeln('===============================');
-    }
-    if (_shopAddress != null && _shopAddress!.isNotEmpty) {
-      buffer.writeln('સરનામું: $_shopAddress');
-    }
-    if (_shopPhone != null && _shopPhone!.isNotEmpty) {
-      buffer.writeln('ફોન: $_shopPhone');
-    }
-    if (_shopGstin != null && _shopGstin!.isNotEmpty) {
-      buffer.writeln('GSTIN: $_shopGstin');
-    }
-    if ((_shopAddress != null && _shopAddress!.isNotEmpty) ||
-        (_shopPhone != null && _shopPhone!.isNotEmpty) ||
-        (_shopGstin != null && _shopGstin!.isNotEmpty)) {
-      buffer.writeln('-------------------------------');
-    }
-    if (_customerName != null && _customerName!.isNotEmpty) {
-      buffer.writeln('ગ્રાહક: $_customerName');
-      buffer.writeln('-------------------------------');
-    }
-    buffer.writeln('');
-    for (var line in _billLines) {
-      buffer.writeln(line.item.nameGu);
-      buffer.writeln(
-        '  ${WeightCalculator.formatWeight(line.qtyGrams)}  ${formatCurrency(line.amount)}',
-      );
-    }
-    buffer.writeln('\n-------------------------------');
-    buffer.writeln('કુલ: ${formatCurrency(_subtotal)}');
-    if (_discount > 0) buffer.writeln('ડિસ્ક: -${formatCurrency(_discount)}');
-    buffer.writeln('-------------------------------');
-    buffer.writeln('દેય: ${formatCurrency(_total)}');
-    buffer.writeln('===============================');
-    buffer.writeln('ધન્યવાદ!');
-    return buffer.toString();
   }
 
   @override
@@ -652,7 +611,13 @@ class _BillingHomeScreenState extends ConsumerState<BillingHomeScreen> {
       children: [
         Expanded(flex: 2, child: _buildProductPanel()),
         const VerticalDivider(width: 1),
-        Expanded(flex: 3, child: _buildBillPanel()),
+        Expanded(
+          flex: 3,
+          child: RepaintBoundary(
+            key: _billBoundaryKey,
+            child: _buildBillPanel(),
+          ),
+        ),
       ],
     );
   }
@@ -662,7 +627,13 @@ class _BillingHomeScreenState extends ConsumerState<BillingHomeScreen> {
       children: [
         Expanded(flex: 2, child: _buildProductPanel()),
         const Divider(height: 1),
-        Expanded(flex: 3, child: _buildBillPanel()),
+        Expanded(
+          flex: 3,
+          child: RepaintBoundary(
+            key: _billBoundaryKey,
+            child: _buildBillPanel(),
+          ),
+        ),
       ],
     );
   }

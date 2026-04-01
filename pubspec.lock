@@ -17,6 +17,14 @@ packages:
       url: "https://pub.dev"
     source: hosted
     version: "2.13.0"
+  blue_thermal_printer:
+    dependency: "direct main"
+    description:
+      name: blue_thermal_printer
+      sha256: "2b8a93f90be335494d2172dbc869c31b95638087f89591b4ad69fd9305eaf80b"
+      url: "https://pub.dev"
+    source: hosted
+    version: "1.2.3"
   boolean_selector:
     dependency: transitive
     description:
@@ -566,7 +574,7 @@ packages:
     source: hosted
     version: "2.4.2+2"
   sqflite_common:
-    dependency: transitive
+    dependency: "direct main"
     description:
       name: sqflite_common
       sha256: "6ef422a4525ecc601db6c0a2233ff448c731307906e92cabc9ba292afaae16a6"

@@ -2,6 +2,7 @@ import 'package:flutter/material.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 import '../providers/auth_provider.dart';
 import '../settings_providers.dart';
+import '../../../data/providers.dart';
 import 'pin_verification_screen.dart';
 
 class SuperadminPanelScreen extends ConsumerStatefulWidget {
@@ -222,11 +223,12 @@ class _ModuleToggle extends ConsumerWidget {
           Switch(
             value: value,
             onChanged: (newValue) async {
-              // TODO: Save to repository
+              final repo = await ref.read(settingsRepositoryFutureProvider.future);
+              await repo.setBool(module, newValue);
+              ref.invalidate(moduleSettingsProvider);
+              if (!context.mounted) return;
               ScaffoldMessenger.of(context).showSnackBar(
-                SnackBar(
-                  content: Text('$label ${newValue ? 'enabled' : 'disabled'}'),
-                ),
+                const SnackBar(content: Text('સેટિંગ સેવ થયું')),
               );
             },
           ),
@@ -297,11 +299,54 @@ class _UserManagerTab extends ConsumerWidget {
                 child: SizedBox(
                   width: double.infinity,
                   child: ElevatedButton(
-                    onPressed: () {
-                      // TODO: Show last login times
-                      ScaffoldMessenger.of(context).showSnackBar(
-                        const SnackBar(
-                          content: Text('Last login info - Coming soon'),
+                    onPressed: () async {
+                      final db = await ref.read(databaseProvider.future);
+                      final columns = await db.rawQuery('PRAGMA table_info(users)');
+                      final hasLastLogin = columns.any(
+                        (c) => (c['name'] as String?) == 'last_login',
+                      );
+
+                      final rows = await db.query('users');
+                      String formatValue(dynamic raw) {
+                        if (!hasLastLogin || raw == null) return 'N/A';
+                        if (raw is int) {
+                          final dt = DateTime.fromMillisecondsSinceEpoch(raw);
+                          return '${dt.day.toString().padLeft(2, '0')}/${dt.month.toString().padLeft(2, '0')}/${dt.year} ${dt.hour.toString().padLeft(2, '0')}:${dt.minute.toString().padLeft(2, '0')}';
+                        }
+                        final text = raw.toString();
+                        final parsed = DateTime.tryParse(text);
+                        if (parsed == null) return text;
+                        return '${parsed.day.toString().padLeft(2, '0')}/${parsed.month.toString().padLeft(2, '0')}/${parsed.year} ${parsed.hour.toString().padLeft(2, '0')}:${parsed.minute.toString().padLeft(2, '0')}';
+                      }
+
+                      String roleLastLogin(String role) {
+                        final row = rows.firstWhere(
+                          (r) => (r['role'] as String?) == role,
+                          orElse: () => <String, Object?>{},
+                        );
+                        return formatValue(row['last_login']);
+                      }
+
+                      if (!context.mounted) return;
+                      await showDialog<void>(
+                        context: context,
+                        builder: (ctx) => AlertDialog(
+                          title: const Text('છેલ્લો લોગિન સમય'),
+                          content: Column(
+                            mainAxisSize: MainAxisSize.min,
+                            crossAxisAlignment: CrossAxisAlignment.start,
+                            children: [
+                              Text('Superadmin: ${roleLastLogin('superadmin')}'),
+                              Text('Admin: ${roleLastLogin('admin')}'),
+                              Text('Employee: ${roleLastLogin('employee')}'),
+                            ],
+                          ),
+                          actions: [
+                            TextButton(
+                              onPressed: () => Navigator.of(ctx).pop(),
+                              child: const Text('બંધ કરો'),
+                            ),
+                          ],
                         ),
                       );
                     },
@@ -328,6 +373,7 @@ class _ShopConfigTabState extends ConsumerState<_ShopConfigTab> {
   late TextEditingController _addressController;
   late TextEditingController _phoneController;
   late TextEditingController _notesController;
+  String _wipeConfirmationText = '';
 
   @override
   void initState() {
@@ -416,10 +462,18 @@ class _ShopConfigTabState extends ConsumerState<_ShopConfigTab> {
                     SizedBox(
                       width: double.infinity,
                       child: ElevatedButton(
-                        onPressed: () {
-                          // TODO: Save to repository
+                        onPressed: () async {
+                          final repo = await ref.read(
+                            settingsRepositoryFutureProvider.future,
+                          );
+                          await repo.set('shop_name', _shopNameController.text.trim());
+                          await repo.set('shop_address', _addressController.text.trim());
+                          await repo.set('shop_phone', _phoneController.text.trim());
+                          await repo.set('license_notes', _notesController.text.trim());
+                          ref.invalidate(settingsValuesProvider);
+                          if (!context.mounted) return;
                           ScaffoldMessenger.of(context).showSnackBar(
-                            const SnackBar(content: Text('Shop config saved')),
+                            const SnackBar(content: Text('સેટિંગ સેવ થયું')),
                           );
                         },
                         child: const Text('Save Configuration'),
@@ -466,7 +520,7 @@ class _ShopConfigTabState extends ConsumerState<_ShopConfigTab> {
                         border: OutlineInputBorder(),
                       ),
                       onChanged: (value) {
-                        // TODO: Handle confirmation
+                        setState(() => _wipeConfirmationText = value.trim());
                       },
                     ),
                     const SizedBox(height: 12),
@@ -476,12 +530,35 @@ class _ShopConfigTabState extends ConsumerState<_ShopConfigTab> {
                         style: ElevatedButton.styleFrom(
                           backgroundColor: Colors.red,
                         ),
-                        onPressed: () {
-                          // TODO: Implement wipe with PIN confirmation
+                        onPressed: () async {
+                          if (_wipeConfirmationText != 'RESET') {
+                            ScaffoldMessenger.of(context).showSnackBar(
+                              const SnackBar(content: Text('પહેલા RESET લખો')),
+                            );
+                            return;
+                          }
+
+                          final resetConfirmed = await _showResetWordDialog();
+                          if (!resetConfirmed || !context.mounted) return;
+
+                          final pinOk = await _showSuperadminPinDialog();
+                          if (!pinOk || !context.mounted) return;
+
+                          final db = await ref.read(databaseProvider.future);
+                          await db.transaction((txn) async {
+                            await txn.execute('PRAGMA foreign_keys = OFF');
+                            final tables = await txn.rawQuery("SELECT name FROM sqlite_master WHERE type = 'table' AND name NOT LIKE 'sqlite_%'");
+                            for (final t in tables) {
+                              final name = t['name'] as String;
+                              if (name == 'users' || name == 'settings') continue;
+                              await txn.delete(name);
+                            }
+                            await txn.execute('PRAGMA foreign_keys = ON');
+                          });
+
+                          if (!context.mounted) return;
                           ScaffoldMessenger.of(context).showSnackBar(
-                            const SnackBar(
-                              content: Text('Wipe functionality - Coming soon'),
-                            ),
+                            const SnackBar(content: Text('ડેટા સાફ થઈ ગયો')),
                           );
                         },
                         child: const Text('Wipe All Data and Reset'),
@@ -497,5 +574,67 @@ class _ShopConfigTabState extends ConsumerState<_ShopConfigTab> {
       loading: () => const Center(child: CircularProgressIndicator()),
       error: (err, stack) => Center(child: Text('Error: $err')),
     );
+  }
+
+  Future<bool> _showResetWordDialog() async {
+    final controller = TextEditingController();
+    final ok = await showDialog<bool>(
+      context: context,
+      builder: (ctx) => AlertDialog(
+        title: const Text('ખાતરી કરો'),
+        content: TextField(
+          controller: controller,
+          decoration: const InputDecoration(
+            labelText: 'RESET લખો',
+            border: OutlineInputBorder(),
+          ),
+        ),
+        actions: [
+          TextButton(
+            onPressed: () => Navigator.of(ctx).pop(false),
+            child: const Text('રદ કરો'),
+          ),
+          ElevatedButton(
+            onPressed: () => Navigator.of(ctx).pop(controller.text.trim() == 'RESET'),
+            child: const Text('ખાતરી કરો'),
+          ),
+        ],
+      ),
+    );
+    return ok == true;
+  }
+
+  Future<bool> _showSuperadminPinDialog() async {
+    final controller = TextEditingController();
+    final confirmed = await showDialog<bool>(
+      context: context,
+      builder: (ctx) => AlertDialog(
+        title: const Text('Superadmin PIN દાખલ કરો'),
+        content: TextField(
+          controller: controller,
+          keyboardType: TextInputType.number,
+          obscureText: true,
+          maxLength: 6,
+          decoration: const InputDecoration(
+            labelText: '6-digit PIN',
+            border: OutlineInputBorder(),
+          ),
+        ),
+        actions: [
+          TextButton(
+            onPressed: () => Navigator.of(ctx).pop(false),
+            child: const Text('રદ કરો'),
+          ),
+          ElevatedButton(
+            onPressed: () => Navigator.of(ctx).pop(true),
+            child: const Text('ખાતરી કરો'),
+          ),
+        ],
+      ),
+    );
+
+    if (confirmed != true) return false;
+    final pinService = ref.read(pinStorageProvider);
+    return pinService.verifyPin('superadmin', controller.text.trim());
   }
 }

@@ -21,26 +21,42 @@ class PrimaryButton extends StatelessWidget {
 
   @override
   Widget build(BuildContext context) {
-    return SizedBox(
-      width: double.infinity,
-      height: minHeight,
-      child: ElevatedButton(
-        onPressed: onPressed,
-        style: ElevatedButton.styleFrom(
-          backgroundColor: isDestructive ? AppColors.alert : null,
-          foregroundColor: isDestructive ? Colors.white : null,
-        ),
-        child: icon != null
-            ? Row(
-                mainAxisAlignment: MainAxisAlignment.center,
-                children: [
-                  Icon(icon, size: 22),
-                  const SizedBox(width: 8),
-                  Text(label),
-                ],
-              )
-            : Text(label),
-      ),
+    return LayoutBuilder(
+      builder: (context, constraints) {
+        final button = ElevatedButton(
+          onPressed: onPressed,
+          style: ElevatedButton.styleFrom(
+            backgroundColor: isDestructive ? AppColors.alert : null,
+            foregroundColor: isDestructive ? Colors.white : null,
+          ),
+          child: icon != null
+              ? Row(
+                  mainAxisAlignment: MainAxisAlignment.center,
+                  mainAxisSize: MainAxisSize.min,
+                  children: [
+                    Icon(icon, size: 22),
+                    const SizedBox(width: 8),
+                    Flexible(
+                      child: Text(label, overflow: TextOverflow.ellipsis),
+                    ),
+                  ],
+                )
+              : Text(label, overflow: TextOverflow.ellipsis),
+        );
+
+        if (constraints.hasBoundedWidth) {
+          return SizedBox(
+            width: double.infinity,
+            height: minHeight,
+            child: button,
+          );
+        }
+
+        return ConstrainedBox(
+          constraints: BoxConstraints(minHeight: minHeight),
+          child: button,
+        );
+      },
     );
   }
 }

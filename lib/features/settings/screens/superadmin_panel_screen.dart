@@ -570,8 +570,9 @@ class _ShopConfigTabState extends ConsumerState<_ShopConfigTab> {
                             );
                             for (final t in tables) {
                               final name = t['name'] as String;
-                              if (name == 'users' || name == 'settings')
+                              if (name == 'users' || name == 'settings') {
                                 continue;
+                              }
                               await txn.delete(name);
                             }
                             await txn.execute('PRAGMA foreign_keys = ON');

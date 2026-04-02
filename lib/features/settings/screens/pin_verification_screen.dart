@@ -190,7 +190,7 @@ class _PinVerificationScreenState extends ConsumerState<PinVerificationScreen> {
 class ChangePinScreen extends ConsumerStatefulWidget {
   final String forRole; // own, employee, admin
 
-  const ChangePinScreen({required this.forRole, super.key});
+  const ChangePinScreen({this.forRole = 'own', super.key});
 
   @override
   ConsumerState<ChangePinScreen> createState() => _ChangePinScreenState();
@@ -203,7 +203,6 @@ class _ChangePinScreenState extends ConsumerState<ChangePinScreen> {
 
   bool _submitted = false;
   bool _isSaving = false;
-  String? _errorMessage;
 
   String? _targetRole() {
     final session = ref.read(authSessionProvider);
@@ -235,25 +234,27 @@ class _ChangePinScreenState extends ConsumerState<ChangePinScreen> {
 
     setState(() {
       _submitted = true;
-      _errorMessage = null;
     });
 
     if (!PinUtils.isValidPin(oldPin)) {
-      setState(() {
-        _errorMessage = 'Old PIN must be 4 digits.';
-      });
+      if (!mounted) return;
+      ScaffoldMessenger.of(context).showSnackBar(
+        const SnackBar(content: Text('Old PIN must be 4 digits.')),
+      );
       return;
     }
     if (!PinUtils.isValidPin(newPin)) {
-      setState(() {
-        _errorMessage = 'New PIN must be 4 digits.';
-      });
+      if (!mounted) return;
+      ScaffoldMessenger.of(context).showSnackBar(
+        const SnackBar(content: Text('New PIN must be 4 digits.')),
+      );
       return;
     }
     if (newPin != confirmPin) {
-      setState(() {
-        _errorMessage = 'New PIN and confirm PIN do not match.';
-      });
+      if (!mounted) return;
+      ScaffoldMessenger.of(context).showSnackBar(
+        const SnackBar(content: Text('New PIN and confirm PIN do not match.')),
+      );
       return;
     }
 
@@ -268,9 +269,11 @@ class _ChangePinScreenState extends ConsumerState<ChangePinScreen> {
       if (!oldPinValid) {
         if (!mounted) return;
         setState(() {
-          _errorMessage = 'Old PIN is incorrect.';
           _isSaving = false;
         });
+        ScaffoldMessenger.of(
+          context,
+        ).showSnackBar(const SnackBar(content: Text('Old PIN is incorrect.')));
         return;
       }
 
@@ -284,9 +287,13 @@ class _ChangePinScreenState extends ConsumerState<ChangePinScreen> {
     } catch (_) {
       if (!mounted) return;
       setState(() {
-        _errorMessage = 'Unable to change PIN right now. Please try again.';
         _isSaving = false;
       });
+      ScaffoldMessenger.of(context).showSnackBar(
+        const SnackBar(
+          content: Text('Unable to change PIN right now. Please try again.'),
+        ),
+      );
     }
   }
 
@@ -358,17 +365,6 @@ class _ChangePinScreenState extends ConsumerState<ChangePinScreen> {
                               hintText: 'Re-enter new PIN',
                               submitted: _submitted,
                             ),
-                            if (_submitted && _errorMessage != null) ...[
-                              const SizedBox(height: 12),
-                              Text(
-                                _errorMessage!,
-                                style: const TextStyle(
-                                  color: Colors.red,
-                                  fontWeight: FontWeight.w600,
-                                ),
-                                textAlign: TextAlign.center,
-                              ),
-                            ],
                             const SizedBox(height: 18),
                             ElevatedButton(
                               onPressed: _isSaving ? null : _changePin,

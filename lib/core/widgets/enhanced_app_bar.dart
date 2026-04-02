@@ -5,7 +5,7 @@ import '../localization/app_strings.dart';
 import '../theme/role_theme.dart';
 import '../../features/settings/providers/auth_provider.dart';
 
-/// Enhanced AppBar widget that includes logout button and role-aware styling
+/// Enhanced AppBar widget with role-aware styling.
 class EnhancedAppBar extends ConsumerWidget implements PreferredSizeWidget {
   final String title;
   final List<Widget>? actions;
@@ -45,19 +45,10 @@ class EnhancedAppBar extends ConsumerWidget implements PreferredSizeWidget {
           padding: const EdgeInsets.only(right: 8.0),
           child: Center(
             child: Tooltip(
-              message: '$role લૉગ આઉટ કરો',
+              message: RoleThemeColors.displayName(role),
               child: PopupMenuButton<String>(
                 onSelected: (value) {
-                  if (value == 'logout') {
-                    ref.read(authSessionProvider.notifier).logout();
-                    if (onLogout != null) {
-                      onLogout!();
-                    } else {
-                      Navigator.of(
-                        context,
-                      ).pushNamedAndRemoveUntil('/login', (route) => false);
-                    }
-                  } else if (value == 'profile') {
+                  if (value == 'profile') {
                     ScaffoldMessenger.of(context).showSnackBar(
                       const SnackBar(content: Text('Profile - Coming soon')),
                     );
@@ -75,18 +66,6 @@ class EnhancedAppBar extends ConsumerWidget implements PreferredSizeWidget {
                           RoleThemeColors.displayName(role),
                           style: const TextStyle(fontSize: 12),
                         ),
-                      ],
-                    ),
-                  ),
-                  const PopupMenuDivider(),
-                  const PopupMenuItem<String>(
-                    value: 'logout',
-                    child: Row(
-                      mainAxisSize: MainAxisSize.min,
-                      children: [
-                        Icon(Icons.logout, size: 18),
-                        SizedBox(width: 12),
-                        Text(AppStrings.logout, style: TextStyle(fontSize: 12)),
                       ],
                     ),
                   ),

@@ -1,17 +1,13 @@
+import 'dart:async';
+
 import 'package:flutter_riverpod/flutter_riverpod.dart';
-import 'package:flutter_secure_storage/flutter_secure_storage.dart';
+import 'package:shared_preferences/shared_preferences.dart';
 import '../models/auth_models.dart';
 import '../services/pin_storage_service.dart';
 
-// Secure storage provider
-final secureStorageProvider = Provider<FlutterSecureStorage>((ref) {
-  return const FlutterSecureStorage();
-});
-
 // PIN storage service provider
 final pinStorageProvider = Provider<PinStorageService>((ref) {
-  final storage = ref.watch(secureStorageProvider);
-  return PinStorageService(storage);
+  return const PinStorageService();
 });
 
 // Current auth session provider (StateNotifier)
@@ -23,6 +19,11 @@ final authSessionProvider =
 class AuthSessionNotifier extends StateNotifier<AuthSession?> {
   AuthSessionNotifier() : super(null);
 
+  static const String _sessionRoleKey = 'auth_session_role';
+  static const String _sessionTimeoutKey = 'auth_session_timeout_minutes';
+  static const String _sessionRequirePinOnOpenKey =
+      'auth_session_require_pin_on_open';
+
   void setSession(
     String role, {
     int timeoutMinutes = 5,
@@ -33,6 +34,13 @@ class AuthSessionNotifier extends StateNotifier<AuthSession?> {
       loginTime: DateTime.now(),
       sessionTimeoutMinutes: timeoutMinutes,
       requirePinOnOpen: requirePinOnOpen,
+    );
+    unawaited(
+      _persistSessionMeta(
+        role: role,
+        timeoutMinutes: timeoutMinutes,
+        requirePinOnOpen: requirePinOnOpen,
+      ),
     );
   }
 
@@ -50,11 +58,36 @@ class AuthSessionNotifier extends StateNotifier<AuthSession?> {
 
   void logout() {
     state = null;
+    unawaited(_clearPersistedSessionMeta());
   }
 
   bool get isSessionExpired => state == null || state!.isExpired;
 
   bool get isSessionActive => !isSessionExpired;
+
+  Future<void> _persistSessionMeta({
+    required String role,
+    required int timeoutMinutes,
+    required bool requirePinOnOpen,
+  }) async {
+    try {
+      final prefs = await SharedPreferences.getInstance();
+      await prefs.setString(_sessionRoleKey, role);
+      await prefs.setInt(_sessionTimeoutKey, timeoutMinutes);
+      await prefs.setBool(_sessionRequirePinOnOpenKey, requirePinOnOpen);
+    } catch (_) {
+      return;
+    }
+  }
+
+  Future<void> _clearPersistedSessionMeta() async {
+    try {
+      final prefs = await SharedPreferences.getInstance();
+      await prefs.clear();
+    } catch (_) {
+      return;
+    }
+  }
 }
 
 // PIN attempt tracking provider (StateNotifier)

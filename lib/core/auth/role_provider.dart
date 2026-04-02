@@ -82,7 +82,7 @@ class RoleInfo {
           role: 'superadmin',
           displayName: 'Superadmin',
           displayNameGu: 'સુપર વ્યવસ્થાપક',
-          pinLength: 6,
+          pinLength: 4,
           isSuperAdmin: true,
         );
       case 'admin':

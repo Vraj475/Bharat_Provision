@@ -1,8 +1,8 @@
-import 'dart:io';
-
 import 'package:flutter/material.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 
+import 'logout_redirect_page.dart';
+import '../../features/settings/providers/auth_provider.dart';
 import '../auth/role_provider.dart';
 import '../localization/app_strings.dart';
 
@@ -22,8 +22,11 @@ class AppScaffold extends ConsumerWidget {
 
   @override
   Widget build(BuildContext context, WidgetRef ref) {
-    final role = ref.watch(currentRoleProvider);
+    final session = ref.watch(authSessionProvider);
+    final String role = session?.role ?? ref.watch(currentRoleProvider);
     final isAdmin = canAccessUdhaar(role);
+    final roleLabel = _roleLabel(role);
+    final screenWidth = MediaQuery.sizeOf(context).width;
 
     final items = [
       const _NavItem(AppStrings.navBilling, Icons.point_of_sale),
@@ -35,50 +38,87 @@ class AppScaffold extends ConsumerWidget {
     ];
 
     final effectiveIndex = currentIndex.clamp(0, items.length - 1);
-    final isDesktop = !Platform.isAndroid;
 
-    if (isDesktop) {
-      // Desktop: Side rail navigation
-      final screenWidth = MediaQuery.sizeOf(context).width;
+    if (screenWidth >= 900) {
       return Scaffold(
         body: Row(
           children: [
-            NavigationRail(
-              extended: screenWidth > 800,
-              minExtendedWidth: 160,
-              selectedIndex: effectiveIndex,
-              onDestinationSelected: onDestinationSelected,
-              destinations: items
-                  .map(
-                    (item) => NavigationRailDestination(
-                      icon: Icon(item.icon),
-                      label: Text(item.label),
-                    ),
-                  )
-                  .toList(),
+            SizedBox(
+              width: 280,
+              child: Drawer(
+                elevation: 0,
+                child: _SidebarContent(
+                  roleLabel: roleLabel,
+                  selectedIndex: effectiveIndex,
+                  items: items,
+                  onDestinationSelected: onDestinationSelected,
+                  onLogout: () => _logout(context, ref),
+                  isDrawerRoute: false,
+                ),
+              ),
             ),
-            const VerticalDivider(thickness: 1, width: 1),
+            const VerticalDivider(width: 1, thickness: 1),
             Expanded(child: child),
           ],
         ),
       );
     }
 
-    // Mobile: Bottom navigation
     return Scaffold(
-      body: child,
-      bottomNavigationBar: NavigationBar(
-        selectedIndex: effectiveIndex,
-        onDestinationSelected: onDestinationSelected,
-        destinations: items
-            .map(
-              (item) => NavigationDestination(
-                icon: Icon(item.icon),
-                label: item.label,
-              ),
-            )
-            .toList(),
+      drawer: Drawer(
+        child: _SidebarContent(
+          roleLabel: roleLabel,
+          selectedIndex: effectiveIndex,
+          items: items,
+          onDestinationSelected: onDestinationSelected,
+          onLogout: () => _logout(context, ref),
+          isDrawerRoute: true,
+        ),
       ),
+      body: Stack(
+        children: [
+          child,
+          SafeArea(
+            child: Padding(
+              padding: const EdgeInsets.all(12),
+              child: Align(
+                alignment: Alignment.topLeft,
+                child: Builder(
+                  builder: (menuContext) => Material(
+                    color: Theme.of(menuContext).colorScheme.surface,
+                    elevation: 3,
+                    shape: const CircleBorder(),
+                    child: IconButton(
+                      tooltip: 'Open menu',
+                      icon: const Icon(Icons.menu),
+                      onPressed: () => Scaffold.of(menuContext).openDrawer(),
+                    ),
+                  ),
+                ),
+              ),
+            ),
+          ),
+        ],
+      ),
+    );
+  }
+
+  static String _roleLabel(String role) {
+    switch (role) {
+      case 'superadmin':
+        return 'SuperAdmin';
+      case 'admin':
+        return 'Admin';
+      default:
+        return 'User';
+    }
+  }
+
+  static void _logout(BuildContext context, WidgetRef ref) {
+    ref.read(authSessionProvider.notifier).logout();
+    Navigator.of(context).pushAndRemoveUntil(
+      MaterialPageRoute(builder: (_) => const LogoutRedirectPage()),
+      (route) => route.isFirst,
     );
   }
 }
@@ -87,4 +127,81 @@ class _NavItem {
   const _NavItem(this.label, this.icon);
   final String label;
   final IconData icon;
+}
+
+class _SidebarContent extends StatelessWidget {
+  const _SidebarContent({
+    required this.roleLabel,
+    required this.selectedIndex,
+    required this.items,
+    required this.onDestinationSelected,
+    required this.onLogout,
+    required this.isDrawerRoute,
+  });
+
+  final String roleLabel;
+  final int selectedIndex;
+  final List<_NavItem> items;
+  final ValueChanged<int> onDestinationSelected;
+  final VoidCallback onLogout;
+  final bool isDrawerRoute;
+
+  @override
+  Widget build(BuildContext context) {
+    return SafeArea(
+      child: Padding(
+        padding: const EdgeInsets.all(12),
+        child: Column(
+          crossAxisAlignment: CrossAxisAlignment.stretch,
+          children: [
+            const SizedBox(height: 4),
+            Text(
+              AppStrings.appTitle,
+              style: Theme.of(
+                context,
+              ).textTheme.titleLarge?.copyWith(fontWeight: FontWeight.w800),
+            ),
+            const SizedBox(height: 12),
+            Expanded(
+              child: ListView.builder(
+                itemCount: items.length,
+                itemBuilder: (context, index) {
+                  final item = items[index];
+                  return ListTile(
+                    selected: index == selectedIndex,
+                    leading: Icon(item.icon),
+                    title: Text(item.label),
+                    onTap: () {
+                      if (isDrawerRoute) {
+                        Navigator.of(context).pop();
+                      }
+                      onDestinationSelected(index);
+                    },
+                  );
+                },
+              ),
+            ),
+            const Divider(),
+            Padding(
+              padding: const EdgeInsets.symmetric(horizontal: 12, vertical: 8),
+              child: Text(
+                'Logged in as: $roleLabel',
+                style: const TextStyle(fontWeight: FontWeight.bold),
+              ),
+            ),
+            ListTile(
+              leading: const Icon(Icons.logout),
+              title: const Text('Logout'),
+              onTap: () {
+                if (isDrawerRoute) {
+                  Navigator.of(context).pop();
+                }
+                onLogout();
+              },
+            ),
+          ],
+        ),
+      ),
+    );
+  }
 }

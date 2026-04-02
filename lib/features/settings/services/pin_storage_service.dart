@@ -1,18 +1,16 @@
-import 'package:flutter_secure_storage/flutter_secure_storage.dart';
 import 'package:flutter/foundation.dart';
+import 'package:shared_preferences/shared_preferences.dart';
 
 import '../utils/pin_utils.dart';
 
 /// Secure PIN storage using flutter_secure_storage
 class PinStorageService {
-  static const String defaultPin = '1234';
+  static const String defaultPin = '0000';
   static const String _superadminPinKey = 'pin_superadmin';
   static const String _adminPinKey = 'pin_admin';
   static const String _employeePinKey = 'pin_employee';
 
-  final FlutterSecureStorage _storage;
-
-  const PinStorageService(this._storage);
+  const PinStorageService();
 
   static const List<String> _supportedRoles = [
     'superadmin',
@@ -23,8 +21,8 @@ class PinStorageService {
   // Get stored PIN hash for a role
   Future<String?> getPinHash(String role) async {
     try {
-      final key = _getPinKey(role);
-      return await _storage.read(key: key);
+      final prefs = await SharedPreferences.getInstance();
+      return prefs.getString(_getPinKey(role));
     } catch (e, stack) {
       debugPrint('PinStorageService.getPinHash failed: $e');
       debugPrintStack(stackTrace: stack);
@@ -38,9 +36,8 @@ class PinStorageService {
       throw ArgumentError('PIN must be exactly ${PinUtils.pinLength} digits.');
     }
 
-    final key = _getPinKey(role);
-    final hash = PinUtils.hashPin(pin);
-    await _storage.write(key: key, value: hash);
+    final prefs = await SharedPreferences.getInstance();
+    await prefs.setString(_getPinKey(role), pin);
   }
 
   // Verify PIN for a role
@@ -50,9 +47,15 @@ class PinStorageService {
         return false;
       }
 
-      final storedHash = await getPinHash(role);
-      if (storedHash == null) return false;
-      return PinUtils.verifyPin(pin, storedHash);
+      final storedPin = await getPinHash(role);
+      debugPrint('Entered PIN: $pin');
+      debugPrint('Stored PIN: $storedPin');
+
+      if (storedPin == null || storedPin.isEmpty) {
+        return false;
+      }
+
+      return pin == storedPin;
     } catch (e, stack) {
       debugPrint('PinStorageService.verifyPin failed: $e');
       debugPrintStack(stackTrace: stack);
@@ -77,8 +80,8 @@ class PinStorageService {
 
   // Delete PIN for a role
   Future<void> deletePin(String role) async {
-    final key = _getPinKey(role);
-    await _storage.delete(key: key);
+    final prefs = await SharedPreferences.getInstance();
+    await prefs.remove(_getPinKey(role));
   }
 
   String _getPinKey(String role) {

@@ -491,46 +491,38 @@ class _SecuritySettingsTab extends ConsumerWidget {
               ],
             ),
             _SettingsSection(
-              title: 'PIN Management',
+              title: 'Security Settings',
               fields: [
-                _ActionSettingField(
-                  label: 'Change My PIN',
-                  onPressed: () {
+                ListTile(
+                  leading: const Icon(Icons.lock),
+                  title: const Text('Change PIN'),
+                  subtitle: const Text('Update your 4-digit login PIN'),
+                  trailing: const Icon(Icons.chevron_right_rounded),
+                  onTap: () {
                     Navigator.of(context).push(
                       MaterialPageRoute(
-                        builder: (context) =>
-                            const ChangePinScreen(forRole: 'own'),
+                        builder: (context) => const ChangePinScreen(),
                       ),
                     );
                   },
                 ),
-                _ActionSettingField(
-                  label: 'Change Employee PIN',
-                  onPressed: () {
-                    Navigator.of(context).push(
-                      MaterialPageRoute(
-                        builder: (context) =>
-                            const ChangePinScreen(forRole: 'employee'),
-                      ),
-                    );
-                  },
-                ),
-              ],
-            ),
-            _SettingsSection(
-              title: 'PIN Security',
-              fields: [
-                _ActionSettingField(
-                  label: 'Change PIN',
-                  onPressed: () {
-                    Navigator.of(context).push(
-                      MaterialPageRoute(
-                        builder: (context) =>
-                            const ChangePinScreen(forRole: 'own'),
-                      ),
-                    );
-                  },
-                ),
+                if (ref.watch(authSessionProvider)?.role == 'superadmin')
+                  ListTile(
+                    leading: const Icon(Icons.admin_panel_settings_outlined),
+                    title: const Text('Change Employee PIN'),
+                    subtitle: const Text(
+                      'Set employee PIN from security settings',
+                    ),
+                    trailing: const Icon(Icons.chevron_right_rounded),
+                    onTap: () {
+                      Navigator.of(context).push(
+                        MaterialPageRoute(
+                          builder: (context) =>
+                              const ChangePinScreen(forRole: 'employee'),
+                        ),
+                      );
+                    },
+                  ),
               ],
             ),
           ],
@@ -910,15 +902,14 @@ class _SettingsForm extends StatelessWidget {
 
   @override
   Widget build(BuildContext context) {
-    return ListView.builder(
+    return SingleChildScrollView(
       padding: const EdgeInsets.all(16),
-      itemCount: sections.length,
-      itemBuilder: (context, index) {
-        return Padding(
-          padding: const EdgeInsets.only(bottom: 24),
-          child: sections[index],
-        );
-      },
+      child: Column(
+        children: [
+          for (final section in sections)
+            Padding(padding: const EdgeInsets.only(bottom: 24), child: section),
+        ],
+      ),
     );
   }
 }
@@ -974,8 +965,11 @@ class _BoolSettingField extends StatelessWidget {
   Widget build(BuildContext context) {
     return Row(
       mainAxisAlignment: MainAxisAlignment.spaceBetween,
+      mainAxisSize: MainAxisSize.max,
       children: [
-        Text(label),
+        Expanded(
+          child: Text(label, softWrap: true, overflow: TextOverflow.ellipsis),
+        ),
         Switch(value: value, onChanged: onChanged),
       ],
     );

@@ -44,8 +44,11 @@ class _ExpenseAccountsManagerScreenState
             padding: const EdgeInsets.all(16),
             children: [
               // Header with action buttons
-              Row(
-                mainAxisAlignment: MainAxisAlignment.spaceBetween,
+              Wrap(
+                alignment: WrapAlignment.spaceBetween,
+                crossAxisAlignment: WrapCrossAlignment.center,
+                spacing: 12,
+                runSpacing: 8,
                 children: [
                   const Text(
                     'Expense Accounts',
@@ -80,7 +83,9 @@ class _ExpenseAccountsManagerScreenState
                         ref.invalidate(expenseAccountsProvider);
                         if (!context.mounted) return;
                         ScaffoldMessenger.of(context).showSnackBar(
-                          const SnackBar(content: Text('સફળતાપૂર્વક અપડેટ થયું')),
+                          const SnackBar(
+                            content: Text('સફળતાપૂર્વક અપડેટ થયું'),
+                          ),
                         );
                       } catch (e, st) {
                         if (!context.mounted) return;
@@ -203,7 +208,9 @@ class _ExpenseAccountsManagerScreenState
       context: context,
       builder: (context) => AlertDialog(
         title: const Text('ડિફૉલ્ટ પર રીસેટ કરવું?'),
-        content: const Text('બધા કસ્ટમ ખાતા દૂર કરીને 6 ડિફૉલ્ટ ખાતા ફરી બનાવાશે.'),
+        content: const Text(
+          'બધા કસ્ટમ ખાતા દૂર કરીને 6 ડિફૉલ્ટ ખાતા ફરી બનાવાશે.',
+        ),
         actions: [
           TextButton(
             onPressed: () => Navigator.of(context).pop(),
@@ -220,7 +227,9 @@ class _ExpenseAccountsManagerScreenState
                 if (!context.mounted) return;
                 Navigator.of(context).pop();
                 ScaffoldMessenger.of(context).showSnackBar(
-                  const SnackBar(content: Text('ડિફૉલ્ટ સફળતાપૂર્વક રીસેટ થયું')),
+                  const SnackBar(
+                    content: Text('ડિફૉલ્ટ સફળતાપૂર્વક રીસેટ થયું'),
+                  ),
                 );
               } catch (e, st) {
                 if (!context.mounted) return;

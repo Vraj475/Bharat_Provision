@@ -6,9 +6,7 @@ import '../utils/pin_utils.dart';
 /// Secure PIN storage using flutter_secure_storage
 class PinStorageService {
   static const String defaultPin = '0000';
-  static const String _superadminPinKey = 'pin_superadmin';
-  static const String _adminPinKey = 'pin_admin';
-  static const String _employeePinKey = 'pin_employee';
+  static const String _pinKey = 'user_pin';
 
   const PinStorageService();
 
@@ -22,7 +20,7 @@ class PinStorageService {
   Future<String?> getPinHash(String role) async {
     try {
       final prefs = await SharedPreferences.getInstance();
-      return prefs.getString(_getPinKey(role));
+      return prefs.getString(_pinKey);
     } catch (e, stack) {
       debugPrint('PinStorageService.getPinHash failed: $e');
       debugPrintStack(stackTrace: stack);
@@ -37,7 +35,7 @@ class PinStorageService {
     }
 
     final prefs = await SharedPreferences.getInstance();
-    await prefs.setString(_getPinKey(role), pin);
+    await prefs.setString(_pinKey, pin);
   }
 
   // Verify PIN for a role
@@ -81,19 +79,6 @@ class PinStorageService {
   // Delete PIN for a role
   Future<void> deletePin(String role) async {
     final prefs = await SharedPreferences.getInstance();
-    await prefs.remove(_getPinKey(role));
-  }
-
-  String _getPinKey(String role) {
-    switch (role) {
-      case 'superadmin':
-        return _superadminPinKey;
-      case 'admin':
-        return _adminPinKey;
-      case 'employee':
-        return _employeePinKey;
-      default:
-        throw ArgumentError('Invalid role: $role');
-    }
+    await prefs.remove(_pinKey);
   }
 }

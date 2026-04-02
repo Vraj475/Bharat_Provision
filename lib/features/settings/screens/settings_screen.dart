@@ -43,6 +43,7 @@ class _SettingsScreenState extends ConsumerState<SettingsScreen>
 
   @override
   Widget build(BuildContext context) {
+    debugPrint('Settings screen loaded');
     final session = ref.watch(authSessionProvider);
 
     // Check access - only Admin and Superadmin
@@ -451,6 +452,32 @@ class _SecuritySettingsTab extends ConsumerWidget {
 
     return securitySettings.when(
       data: (data) {
+        debugPrint('Change PIN tile rendered');
+        final changePinFooter = Column(
+          crossAxisAlignment: CrossAxisAlignment.start,
+          children: [
+            const SizedBox(height: 20),
+            const Text(
+              'Security Settings',
+              style: TextStyle(fontSize: 16, fontWeight: FontWeight.bold),
+            ),
+            const SizedBox(height: 10),
+            Card(
+              child: ListTile(
+                leading: const Icon(Icons.lock, color: Colors.green),
+                title: const Text('Change PIN'),
+                subtitle: const Text('Update your 4-digit PIN'),
+                trailing: const Icon(Icons.arrow_forward_ios, size: 16),
+                onTap: () {
+                  Navigator.push(
+                    context,
+                    MaterialPageRoute(builder: (_) => const ChangePinScreen()),
+                  );
+                },
+              ),
+            ),
+          ],
+        );
         return _SettingsForm(
           sections: [
             _SettingsSection(
@@ -493,19 +520,6 @@ class _SecuritySettingsTab extends ConsumerWidget {
             _SettingsSection(
               title: 'Security Settings',
               fields: [
-                ListTile(
-                  leading: const Icon(Icons.lock),
-                  title: const Text('Change PIN'),
-                  subtitle: const Text('Update your 4-digit login PIN'),
-                  trailing: const Icon(Icons.chevron_right_rounded),
-                  onTap: () {
-                    Navigator.of(context).push(
-                      MaterialPageRoute(
-                        builder: (context) => const ChangePinScreen(),
-                      ),
-                    );
-                  },
-                ),
                 if (ref.watch(authSessionProvider)?.role == 'superadmin')
                   ListTile(
                     leading: const Icon(Icons.admin_panel_settings_outlined),
@@ -526,6 +540,7 @@ class _SecuritySettingsTab extends ConsumerWidget {
               ],
             ),
           ],
+          footer: changePinFooter,
         );
       },
       loading: () => const Center(child: CircularProgressIndicator()),
@@ -897,17 +912,23 @@ class _SettingsActions {
 
 class _SettingsForm extends StatelessWidget {
   final List<_SettingsSection> sections;
+  final Widget? footer;
 
-  const _SettingsForm({required this.sections});
+  const _SettingsForm({required this.sections, this.footer});
 
   @override
   Widget build(BuildContext context) {
     return SingleChildScrollView(
       padding: const EdgeInsets.all(16),
       child: Column(
+        crossAxisAlignment: CrossAxisAlignment.start,
         children: [
           for (final section in sections)
             Padding(padding: const EdgeInsets.only(bottom: 24), child: section),
+          ...switch (footer) {
+            null => const <Widget>[],
+            final footerWidget => [footerWidget],
+          },
         ],
       ),
     );

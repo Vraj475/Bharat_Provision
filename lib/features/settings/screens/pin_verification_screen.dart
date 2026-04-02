@@ -1,8 +1,10 @@
 import 'package:flutter/material.dart';
 import 'package:flutter/services.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
+import 'package:shared_preferences/shared_preferences.dart';
 
 import '../providers/auth_provider.dart';
+import '../../../core/widgets/logout_redirect_page.dart';
 import '../utils/pin_utils.dart';
 
 /// PIN verification screen used for sensitive operations.
@@ -263,6 +265,8 @@ class _ChangePinScreenState extends ConsumerState<ChangePinScreen> {
     });
 
     try {
+      final messenger = ScaffoldMessenger.of(context);
+      final navigator = Navigator.of(context);
       final pinStorage = ref.read(pinStorageProvider);
       final oldPinValid = await pinStorage.verifyPin(role, oldPin);
 
@@ -271,19 +275,28 @@ class _ChangePinScreenState extends ConsumerState<ChangePinScreen> {
         setState(() {
           _isSaving = false;
         });
-        ScaffoldMessenger.of(
-          context,
-        ).showSnackBar(const SnackBar(content: Text('Old PIN is incorrect.')));
+        messenger.showSnackBar(
+          const SnackBar(content: Text('Old PIN is incorrect.')),
+        );
         return;
       }
 
       await pinStorage.setPinHash(role, newPin);
 
       if (!mounted) return;
-      ScaffoldMessenger.of(context).showSnackBar(
-        const SnackBar(content: Text('PIN changed successfully.')),
+      final prefs = await SharedPreferences.getInstance();
+      await prefs.remove('logged_in');
+      await prefs.remove('role');
+      ref.read(authSessionProvider.notifier).logout();
+      messenger.showSnackBar(
+        const SnackBar(
+          content: Text('PIN changed successfully. Please login again.'),
+        ),
       );
-      Navigator.of(context).pop();
+      navigator.pushAndRemoveUntil(
+        MaterialPageRoute(builder: (_) => const LogoutRedirectPage()),
+        (route) => route.isFirst,
+      );
     } catch (_) {
       if (!mounted) return;
       setState(() {

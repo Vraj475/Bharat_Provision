@@ -83,7 +83,11 @@ class AuthSessionNotifier extends StateNotifier<AuthSession?> {
   Future<void> _clearPersistedSessionMeta() async {
     try {
       final prefs = await SharedPreferences.getInstance();
-      await prefs.clear();
+      await prefs.remove(_sessionRoleKey);
+      await prefs.remove(_sessionTimeoutKey);
+      await prefs.remove(_sessionRequirePinOnOpenKey);
+      await prefs.remove('logged_in');
+      await prefs.remove('role');
     } catch (_) {
       return;
     }

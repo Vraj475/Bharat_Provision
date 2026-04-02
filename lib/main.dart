@@ -6,7 +6,6 @@ import 'package:flutter_riverpod/flutter_riverpod.dart';
 import 'package:sqflite_common_ffi/sqflite_ffi.dart';
 
 import 'core/errors/error_handler.dart';
-import 'core/errors/error_types.dart';
 import 'core/localization/app_strings.dart';
 import 'core/theme/app_theme.dart';
 import 'data/providers.dart';
@@ -33,15 +32,12 @@ void main() {
   }
 
   FlutterError.onError = (details) {
-    final appError = ErrorHandler.handle(
+    FlutterError.presentError(details);
+    ErrorHandler.handleSilently(
       details.exception,
       details.stack ?? StackTrace.current,
       context: 'FlutterError.onError',
     );
-
-    if (appError.isCritical) {
-      _showCriticalErrorOverlay(appError);
-    }
   };
 
   runZonedGuarded(
@@ -49,58 +45,9 @@ void main() {
       runApp(const ProviderScope(child: KiranaApp()));
     },
     (error, stack) {
-      final appError = ErrorHandler.handle(
-        error,
-        stack,
-        context: 'ZoneGuarded',
-      );
-      if (appError.isCritical) {
-        _showCriticalErrorOverlay(appError);
-      }
+      ErrorHandler.handleSilently(error, stack, context: 'ZoneGuarded');
     },
   );
-}
-
-void _showCriticalErrorOverlay(AppError appError) {
-  final context = _navigatorKey.currentContext;
-  if (context == null) return;
-
-  // Use the error dialog but prevent infinite loops.
-  ErrorHandler.handleSilently(
-    appError,
-    appError.stackTrace ?? StackTrace.current,
-    context: 'CriticalOverlay',
-  );
-
-  WidgetsBinding.instance.addPostFrameCallback((_) {
-    showDialog(
-      context: context,
-      barrierDismissible: false,
-      builder: (context) {
-        return AlertDialog(
-          title: const Text('⚠ સમસ્યા આવી'),
-          content: Column(
-            mainAxisSize: MainAxisSize.min,
-            crossAxisAlignment: CrossAxisAlignment.start,
-            children: [
-              Text(appError.userMessage),
-              const SizedBox(height: 12),
-              Text(
-                '[${appError.code}]',
-                style: const TextStyle(fontSize: 12, color: Colors.grey),
-              ),
-            ],
-          ),
-          actions: [
-            TextButton(
-              onPressed: () => Navigator.of(context).pop(),
-              child: const Text('ઠીક છે'),
-            ),
-          ],
-        );
-      },
-    );
-  });
 }
 
 class KiranaApp extends ConsumerStatefulWidget {

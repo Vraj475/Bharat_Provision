@@ -15,7 +15,7 @@ import '../settings_providers.dart';
 import 'superadmin_panel_screen.dart';
 import 'expense_accounts_manager_screen.dart';
 import 'transliteration_dictionary_screen.dart';
-import 'security_questions_setup_screen.dart';
+import 'pin_verification_screen.dart';
 import '../../../data/providers.dart';
 
 class SettingsScreen extends ConsumerStatefulWidget {
@@ -518,27 +518,17 @@ class _SecuritySettingsTab extends ConsumerWidget {
               ],
             ),
             _SettingsSection(
-              title: 'PIN પુનઃપ્રાપ્તિ',
+              title: 'PIN Security',
               fields: [
                 _ActionSettingField(
-                  label: 'સુરક્ષા પ્રશ્નો સેટ કરો',
+                  label: 'Change PIN',
                   onPressed: () {
-                    final session = ref.read(authSessionProvider);
-                    if (session != null) {
-                      Navigator.of(context)
-                          .push(
-                            MaterialPageRoute(
-                              builder: (context) =>
-                                  SecurityQuestionsSetupScreen(
-                                    role: session.role,
-                                  ),
-                            ),
-                          )
-                          .then((_) {
-                            // Refresh security settings after setup flow returns.
-                            ref.invalidate(securitySettingsProvider);
-                          });
-                    }
+                    Navigator.of(context).push(
+                      MaterialPageRoute(
+                        builder: (context) =>
+                            const ChangePinScreen(forRole: 'own'),
+                      ),
+                    );
                   },
                 ),
               ],
@@ -1095,21 +1085,6 @@ class _ActionSettingField extends StatelessWidget {
     return SizedBox(
       width: double.infinity,
       child: ElevatedButton(onPressed: onPressed, child: Text(label)),
-    );
-  }
-}
-
-// Stub screens for now - will implement later
-class ChangePinScreen extends StatelessWidget {
-  final String forRole;
-
-  const ChangePinScreen({required this.forRole, super.key});
-
-  @override
-  Widget build(BuildContext context) {
-    return Scaffold(
-      appBar: AppBar(title: const Text('Change PIN')),
-      body: const Center(child: Text('Change PIN - Coming Soon')),
     );
   }
 }

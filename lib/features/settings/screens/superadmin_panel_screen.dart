@@ -223,13 +223,15 @@ class _ModuleToggle extends ConsumerWidget {
           Switch(
             value: value,
             onChanged: (newValue) async {
-              final repo = await ref.read(settingsRepositoryFutureProvider.future);
+              final repo = await ref.read(
+                settingsRepositoryFutureProvider.future,
+              );
               await repo.setBool(module, newValue);
               ref.invalidate(moduleSettingsProvider);
               if (!context.mounted) return;
-              ScaffoldMessenger.of(context).showSnackBar(
-                const SnackBar(content: Text('સેટિંગ સેવ થયું')),
-              );
+              ScaffoldMessenger.of(
+                context,
+              ).showSnackBar(const SnackBar(content: Text('સેટિંગ સેવ થયું')));
             },
           ),
         ],
@@ -301,7 +303,9 @@ class _UserManagerTab extends ConsumerWidget {
                   child: ElevatedButton(
                     onPressed: () async {
                       final db = await ref.read(databaseProvider.future);
-                      final columns = await db.rawQuery('PRAGMA table_info(users)');
+                      final columns = await db.rawQuery(
+                        'PRAGMA table_info(users)',
+                      );
                       final hasLastLogin = columns.any(
                         (c) => (c['name'] as String?) == 'last_login',
                       );
@@ -336,7 +340,9 @@ class _UserManagerTab extends ConsumerWidget {
                             mainAxisSize: MainAxisSize.min,
                             crossAxisAlignment: CrossAxisAlignment.start,
                             children: [
-                              Text('Superadmin: ${roleLastLogin('superadmin')}'),
+                              Text(
+                                'Superadmin: ${roleLastLogin('superadmin')}',
+                              ),
                               Text('Admin: ${roleLastLogin('admin')}'),
                               Text('Employee: ${roleLastLogin('employee')}'),
                             ],
@@ -466,10 +472,22 @@ class _ShopConfigTabState extends ConsumerState<_ShopConfigTab> {
                           final repo = await ref.read(
                             settingsRepositoryFutureProvider.future,
                           );
-                          await repo.set('shop_name', _shopNameController.text.trim());
-                          await repo.set('shop_address', _addressController.text.trim());
-                          await repo.set('shop_phone', _phoneController.text.trim());
-                          await repo.set('license_notes', _notesController.text.trim());
+                          await repo.set(
+                            'shop_name',
+                            _shopNameController.text.trim(),
+                          );
+                          await repo.set(
+                            'shop_address',
+                            _addressController.text.trim(),
+                          );
+                          await repo.set(
+                            'shop_phone',
+                            _phoneController.text.trim(),
+                          );
+                          await repo.set(
+                            'license_notes',
+                            _notesController.text.trim(),
+                          );
                           ref.invalidate(settingsValuesProvider);
                           if (!context.mounted) return;
                           ScaffoldMessenger.of(context).showSnackBar(
@@ -547,10 +565,13 @@ class _ShopConfigTabState extends ConsumerState<_ShopConfigTab> {
                           final db = await ref.read(databaseProvider.future);
                           await db.transaction((txn) async {
                             await txn.execute('PRAGMA foreign_keys = OFF');
-                            final tables = await txn.rawQuery("SELECT name FROM sqlite_master WHERE type = 'table' AND name NOT LIKE 'sqlite_%'");
+                            final tables = await txn.rawQuery(
+                              "SELECT name FROM sqlite_master WHERE type = 'table' AND name NOT LIKE 'sqlite_%'",
+                            );
                             for (final t in tables) {
                               final name = t['name'] as String;
-                              if (name == 'users' || name == 'settings') continue;
+                              if (name == 'users' || name == 'settings')
+                                continue;
                               await txn.delete(name);
                             }
                             await txn.execute('PRAGMA foreign_keys = ON');
@@ -595,7 +616,8 @@ class _ShopConfigTabState extends ConsumerState<_ShopConfigTab> {
             child: const Text('રદ કરો'),
           ),
           ElevatedButton(
-            onPressed: () => Navigator.of(ctx).pop(controller.text.trim() == 'RESET'),
+            onPressed: () =>
+                Navigator.of(ctx).pop(controller.text.trim() == 'RESET'),
             child: const Text('ખાતરી કરો'),
           ),
         ],
@@ -614,9 +636,9 @@ class _ShopConfigTabState extends ConsumerState<_ShopConfigTab> {
           controller: controller,
           keyboardType: TextInputType.number,
           obscureText: true,
-          maxLength: 6,
+          maxLength: 4,
           decoration: const InputDecoration(
-            labelText: '6-digit PIN',
+            labelText: '4-digit PIN',
             border: OutlineInputBorder(),
           ),
         ),

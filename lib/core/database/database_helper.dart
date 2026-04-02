@@ -49,7 +49,7 @@ class DatabaseHelper {
         final dbPath = await sqlcipher.getDatabasesPath();
         final path = p.join(dbPath, dbFileName);
 
-        final password = _password ?? PinHasher.sha256('0000');
+        final password = _password ?? PinHasher.sha256('1234');
 
         return sqlcipher.openDatabase(
           path,

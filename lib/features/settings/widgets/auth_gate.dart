@@ -34,18 +34,27 @@ class _AuthGateState extends ConsumerState<AuthGate>
   }
 
   void _initializeAuth() async {
-    // Initialize default PINs if not already set
-    await ref.read(initializePinsProvider.future);
+    try {
+      // Initialize default PINs if not already set.
+      await ref.read(initializePinsProvider.future);
 
-    // Load security settings
-    final settings = await ref.read(securitySettingsProvider.future);
-    final requirePinOnOpen = settings['require_pin_on_open'] as bool? ?? false;
+      // Load security settings.
+      final settings = await ref.read(securitySettingsProvider.future);
+      final requirePinOnOpen =
+          settings['require_pin_on_open'] as bool? ?? false;
 
-    if (mounted) {
-      // If app requires PIN on open, clear session to show login
-      if (requirePinOnOpen) {
+      if (mounted && requirePinOnOpen) {
+        // If app requires PIN on open, clear session to show login.
         ref.read(authSessionProvider.notifier).logout();
       }
+    } catch (_) {
+      if (!mounted) return;
+      ScaffoldMessenger.of(context).showSnackBar(
+        const SnackBar(
+          content: Text('Authentication setup failed. Please retry.'),
+        ),
+      );
+      ref.read(authSessionProvider.notifier).logout();
     }
   }
 

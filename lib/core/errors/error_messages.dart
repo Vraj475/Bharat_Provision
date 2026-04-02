@@ -304,9 +304,9 @@ class ErrorMessages {
     'UNK_001': ErrorMessage(
       code: 'UNK_001',
       category: ErrorCategory.unknown,
-      gujarati: 'અણધારી સમસ્યા આવી. Developerનો સંપર્ક કરો.',
+      gujarati: 'કંઈક ખોટું થયું. કૃપા કરીને ફરી પ્રયાસ કરો.',
       technical: 'Unhandled exception caught by global handler',
-      isCritical: true,
+      isCritical: false,
     ),
   };
 

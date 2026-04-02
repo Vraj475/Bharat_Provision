@@ -138,7 +138,9 @@ class AppDatabase {
         balance_after REAL NOT NULL
       )
     ''');
-    await db.execute('CREATE INDEX idx_khata_customer ON khata_entries(customer_id)');
+    await db.execute(
+      'CREATE INDEX idx_khata_customer ON khata_entries(customer_id)',
+    );
     await db.execute('CREATE INDEX idx_khata_date ON khata_entries(date_time)');
 
     await db.execute('''
@@ -171,7 +173,11 @@ class AppDatabase {
     await _insertDefaults(db);
   }
 
-  static Future<void> _onUpgrade(Database db, int oldVersion, int newVersion) async {
+  static Future<void> _onUpgrade(
+    Database db,
+    int oldVersion,
+    int newVersion,
+  ) async {
     // Future migrations go here
   }
 
@@ -182,7 +188,7 @@ class AppDatabase {
     if ((count ?? 0) == 0) {
       await db.insert('users', {
         'name': 'માલિક',
-        'pin': '0000',
+        'pin': '1234',
         'role': 'owner',
         'is_active': 1,
       });
@@ -207,8 +213,16 @@ class AppDatabase {
   static Future<String> exportToJson() async {
     final db = await instance;
     const tables = [
-      'settings', 'users', 'categories', 'items', 'customers',
-      'bills', 'bill_items', 'khata_entries', 'purchases', 'purchase_items',
+      'settings',
+      'users',
+      'categories',
+      'items',
+      'customers',
+      'bills',
+      'bill_items',
+      'khata_entries',
+      'purchases',
+      'purchase_items',
     ];
     final Map<String, dynamic> out = {'schema_version': schemaVersion};
     for (final t in tables) {
@@ -227,15 +241,27 @@ class AppDatabase {
     final data = jsonDecode(jsonStr) as Map<String, dynamic>;
     await db.transaction((txn) async {
       const tables = [
-        'purchase_items', 'purchases', 'khata_entries', 'bill_items', 'bills',
-        'items', 'categories', 'customers', 'users', 'settings',
+        'purchase_items',
+        'purchases',
+        'khata_entries',
+        'bill_items',
+        'bills',
+        'items',
+        'categories',
+        'customers',
+        'users',
+        'settings',
       ];
       for (final t in tables) {
         final rows = data[t] as List<dynamic>?;
         if (rows == null || rows.isEmpty) continue;
         for (final row in rows) {
           final map = Map<String, Object?>.from(row as Map);
-          await txn.insert(t, map, conflictAlgorithm: ConflictAlgorithm.replace);
+          await txn.insert(
+            t,
+            map,
+            conflictAlgorithm: ConflictAlgorithm.replace,
+          );
         }
       }
     });

@@ -123,7 +123,6 @@ class ErrorHandler {
     ErrorDialogue.showSnackbar(
       context,
       message: appError.userMessage,
-      code: appError.code,
       type: ErrorDialogueType.error,
     );
   }

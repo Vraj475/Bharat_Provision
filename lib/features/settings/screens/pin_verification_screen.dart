@@ -1,12 +1,14 @@
 import 'package:flutter/material.dart';
+import 'package:flutter/services.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
-import '../providers/auth_provider.dart';
-import '../widgets/pin_numpad.dart';
 
-/// PIN verification screen - used for sensitive operations
+import '../providers/auth_provider.dart';
+import '../utils/pin_utils.dart';
+
+/// PIN verification screen used for sensitive operations.
 class PinVerificationScreen extends ConsumerStatefulWidget {
   final String title;
-  final Function(bool) onVerified;
+  final ValueChanged<bool> onVerified;
   final String? targetRole;
 
   const PinVerificationScreen({
@@ -22,98 +24,162 @@ class PinVerificationScreen extends ConsumerStatefulWidget {
 }
 
 class _PinVerificationScreenState extends ConsumerState<PinVerificationScreen> {
-  String _enteredPin = '';
-  String _errorMessage = '';
-  bool _isShaking = false;
+  final TextEditingController _pinController = TextEditingController();
+  final FocusNode _focusNode = FocusNode();
 
-  Future<void> _verifyPin() async {
-    final session = ref.read(authSessionProvider);
-    if (session == null) {
-      _showError('No active session');
-      return;
-    }
+  bool _isSubmitting = false;
+  bool _submitted = false;
+  String? _errorMessage;
 
-    final pinStorage = ref.read(pinStorageProvider);
-    final isValid = await pinStorage.verifyPin(session.role, _enteredPin);
-
-    if (!mounted) return;
-    if (isValid) {
-      widget.onVerified(true);
-      Navigator.of(context).pop(true);
-    } else {
-      _showError('Wrong PIN');
-      _triggerShakeAnimation();
-      _clearPin();
-    }
-  }
-
-  void _showError(String message) {
-    setState(() {
-      _errorMessage = message;
-    });
-  }
-
-  void _triggerShakeAnimation() {
-    setState(() {
-      _isShaking = true;
-    });
-    Future.delayed(const Duration(milliseconds: 500), () {
-      setState(() {
-        _isShaking = false;
-      });
-    });
-  }
-
-  void _clearPin() {
-    setState(() {
-      _enteredPin = '';
+  @override
+  void initState() {
+    super.initState();
+    WidgetsBinding.instance.addPostFrameCallback((_) {
+      if (mounted) {
+        _focusNode.requestFocus();
+      }
     });
   }
 
   @override
-  Widget build(BuildContext context) {
-    final isSuperadmin = ref.watch(authSessionProvider)?.role == 'superadmin';
-    final maxLength = isSuperadmin ? 6 : 4;
+  void dispose() {
+    _pinController.dispose();
+    _focusNode.dispose();
+    super.dispose();
+  }
 
+  Future<void> _verifyPin() async {
+    final session = ref.read(authSessionProvider);
+    if (session == null) {
+      if (!mounted) return;
+      ScaffoldMessenger.of(
+        context,
+      ).showSnackBar(const SnackBar(content: Text('No active session found.')));
+      return;
+    }
+
+    final pin = _pinController.text.trim();
+    setState(() {
+      _submitted = true;
+      _errorMessage = null;
+    });
+
+    if (!PinUtils.isValidPin(pin)) {
+      setState(() {
+        _errorMessage = 'PIN must be exactly 4 digits.';
+      });
+      return;
+    }
+
+    setState(() {
+      _isSubmitting = true;
+    });
+
+    try {
+      final role = widget.targetRole ?? session.role;
+      final pinStorage = ref.read(pinStorageProvider);
+      final isValid = await pinStorage.verifyPin(role, pin);
+
+      if (!mounted) return;
+      if (!isValid) {
+        setState(() {
+          _errorMessage = 'Incorrect PIN.';
+          _isSubmitting = false;
+        });
+        return;
+      }
+
+      widget.onVerified(true);
+      Navigator.of(context).pop(true);
+    } catch (_) {
+      if (!mounted) return;
+      setState(() {
+        _errorMessage = 'PIN verification failed. Please try again.';
+        _isSubmitting = false;
+      });
+    }
+  }
+
+  @override
+  Widget build(BuildContext context) {
     return Scaffold(
+      resizeToAvoidBottomInset: true,
       appBar: AppBar(title: Text(widget.title), centerTitle: true),
-      body: SingleChildScrollView(
-        child: Padding(
-          padding: const EdgeInsets.all(16.0),
-          child: Column(
-            children: [
-              const SizedBox(height: 40),
-              Text(
-                'Re-verify PIN',
-                style: Theme.of(context).textTheme.headlineSmall,
-              ),
-              const SizedBox(height: 24),
-              PinNumpad(
-                onPinChanged: (pin) {
-                  setState(() {
-                    _enteredPin = pin;
-                  });
-                  if (pin.length == maxLength) {
-                    Future.delayed(const Duration(milliseconds: 300), () {
-                      _verifyPin();
-                    });
-                  }
-                },
-                maxLength: maxLength,
-                isShaking: _isShaking,
-              ),
-              const SizedBox(height: 24),
-              if (_errorMessage.isNotEmpty)
-                Text(
-                  _errorMessage,
-                  style: const TextStyle(
-                    color: Colors.red,
-                    fontSize: 14,
-                    fontWeight: FontWeight.w600,
+      body: SafeArea(
+        child: LayoutBuilder(
+          builder: (context, constraints) {
+            return SingleChildScrollView(
+              padding: const EdgeInsets.all(20),
+              child: ConstrainedBox(
+                constraints: BoxConstraints(
+                  minHeight: constraints.maxHeight - 40,
+                ),
+                child: Center(
+                  child: ConstrainedBox(
+                    constraints: const BoxConstraints(maxWidth: 460),
+                    child: Card(
+                      elevation: 6,
+                      shape: RoundedRectangleBorder(
+                        borderRadius: BorderRadius.circular(16),
+                      ),
+                      child: Padding(
+                        padding: const EdgeInsets.all(22),
+                        child: Column(
+                          mainAxisSize: MainAxisSize.min,
+                          children: [
+                            Text(
+                              'Re-enter PIN to continue',
+                              style: Theme.of(context).textTheme.titleMedium,
+                            ),
+                            const SizedBox(height: 16),
+                            _PinTextField(
+                              controller: _pinController,
+                              focusNode: _focusNode,
+                              label: 'PIN',
+                              hintText: '4-digit PIN',
+                              submitted: _submitted,
+                            ),
+                            if (_submitted && _errorMessage != null) ...[
+                              const SizedBox(height: 10),
+                              Text(
+                                _errorMessage!,
+                                style: const TextStyle(
+                                  color: Colors.red,
+                                  fontWeight: FontWeight.w600,
+                                ),
+                              ),
+                            ],
+                            const SizedBox(height: 16),
+                            SizedBox(
+                              width: double.infinity,
+                              child: ElevatedButton(
+                                onPressed: _isSubmitting ? null : _verifyPin,
+                                style: ElevatedButton.styleFrom(
+                                  minimumSize: const Size.fromHeight(48),
+                                  shape: RoundedRectangleBorder(
+                                    borderRadius: BorderRadius.circular(12),
+                                  ),
+                                ),
+                                child: _isSubmitting
+                                    ? const SizedBox(
+                                        width: 18,
+                                        height: 18,
+                                        child: CircularProgressIndicator(
+                                          strokeWidth: 2,
+                                        ),
+                                      )
+                                    : const Text('Verify'),
+                              ),
+                            ),
+                          ],
+                        ),
+                      ),
+                    ),
                   ),
                 ),
-            ],
-          ),
+              ),
+            );
+          },
         ),
       ),
     );
@@ -122,7 +188,7 @@ class _PinVerificationScreenState extends ConsumerState<PinVerificationScreen> {
 
 /// Change PIN screen
 class ChangePinScreen extends ConsumerStatefulWidget {
-  final String forRole; // 'own', 'employee', 'admin'
+  final String forRole; // own, employee, admin
 
   const ChangePinScreen({required this.forRole, super.key});
 
@@ -131,303 +197,249 @@ class ChangePinScreen extends ConsumerStatefulWidget {
 }
 
 class _ChangePinScreenState extends ConsumerState<ChangePinScreen> {
-  int _step = 0; // 0: verify old PIN, 1: enter new PIN, 2: confirm new PIN
-  String _oldPin = '';
-  String _newPin = '';
-  String _confirmPin = '';
-  String _errorMessage = '';
-  bool _isShaking = false;
+  final TextEditingController _oldPinController = TextEditingController();
+  final TextEditingController _newPinController = TextEditingController();
+  final TextEditingController _confirmPinController = TextEditingController();
 
-  Future<void> _verifyOldPin() async {
+  bool _submitted = false;
+  bool _isSaving = false;
+  String? _errorMessage;
+
+  String? _targetRole() {
     final session = ref.read(authSessionProvider);
-    if (session == null) {
-      _showError('No active session');
+    if (session == null) return null;
+    return widget.forRole == 'own' ? session.role : widget.forRole;
+  }
+
+  @override
+  void dispose() {
+    _oldPinController.dispose();
+    _newPinController.dispose();
+    _confirmPinController.dispose();
+    super.dispose();
+  }
+
+  Future<void> _changePin() async {
+    final role = _targetRole();
+    if (role == null) {
+      if (!mounted) return;
+      ScaffoldMessenger.of(context).showSnackBar(
+        const SnackBar(content: Text('No active session. Please login again.')),
+      );
       return;
     }
 
-    final pinStorage = ref.read(pinStorageProvider);
-    final role = widget.forRole == 'own' ? session.role : widget.forRole;
-    final isValid = await pinStorage.verifyPin(role, _oldPin);
+    final oldPin = _oldPinController.text.trim();
+    final newPin = _newPinController.text.trim();
+    final confirmPin = _confirmPinController.text.trim();
 
-    if (isValid) {
+    setState(() {
+      _submitted = true;
+      _errorMessage = null;
+    });
+
+    if (!PinUtils.isValidPin(oldPin)) {
       setState(() {
-        _step = 1;
-        _oldPin = '';
-        _errorMessage = '';
+        _errorMessage = 'Old PIN must be 4 digits.';
       });
-    } else {
-      _showError('Wrong PIN');
-      _triggerShakeAnimation();
-      _clearPin();
+      return;
     }
-  }
-
-  void _enterNewPin() {
-    if (_newPin.length < 4) {
-      _showError('PIN must be at least 4 digits');
+    if (!PinUtils.isValidPin(newPin)) {
+      setState(() {
+        _errorMessage = 'New PIN must be 4 digits.';
+      });
+      return;
+    }
+    if (newPin != confirmPin) {
+      setState(() {
+        _errorMessage = 'New PIN and confirm PIN do not match.';
+      });
       return;
     }
 
     setState(() {
-      _step = 2;
-      _errorMessage = '';
+      _isSaving = true;
     });
-  }
-
-  Future<void> _confirmNewPin() async {
-    if (_newPin != _confirmPin) {
-      _showError('PINs do not match');
-      _triggerShakeAnimation();
-      _clearPin();
-      return;
-    }
-
-    final session = ref.read(authSessionProvider);
-    if (session == null) {
-      _showError('No active session');
-      return;
-    }
-
-    final pinStorage = ref.read(pinStorageProvider);
-    final role = widget.forRole == 'own' ? session.role : widget.forRole;
 
     try {
-      await pinStorage.setPinHash(role, _newPin);
-      if (mounted) {
-        ScaffoldMessenger.of(context).showSnackBar(
-          const SnackBar(content: Text('PIN changed successfully')),
-        );
-        Navigator.of(context).pop();
+      final pinStorage = ref.read(pinStorageProvider);
+      final oldPinValid = await pinStorage.verifyPin(role, oldPin);
+
+      if (!oldPinValid) {
+        if (!mounted) return;
+        setState(() {
+          _errorMessage = 'Old PIN is incorrect.';
+          _isSaving = false;
+        });
+        return;
       }
-    } catch (e) {
-      _showError('Error changing PIN: $e');
-    }
-  }
 
-  void _showError(String message) {
-    setState(() {
-      _errorMessage = message;
-    });
-  }
+      await pinStorage.setPinHash(role, newPin);
 
-  void _triggerShakeAnimation() {
-    setState(() {
-      _isShaking = true;
-    });
-    Future.delayed(const Duration(milliseconds: 500), () {
+      if (!mounted) return;
+      ScaffoldMessenger.of(context).showSnackBar(
+        const SnackBar(content: Text('PIN changed successfully.')),
+      );
+      Navigator.of(context).pop();
+    } catch (_) {
+      if (!mounted) return;
       setState(() {
-        _isShaking = false;
+        _errorMessage = 'Unable to change PIN right now. Please try again.';
+        _isSaving = false;
       });
-    });
-  }
-
-  void _clearPin() {
-    setState(() {
-      if (_step == 0) {
-        _oldPin = '';
-      } else if (_step == 1) {
-        _newPin = '';
-      } else {
-        _confirmPin = '';
-      }
-    });
+    }
   }
 
   @override
   Widget build(BuildContext context) {
     return Scaffold(
+      resizeToAvoidBottomInset: true,
       appBar: AppBar(
         title: Text(
           widget.forRole == 'own'
-              ? 'Change My PIN'
+              ? 'Change PIN'
               : 'Change ${widget.forRole} PIN',
         ),
-        centerTitle: true,
       ),
-      body: SingleChildScrollView(
-        child: Padding(
-          padding: const EdgeInsets.all(16.0),
-          child: Column(
-            children: [
-              const SizedBox(height: 40),
-              // Step indicator
-              Row(
-                mainAxisAlignment: MainAxisAlignment.center,
-                children: [
-                  _StepIndicator(
-                    number: 1,
-                    isActive: _step >= 0,
-                    label: 'Old PIN',
-                  ),
-                  Container(
-                    width: 40,
-                    height: 2,
-                    color: _step >= 1 ? Colors.blue : Colors.grey[300],
-                  ),
-                  _StepIndicator(
-                    number: 2,
-                    isActive: _step >= 1,
-                    label: 'New PIN',
-                  ),
-                  Container(
-                    width: 40,
-                    height: 2,
-                    color: _step >= 2 ? Colors.blue : Colors.grey[300],
-                  ),
-                  _StepIndicator(
-                    number: 3,
-                    isActive: _step >= 2,
-                    label: 'Confirm',
-                  ),
-                ],
-              ),
-              const SizedBox(height: 40),
-              // Step content
-              if (_step == 0) ...[
-                Text(
-                  'Enter Old PIN',
-                  style: Theme.of(context).textTheme.headlineSmall,
+      body: SafeArea(
+        child: LayoutBuilder(
+          builder: (context, constraints) {
+            return SingleChildScrollView(
+              padding: const EdgeInsets.all(20),
+              child: ConstrainedBox(
+                constraints: BoxConstraints(
+                  minHeight: constraints.maxHeight - 40,
                 ),
-                const SizedBox(height: 24),
-                PinNumpad(
-                  onPinChanged: (pin) {
-                    setState(() {
-                      _oldPin = pin;
-                    });
-                    if (pin.length == 4 || pin.length == 6) {
-                      Future.delayed(const Duration(milliseconds: 300), () {
-                        if (!_isShaking) _verifyOldPin();
-                      });
-                    }
-                  },
-                  maxLength: 6,
-                  isShaking: _isShaking,
-                ),
-              ] else if (_step == 1) ...[
-                Text(
-                  'Enter New PIN',
-                  style: Theme.of(context).textTheme.headlineSmall,
-                ),
-                const SizedBox(height: 8),
-                const Text('(Superadmin requires 6 digits)'),
-                const SizedBox(height: 24),
-                PinNumpad(
-                  onPinChanged: (pin) {
-                    setState(() {
-                      _newPin = pin;
-                    });
-                  },
-                  maxLength: 6,
-                  isShaking: _isShaking,
-                ),
-                const SizedBox(height: 24),
-                SizedBox(
-                  width: double.infinity,
-                  child: ElevatedButton(
-                    onPressed: _newPin.length >= 4 ? _enterNewPin : null,
-                    child: const Text('Continue'),
-                  ),
-                ),
-              ] else if (_step == 2) ...[
-                Text(
-                  'Confirm New PIN',
-                  style: Theme.of(context).textTheme.headlineSmall,
-                ),
-                const SizedBox(height: 24),
-                PinNumpad(
-                  onPinChanged: (pin) {
-                    setState(() {
-                      _confirmPin = pin;
-                    });
-                    if (pin.length == _newPin.length && pin.length >= 4) {
-                      Future.delayed(const Duration(milliseconds: 300), () {
-                        if (!_isShaking) _confirmNewPin();
-                      });
-                    }
-                  },
-                  maxLength: 6,
-                  isShaking: _isShaking,
-                ),
-              ],
-              const SizedBox(height: 24),
-              // Error message
-              if (_errorMessage.isNotEmpty)
-                Text(
-                  _errorMessage,
-                  style: const TextStyle(
-                    color: Colors.red,
-                    fontSize: 14,
-                    fontWeight: FontWeight.w600,
-                  ),
-                  textAlign: TextAlign.center,
-                ),
-              const SizedBox(height: 24),
-              // Back button
-              if (_step > 0)
-                SizedBox(
-                  width: double.infinity,
-                  child: ElevatedButton(
-                    style: ElevatedButton.styleFrom(
-                      backgroundColor: Colors.grey[400],
+                child: Center(
+                  child: ConstrainedBox(
+                    constraints: const BoxConstraints(maxWidth: 480),
+                    child: Card(
+                      elevation: 6,
+                      shape: RoundedRectangleBorder(
+                        borderRadius: BorderRadius.circular(16),
+                      ),
+                      child: Padding(
+                        padding: const EdgeInsets.all(22),
+                        child: Column(
+                          crossAxisAlignment: CrossAxisAlignment.stretch,
+                          mainAxisSize: MainAxisSize.min,
+                          children: [
+                            Text(
+                              'Update PIN',
+                              style: Theme.of(context).textTheme.titleLarge
+                                  ?.copyWith(fontWeight: FontWeight.w700),
+                              textAlign: TextAlign.center,
+                            ),
+                            const SizedBox(height: 8),
+                            Text(
+                              'Enter old PIN and set a new 4-digit PIN.',
+                              textAlign: TextAlign.center,
+                              style: Theme.of(context).textTheme.bodyMedium
+                                  ?.copyWith(color: Colors.grey.shade700),
+                            ),
+                            const SizedBox(height: 18),
+                            _PinTextField(
+                              controller: _oldPinController,
+                              label: 'Old PIN',
+                              hintText: 'Current 4-digit PIN',
+                              submitted: _submitted,
+                            ),
+                            const SizedBox(height: 12),
+                            _PinTextField(
+                              controller: _newPinController,
+                              label: 'New PIN',
+                              hintText: 'New 4-digit PIN',
+                              submitted: _submitted,
+                            ),
+                            const SizedBox(height: 12),
+                            _PinTextField(
+                              controller: _confirmPinController,
+                              label: 'Confirm New PIN',
+                              hintText: 'Re-enter new PIN',
+                              submitted: _submitted,
+                            ),
+                            if (_submitted && _errorMessage != null) ...[
+                              const SizedBox(height: 12),
+                              Text(
+                                _errorMessage!,
+                                style: const TextStyle(
+                                  color: Colors.red,
+                                  fontWeight: FontWeight.w600,
+                                ),
+                                textAlign: TextAlign.center,
+                              ),
+                            ],
+                            const SizedBox(height: 18),
+                            ElevatedButton(
+                              onPressed: _isSaving ? null : _changePin,
+                              style: ElevatedButton.styleFrom(
+                                minimumSize: const Size.fromHeight(50),
+                                shape: RoundedRectangleBorder(
+                                  borderRadius: BorderRadius.circular(12),
+                                ),
+                              ),
+                              child: _isSaving
+                                  ? const SizedBox(
+                                      width: 18,
+                                      height: 18,
+                                      child: CircularProgressIndicator(
+                                        strokeWidth: 2,
+                                      ),
+                                    )
+                                  : const Text('Save PIN'),
+                            ),
+                          ],
+                        ),
+                      ),
                     ),
-                    onPressed: () {
-                      setState(() {
-                        _step--;
-                        _errorMessage = '';
-                      });
-                    },
-                    child: const Text('Back'),
                   ),
                 ),
-            ],
-          ),
+              ),
+            );
+          },
         ),
       ),
     );
   }
 }
 
-class _StepIndicator extends StatelessWidget {
-  final int number;
-  final bool isActive;
+class _PinTextField extends StatelessWidget {
+  final TextEditingController controller;
+  final FocusNode? focusNode;
   final String label;
+  final String hintText;
+  final bool submitted;
 
-  const _StepIndicator({
-    required this.number,
-    required this.isActive,
+  const _PinTextField({
+    required this.controller,
     required this.label,
+    required this.hintText,
+    required this.submitted,
+    this.focusNode,
   });
 
   @override
   Widget build(BuildContext context) {
-    return Column(
-      children: [
-        Container(
-          width: 40,
-          height: 40,
-          decoration: BoxDecoration(
-            shape: BoxShape.circle,
-            color: isActive ? Colors.blue : Colors.grey[300],
-          ),
-          child: Center(
-            child: Text(
-              number.toString(),
-              style: TextStyle(
-                color: isActive ? Colors.white : Colors.grey[700],
-                fontWeight: FontWeight.bold,
-              ),
-            ),
-          ),
-        ),
-        const SizedBox(height: 8),
-        Text(
-          label,
-          style: TextStyle(
-            fontSize: 12,
-            color: isActive ? Colors.blue : Colors.grey[600],
-          ),
-        ),
+    final value = controller.text.trim();
+
+    return TextField(
+      controller: controller,
+      focusNode: focusNode,
+      keyboardType: TextInputType.number,
+      obscureText: true,
+      inputFormatters: [
+        FilteringTextInputFormatter.digitsOnly,
+        LengthLimitingTextInputFormatter(PinUtils.pinLength),
       ],
+      decoration: InputDecoration(
+        labelText: label,
+        hintText: hintText,
+        prefixIcon: const Icon(Icons.lock_outline_rounded),
+        border: OutlineInputBorder(borderRadius: BorderRadius.circular(12)),
+        errorText: submitted && value.length != PinUtils.pinLength
+            ? 'Must be 4 digits'
+            : null,
+      ),
     );
   }
 }

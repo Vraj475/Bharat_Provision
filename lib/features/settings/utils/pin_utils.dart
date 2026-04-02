@@ -3,6 +3,8 @@ import 'dart:convert';
 
 /// PIN hashing and verification utility
 class PinUtils {
+  static const int pinLength = 4;
+
   // Hash PIN using SHA-256
   static String hashPin(String pin) {
     return sha256.convert(utf8.encode(pin)).toString();
@@ -13,15 +15,11 @@ class PinUtils {
     return hashPin(pin) == hash;
   }
 
-  // Validate PIN format (6 digits for superadmin, 4-6 for others)
-  static bool isValidPin(String pin, {bool isSuperadmin = false}) {
+  // Validate PIN format (exactly 4 numeric digits).
+  static bool isValidPin(String pin) {
     if (pin.isEmpty) return false;
     if (!RegExp(r'^\d+$').hasMatch(pin)) return false;
-
-    if (isSuperadmin) {
-      return pin.length == 6;
-    }
-    return pin.length >= 4 && pin.length <= 6;
+    return pin.length == pinLength;
   }
 
   // Generate hash for storing in secure storage

@@ -4,6 +4,7 @@ import 'package:file_picker/file_picker.dart';
 import 'package:flutter/material.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 import 'package:path_provider/path_provider.dart';
+import 'package:shared_preferences/shared_preferences.dart';
 
 import '../../core/localization/app_strings.dart';
 import '../../core/widgets/confirm_dialog.dart';
@@ -59,13 +60,20 @@ class _SettingsScreenState extends ConsumerState<SettingsScreen> {
 
   Future<void> _saveProfile() async {
     final repo = await ref.read(settingsRepositoryFutureProvider.future);
-    await repo.set('shop_name', _shopNameController.text.trim());
+    final shopName = _shopNameController.text.trim();
+    await repo.set('shop_name', shopName);
+    final prefs = await SharedPreferences.getInstance();
+    await prefs.setString('shop_name', shopName);
+    debugPrint('Shop Name: $shopName');
     await repo.set('shop_address', _addressController.text.trim());
     await repo.set('shop_phone', _phoneController.text.trim());
     await repo.set('gstin', _gstinController.text.trim());
     await repo.set('bill_footer', _billFooterController.text.trim());
     ref.invalidate(shopNameProvider);
     ref.invalidate(settingsValuesProvider);
+    if (mounted) {
+      setState(() {});
+    }
     if (mounted) {
       ScaffoldMessenger.of(
         context,

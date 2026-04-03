@@ -4,6 +4,7 @@ import 'package:flutter_riverpod/flutter_riverpod.dart';
 import 'package:go_router/go_router.dart';
 
 import '../../core/auth/role_provider.dart';
+import '../../core/utils/app_data.dart';
 import '../../routing/app_router.dart';
 import '../../core/utils/currency_format.dart';
 import 'dashboard_providers.dart';
@@ -22,7 +23,12 @@ class _DashboardScreenState extends ConsumerState<DashboardScreen> {
 
     return Scaffold(
       appBar: AppBar(
-        title: const Text('Dashboard'),
+        title: FutureBuilder<String>(
+          future: AppData.getShopName(),
+          builder: (context, snapshot) {
+            return Text(snapshot.data ?? 'My Shop');
+          },
+        ),
         actions: [
           IconButton(
             icon: const Icon(Icons.settings),

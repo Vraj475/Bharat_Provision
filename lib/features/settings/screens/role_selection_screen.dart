@@ -1,6 +1,7 @@
 import 'package:flutter/material.dart';
 import 'package:shared_preferences/shared_preferences.dart';
 
+import '../../../core/utils/app_data.dart';
 import 'pin_entry_screen.dart';
 
 class RoleSelectionScreen extends StatefulWidget {
@@ -83,11 +84,18 @@ class _RoleSelectionScreenState extends State<RoleSelectionScreen> {
                                 color: Theme.of(context).colorScheme.primary,
                               ),
                               const SizedBox(height: 12),
-                              Text(
-                                'Bharat Provision',
-                                textAlign: TextAlign.center,
-                                style: Theme.of(context).textTheme.headlineSmall
-                                    ?.copyWith(fontWeight: FontWeight.w800),
+                              FutureBuilder<String>(
+                                future: AppData.getShopName(),
+                                builder: (context, snapshot) {
+                                  return Text(
+                                    snapshot.data ?? 'My Shop',
+                                    textAlign: TextAlign.center,
+                                    style: Theme.of(context)
+                                        .textTheme
+                                        .headlineSmall
+                                        ?.copyWith(fontWeight: FontWeight.w800),
+                                  );
+                                },
                               ),
                               const SizedBox(height: 8),
                               Text(

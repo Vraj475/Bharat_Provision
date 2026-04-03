@@ -8,6 +8,7 @@ import 'package:flutter_riverpod/flutter_riverpod.dart';
 import 'package:intl/intl.dart';
 import 'package:path_provider/path_provider.dart';
 import 'package:share_plus/share_plus.dart';
+import 'package:shared_preferences/shared_preferences.dart';
 import '../providers/auth_provider.dart';
 import '../../../core/database/database_helper.dart';
 import '../../../core/errors/error_handler.dart';
@@ -124,7 +125,11 @@ class _ShopInfoTab extends ConsumerWidget {
                     final repo = await ref.read(
                       settingsRepositoryFutureProvider.future,
                     );
-                    await repo.set('shop_name', value);
+                    final shopName = value.trim();
+                    await repo.set('shop_name', shopName);
+                    final prefs = await SharedPreferences.getInstance();
+                    await prefs.setString('shop_name', shopName);
+                    debugPrint('Shop Name: $shopName');
                     ref.invalidate(settingsValuesProvider);
                     if (context.mounted) {
                       ScaffoldMessenger.of(context).showSnackBar(

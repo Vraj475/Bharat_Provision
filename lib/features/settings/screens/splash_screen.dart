@@ -1,6 +1,7 @@
 import 'package:flutter/material.dart';
 import 'package:shared_preferences/shared_preferences.dart';
 
+import '../../../core/utils/app_data.dart';
 import 'role_selection_screen.dart';
 
 class SplashScreen extends StatefulWidget {
@@ -46,25 +47,34 @@ class _SplashScreenState extends State<SplashScreen> {
 
   @override
   Widget build(BuildContext context) {
-    return const Scaffold(
+    return Scaffold(
       backgroundColor: Color(0xFF0D47A1),
       body: SafeArea(
         child: Center(
           child: Column(
             mainAxisSize: MainAxisSize.min,
             children: [
-              Icon(Icons.storefront_rounded, size: 72, color: Colors.white),
-              SizedBox(height: 14),
-              Text(
-                'Bharat Provision',
-                style: TextStyle(
-                  color: Colors.white,
-                  fontSize: 24,
-                  fontWeight: FontWeight.w700,
-                ),
+              const Icon(
+                Icons.storefront_rounded,
+                size: 72,
+                color: Colors.white,
               ),
-              SizedBox(height: 16),
-              SizedBox(
+              const SizedBox(height: 14),
+              FutureBuilder<String>(
+                future: AppData.getShopName(),
+                builder: (context, snapshot) {
+                  return Text(
+                    snapshot.data ?? 'My Shop',
+                    style: const TextStyle(
+                      color: Colors.white,
+                      fontSize: 24,
+                      fontWeight: FontWeight.w700,
+                    ),
+                  );
+                },
+              ),
+              const SizedBox(height: 16),
+              const SizedBox(
                 width: 24,
                 height: 24,
                 child: CircularProgressIndicator(

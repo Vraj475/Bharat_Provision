@@ -1,20 +1,17 @@
 import 'package:flutter/material.dart';
 import 'package:flutter/services.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
+import 'package:shared_preferences/shared_preferences.dart';
 
 import '../../../core/auth/role_provider.dart';
+import '../../../core/widgets/home_screen.dart';
 import '../providers/auth_provider.dart';
 import '../settings_providers.dart';
 
 class PinEntryScreen extends ConsumerStatefulWidget {
   final String role;
-  final ValueChanged<String> onLoginSuccess;
 
-  const PinEntryScreen({
-    required this.role,
-    required this.onLoginSuccess,
-    super.key,
-  });
+  const PinEntryScreen({required this.role, super.key});
 
   @override
   ConsumerState<PinEntryScreen> createState() => _PinEntryScreenState();
@@ -28,6 +25,7 @@ class _PinEntryScreenState extends ConsumerState<PinEntryScreen> {
   late final FocusNode _keyboardFocusNode;
 
   bool _isLoading = false;
+  bool isNavigating = false;
   bool _submitted = false;
   String? _errorMessage;
 
@@ -133,12 +131,17 @@ class _PinEntryScreenState extends ConsumerState<PinEntryScreen> {
     });
 
     try {
-      final isValid = await ref.read(
-        validatePinProvider((widget.role, pin)).future,
-      );
+      final prefs = await SharedPreferences.getInstance();
+      final storedPin = prefs.getString('user_pin') ?? '0000';
+      final enteredPin = pin.trim();
+      debugPrint('Entered PIN: $enteredPin');
+      debugPrint('Stored PIN: $storedPin');
+
+      final isValid = enteredPin == storedPin;
       if (!mounted) return;
 
       if (!isValid) {
+        debugPrint('Incorrect PIN');
         setState(() {
           _errorMessage = 'Incorrect PIN. Please try again.';
           _isLoading = false;
@@ -161,9 +164,14 @@ class _PinEntryScreenState extends ConsumerState<PinEntryScreen> {
           );
       ref.read(currentRoleProvider.notifier).state = widget.role;
 
-      widget.onLoginSuccess(widget.role);
+      if (isNavigating) return;
+      isNavigating = true;
+      debugPrint('Login Success → Navigating to Dashboard');
       if (!mounted) return;
-      Navigator.of(context).pop();
+      Navigator.of(context).pushAndRemoveUntil(
+        MaterialPageRoute(builder: (_) => const HomeScreen()),
+        (route) => false,
+      );
     } catch (_) {
       if (!mounted) return;
       setState(() {

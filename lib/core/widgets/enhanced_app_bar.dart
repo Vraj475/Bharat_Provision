@@ -4,6 +4,7 @@ import '../auth/role_provider.dart';
 import '../localization/app_strings.dart';
 import '../theme/role_theme.dart';
 import '../../features/settings/providers/auth_provider.dart';
+import '../../features/settings/screens/role_selection_screen.dart';
 
 /// Enhanced AppBar widget with role-aware styling.
 class EnhancedAppBar extends ConsumerWidget implements PreferredSizeWidget {
@@ -127,9 +128,10 @@ class LogoutButton extends ConsumerWidget {
           ElevatedButton(
             onPressed: () {
               ref.read(authSessionProvider.notifier).logout();
-              Navigator.of(
-                context,
-              ).pushNamedAndRemoveUntil('/login', (route) => false);
+              Navigator.of(context).pushAndRemoveUntil(
+                MaterialPageRoute(builder: (_) => const RoleSelectionScreen()),
+                (route) => false,
+              );
               if (onLogout != null) {
                 onLogout!();
               }

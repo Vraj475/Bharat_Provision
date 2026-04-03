@@ -1,9 +1,10 @@
 import 'package:flutter/material.dart';
+import 'package:shared_preferences/shared_preferences.dart';
+
+import 'role_selection_screen.dart';
 
 class SplashScreen extends StatefulWidget {
-  final VoidCallback onNavigateToLogin;
-
-  const SplashScreen({required this.onNavigateToLogin, super.key});
+  const SplashScreen({super.key});
 
   @override
   State<SplashScreen> createState() => _SplashScreenState();
@@ -13,19 +14,33 @@ class _SplashScreenState extends State<SplashScreen> {
   @override
   void initState() {
     super.initState();
-    _start();
+    navigate();
   }
 
-  Future<void> _start() async {
+  Future<void> navigate() async {
     try {
+      final prefs = await SharedPreferences.getInstance();
+      final existingPin = prefs.getString('user_pin');
+      if (existingPin == null || existingPin.isEmpty) {
+        await prefs.setString('user_pin', '0000');
+      }
+      await prefs.remove('logged_in');
+
       await Future<void>.delayed(const Duration(seconds: 2));
+
       if (!mounted) return;
-      widget.onNavigateToLogin();
+      Navigator.pushReplacement(
+        context,
+        MaterialPageRoute(builder: (_) => const RoleSelectionScreen()),
+      );
     } catch (e, stack) {
       debugPrint('SplashScreen error: $e');
       debugPrintStack(stackTrace: stack);
       if (!mounted) return;
-      widget.onNavigateToLogin();
+      Navigator.pushReplacement(
+        context,
+        MaterialPageRoute(builder: (_) => const RoleSelectionScreen()),
+      );
     }
   }
 

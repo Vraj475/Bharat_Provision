@@ -1,10 +1,11 @@
 import 'package:flutter/material.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
+import 'package:shared_preferences/shared_preferences.dart';
 
+import '../../../core/auth/role_provider.dart';
 import '../providers/auth_provider.dart';
 import '../settings_providers.dart';
 import '../screens/login_screen.dart';
-import '../screens/splash_screen.dart';
 
 /// AuthGate - Wrapper widget that checks auth status and shows splash/login if needed
 class AuthGate extends ConsumerStatefulWidget {
@@ -18,7 +19,7 @@ class AuthGate extends ConsumerStatefulWidget {
 
 class _AuthGateState extends ConsumerState<AuthGate>
     with WidgetsBindingObserver {
-  bool _showSplash = true;
+  String? _restoredRole;
 
   @override
   void initState() {
@@ -42,10 +43,29 @@ class _AuthGateState extends ConsumerState<AuthGate>
       final settings = await ref.read(securitySettingsProvider.future);
       final requirePinOnOpen =
           settings['require_pin_on_open'] as bool? ?? false;
+      final sessionTimeoutMinutes =
+          settings['session_timeout_minutes'] as int? ?? 5;
 
-      if (mounted && requirePinOnOpen) {
-        // If app requires PIN on open, clear session to show login.
-        ref.read(authSessionProvider.notifier).logout();
+      final prefs = await SharedPreferences.getInstance();
+      final role = prefs.getString('role');
+
+      debugPrint('Role: $role');
+
+      if (!mounted) return;
+      setState(() {
+        _restoredRole = role;
+      });
+
+      if (role != null && !requirePinOnOpen) {
+        ref
+            .read(authSessionProvider.notifier)
+            .setSession(
+              role,
+              timeoutMinutes: sessionTimeoutMinutes,
+              requirePinOnOpen: requirePinOnOpen,
+            );
+        ref.read(currentRoleProvider.notifier).state = role;
+        return;
       }
     } catch (_) {
       if (!mounted) return;
@@ -56,12 +76,6 @@ class _AuthGateState extends ConsumerState<AuthGate>
       );
       ref.read(authSessionProvider.notifier).logout();
     }
-  }
-
-  void _navigateFromSplash() {
-    setState(() {
-      _showSplash = false;
-    });
   }
 
   @override
@@ -97,14 +111,12 @@ class _AuthGateState extends ConsumerState<AuthGate>
   Widget build(BuildContext context) {
     final session = ref.watch(authSessionProvider);
 
-    // Show splash screen on app startup
-    if (_showSplash) {
-      return SplashScreen(onNavigateToLogin: _navigateFromSplash);
-    }
-
     // If app requires PIN on open and no active session, show login
     if (session == null) {
-      return LoginScreen(onLoginSuccess: _handleLoginSuccess);
+      return LoginScreen(
+        onLoginSuccess: _handleLoginSuccess,
+        initialRole: _restoredRole,
+      );
     }
 
     // Session expired

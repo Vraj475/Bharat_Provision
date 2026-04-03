@@ -10,50 +10,49 @@ class PinStorageService {
 
   const PinStorageService();
 
-  static const List<String> _supportedRoles = [
-    'superadmin',
-    'admin',
-    'employee',
-  ];
-
-  // Get stored PIN hash for a role
-  Future<String?> getPinHash(String role) async {
+  // Get stored PIN for a role.
+  Future<String> getPinHash(String role) async {
     try {
       final prefs = await SharedPreferences.getInstance();
-      return prefs.getString(_pinKey);
+      String storedPin = prefs.getString(_pinKey) ?? defaultPin;
+      if (storedPin.isEmpty) {
+        storedPin = defaultPin;
+        await prefs.setString(_pinKey, defaultPin);
+      }
+      debugPrint('Stored PIN: $storedPin');
+      return storedPin;
     } catch (e, stack) {
       debugPrint('PinStorageService.getPinHash failed: $e');
       debugPrintStack(stackTrace: stack);
-      return null;
+      return defaultPin;
     }
   }
 
-  // Store PIN hash for a role
+  // Store PIN for a role.
   Future<void> setPinHash(String role, String pin) async {
-    if (!PinUtils.isValidPin(pin)) {
+    final normalizedPin = pin.trim();
+    if (!PinUtils.isValidPin(normalizedPin)) {
       throw ArgumentError('PIN must be exactly ${PinUtils.pinLength} digits.');
     }
 
     final prefs = await SharedPreferences.getInstance();
-    await prefs.setString(_pinKey, pin);
+    await prefs.setString(_pinKey, normalizedPin);
+    debugPrint('New PIN Saved: $normalizedPin');
   }
 
   // Verify PIN for a role
   Future<bool> verifyPin(String role, String pin) async {
     try {
-      if (!PinUtils.isValidPin(pin)) {
+      final enteredPin = pin.trim();
+      if (!PinUtils.isValidPin(enteredPin)) {
         return false;
       }
 
       final storedPin = await getPinHash(role);
-      debugPrint('Entered PIN: $pin');
+      debugPrint('Entered PIN: $enteredPin');
       debugPrint('Stored PIN: $storedPin');
 
-      if (storedPin == null || storedPin.isEmpty) {
-        return false;
-      }
-
-      return pin == storedPin;
+      return enteredPin == storedPin;
     } catch (e, stack) {
       debugPrint('PinStorageService.verifyPin failed: $e');
       debugPrintStack(stackTrace: stack);
@@ -64,15 +63,15 @@ class PinStorageService {
   // Check if PIN exists for a role
   Future<bool> pinExists(String role) async {
     final hash = await getPinHash(role);
-    return hash != null && hash.isNotEmpty;
+    return hash.isNotEmpty;
   }
 
   // Initialize default PINs if not set
   Future<void> initializeDefaults() async {
-    for (final role in _supportedRoles) {
-      if (!await pinExists(role)) {
-        await setPinHash(role, defaultPin);
-      }
+    final prefs = await SharedPreferences.getInstance();
+    final existingPin = prefs.getString(_pinKey);
+    if (existingPin == null || existingPin.isEmpty) {
+      await prefs.setString(_pinKey, defaultPin);
     }
   }
 

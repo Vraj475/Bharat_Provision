@@ -2,11 +2,17 @@ import 'package:flutter/material.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 
 import 'pin_entry_screen.dart';
+import 'role_selection_screen.dart';
 
 class LoginScreen extends ConsumerStatefulWidget {
   final ValueChanged<String> onLoginSuccess;
+  final String? initialRole;
 
-  const LoginScreen({required this.onLoginSuccess, super.key});
+  const LoginScreen({
+    required this.onLoginSuccess,
+    this.initialRole,
+    super.key,
+  });
 
   @override
   ConsumerState<LoginScreen> createState() => _LoginScreenState();
@@ -15,6 +21,35 @@ class LoginScreen extends ConsumerStatefulWidget {
 class _LoginScreenState extends ConsumerState<LoginScreen> {
   String? _selectedRole;
   bool _isOpeningPinScreen = false;
+  bool _isLoadingRole = true;
+  bool isNavigating = false;
+
+  @override
+  void initState() {
+    super.initState();
+    _loadRole();
+  }
+
+  Future<void> _loadRole() async {
+    _selectedRole = widget.initialRole;
+
+    if (!mounted) return;
+
+    if (_selectedRole == null) {
+      WidgetsBinding.instance.addPostFrameCallback((_) {
+        if (!mounted || _selectedRole != null) return;
+        Navigator.of(context).pushAndRemoveUntil(
+          MaterialPageRoute(builder: (_) => const RoleSelectionScreen()),
+          (route) => false,
+        );
+      });
+      return;
+    }
+
+    setState(() {
+      _isLoadingRole = false;
+    });
+  }
 
   Future<void> _continueToPinEntry() async {
     if (_selectedRole == null || _isOpeningPinScreen) {
@@ -26,14 +61,16 @@ class _LoginScreenState extends ConsumerState<LoginScreen> {
     });
 
     try {
-      await Navigator.of(context).push(
+      final isLoggedIn = await Navigator.of(context).push<bool>(
         MaterialPageRoute(
-          builder: (context) => PinEntryScreen(
-            role: _selectedRole!,
-            onLoginSuccess: widget.onLoginSuccess,
-          ),
+          builder: (context) => PinEntryScreen(role: _selectedRole!),
         ),
       );
+
+      if (isLoggedIn == true && mounted) {
+        debugPrint('Login Success');
+        widget.onLoginSuccess(_selectedRole!);
+      }
     } finally {
       if (mounted) {
         setState(() {
@@ -45,6 +82,10 @@ class _LoginScreenState extends ConsumerState<LoginScreen> {
 
   @override
   Widget build(BuildContext context) {
+    if (_isLoadingRole) {
+      return const Scaffold(body: Center(child: CircularProgressIndicator()));
+    }
+
     return Scaffold(
       resizeToAvoidBottomInset: true,
       body: Container(
@@ -93,55 +134,17 @@ class _LoginScreenState extends ConsumerState<LoginScreen> {
                               ),
                               const SizedBox(height: 8),
                               Text(
-                                'Select your role to continue',
+                                'Login as ${_selectedRole!.toUpperCase()}',
                                 textAlign: TextAlign.center,
                                 style: Theme.of(context).textTheme.bodyMedium
                                     ?.copyWith(color: Colors.grey.shade700),
                               ),
                               const SizedBox(height: 22),
-                              _RoleTile(
-                                title: 'Superadmin',
-                                subtitle: 'Full control access',
-                                icon: Icons.admin_panel_settings_rounded,
-                                color: const Color(0xFF4A148C),
-                                selected: _selectedRole == 'superadmin',
-                                onTap: () {
-                                  setState(() {
-                                    _selectedRole = 'superadmin';
-                                  });
-                                },
-                              ),
-                              const SizedBox(height: 12),
-                              _RoleTile(
-                                title: 'Admin',
-                                subtitle: 'Operations and settings',
-                                icon: Icons.manage_accounts_rounded,
-                                color: const Color(0xFF0D47A1),
-                                selected: _selectedRole == 'admin',
-                                onTap: () {
-                                  setState(() {
-                                    _selectedRole = 'admin';
-                                  });
-                                },
-                              ),
-                              const SizedBox(height: 12),
-                              _RoleTile(
-                                title: 'Employee',
-                                subtitle: 'Daily billing and stock actions',
-                                icon: Icons.person_rounded,
-                                color: const Color(0xFF1B5E20),
-                                selected: _selectedRole == 'employee',
-                                onTap: () {
-                                  setState(() {
-                                    _selectedRole = 'employee';
-                                  });
-                                },
-                              ),
-                              const SizedBox(height: 22),
                               ElevatedButton.icon(
                                 onPressed:
                                     (_selectedRole == null ||
-                                        _isOpeningPinScreen)
+                                        _isOpeningPinScreen ||
+                                        isNavigating)
                                     ? null
                                     : _continueToPinEntry,
                                 icon: _isOpeningPinScreen
@@ -166,6 +169,21 @@ class _LoginScreenState extends ConsumerState<LoginScreen> {
                                   elevation: 4,
                                 ),
                               ),
+                              const SizedBox(height: 8),
+                              TextButton(
+                                onPressed: _isOpeningPinScreen
+                                    ? null
+                                    : () {
+                                        Navigator.pushReplacement(
+                                          context,
+                                          MaterialPageRoute(
+                                            builder: (_) =>
+                                                const RoleSelectionScreen(),
+                                          ),
+                                        );
+                                      },
+                                child: const Text('Change role'),
+                              ),
                             ],
                           ),
                         ),
@@ -176,77 +194,6 @@ class _LoginScreenState extends ConsumerState<LoginScreen> {
               );
             },
           ),
-        ),
-      ),
-    );
-  }
-}
-
-class _RoleTile extends StatelessWidget {
-  final String title;
-  final String subtitle;
-  final IconData icon;
-  final Color color;
-  final bool selected;
-  final VoidCallback onTap;
-
-  const _RoleTile({
-    required this.title,
-    required this.subtitle,
-    required this.icon,
-    required this.color,
-    required this.selected,
-    required this.onTap,
-  });
-
-  @override
-  Widget build(BuildContext context) {
-    return InkWell(
-      onTap: onTap,
-      borderRadius: BorderRadius.circular(14),
-      child: AnimatedContainer(
-        duration: const Duration(milliseconds: 180),
-        padding: const EdgeInsets.symmetric(horizontal: 14, vertical: 12),
-        decoration: BoxDecoration(
-          borderRadius: BorderRadius.circular(14),
-          color: selected ? color.withValues(alpha: 0.12) : Colors.white,
-          border: Border.all(
-            color: selected ? color : Colors.grey.shade300,
-            width: selected ? 2 : 1,
-          ),
-        ),
-        child: Row(
-          children: [
-            CircleAvatar(
-              radius: 22,
-              backgroundColor: color.withValues(alpha: 0.18),
-              child: Icon(icon, color: color),
-            ),
-            const SizedBox(width: 12),
-            Expanded(
-              child: Column(
-                crossAxisAlignment: CrossAxisAlignment.start,
-                children: [
-                  Text(
-                    title,
-                    style: Theme.of(context).textTheme.titleMedium?.copyWith(
-                      fontWeight: FontWeight.w700,
-                    ),
-                  ),
-                  Text(
-                    subtitle,
-                    style: Theme.of(context).textTheme.bodySmall?.copyWith(
-                      color: Colors.grey.shade700,
-                    ),
-                  ),
-                ],
-              ),
-            ),
-            Icon(
-              selected ? Icons.check_circle : Icons.radio_button_unchecked,
-              color: selected ? color : Colors.grey.shade500,
-            ),
-          ],
         ),
       ),
     );

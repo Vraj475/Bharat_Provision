@@ -13,6 +13,7 @@ import '../../data/providers.dart';
 import '../inventory/inventory_providers.dart';
 import '../khata/khata_providers.dart';
 import 'settings_providers.dart';
+import 'screens/pin_verification_screen.dart';
 
 class SettingsScreen extends ConsumerStatefulWidget {
   const SettingsScreen({super.key});
@@ -148,92 +149,122 @@ class _SettingsScreenState extends ConsumerState<SettingsScreen> {
 
     return Scaffold(
       body: SingleChildScrollView(
-        padding: const EdgeInsets.all(16),
-        child: Column(
-          crossAxisAlignment: CrossAxisAlignment.stretch,
-          children: [
-            Text(
-              AppStrings.settingsTitle,
-              style: Theme.of(context).textTheme.headlineMedium,
-            ),
-            const SizedBox(height: 24),
-            Text(
-              AppStrings.shopProfile,
-              style: Theme.of(context).textTheme.titleLarge,
-            ),
-            const SizedBox(height: 8),
-            TextField(
-              controller: _shopNameController,
-              decoration: const InputDecoration(labelText: AppStrings.shopName),
-            ),
-            const SizedBox(height: 8),
-            TextField(
-              controller: _addressController,
-              decoration: const InputDecoration(
-                labelText: AppStrings.shopAddress,
+        child: Padding(
+          padding: const EdgeInsets.all(16),
+          child: Column(
+            crossAxisAlignment: CrossAxisAlignment.start,
+            children: [
+              Text(
+                AppStrings.settingsTitle,
+                style: Theme.of(context).textTheme.headlineMedium,
               ),
-              maxLines: 2,
-            ),
-            const SizedBox(height: 8),
-            TextField(
-              controller: _phoneController,
-              decoration: const InputDecoration(
-                labelText: AppStrings.shopPhone,
+              const SizedBox(height: 24),
+              Text(
+                AppStrings.shopProfile,
+                style: Theme.of(context).textTheme.titleLarge,
               ),
-            ),
-            const SizedBox(height: 8),
-            TextField(
-              controller: _gstinController,
-              decoration: const InputDecoration(labelText: AppStrings.gstin),
-            ),
-            const SizedBox(height: 8),
-            TextField(
-              controller: _billFooterController,
-              decoration: const InputDecoration(
-                labelText: AppStrings.billFooter,
+              const SizedBox(height: 8),
+              TextField(
+                controller: _shopNameController,
+                decoration: const InputDecoration(
+                  labelText: AppStrings.shopName,
+                ),
               ),
-              maxLines: 2,
-            ),
-            const SizedBox(height: 16),
-            PrimaryButton(
-              label: AppStrings.saveButton,
-              icon: Icons.save,
-              onPressed: _saveProfile,
-            ),
-            const SizedBox(height: 32),
-            Text(
-              AppStrings.largeText,
-              style: Theme.of(context).textTheme.titleLarge,
-            ),
-            SwitchListTile(
-              title: const Text(AppStrings.largeText),
-              value: largeText,
-              onChanged: (v) async {
-                ref.read(largeTextProvider.notifier).state = v;
-                final repo = await ref.read(
-                  settingsRepositoryFutureProvider.future,
-                );
-                await repo.setBool('large_text', v);
-              },
-            ),
-            const SizedBox(height: 32),
-            Text(
-              AppStrings.backupRestore,
-              style: Theme.of(context).textTheme.titleLarge,
-            ),
-            const SizedBox(height: 8),
-            PrimaryButton(
-              label: AppStrings.exportData,
-              icon: Icons.upload_file,
-              onPressed: _exportData,
-            ),
-            const SizedBox(height: 8),
-            PrimaryButton(
-              label: AppStrings.importData,
-              icon: Icons.download,
-              onPressed: _importData,
-            ),
-          ],
+              const SizedBox(height: 8),
+              TextField(
+                controller: _addressController,
+                decoration: const InputDecoration(
+                  labelText: AppStrings.shopAddress,
+                ),
+                maxLines: 2,
+              ),
+              const SizedBox(height: 8),
+              TextField(
+                controller: _phoneController,
+                decoration: const InputDecoration(
+                  labelText: AppStrings.shopPhone,
+                ),
+              ),
+              const SizedBox(height: 8),
+              TextField(
+                controller: _gstinController,
+                decoration: const InputDecoration(labelText: AppStrings.gstin),
+              ),
+              const SizedBox(height: 8),
+              TextField(
+                controller: _billFooterController,
+                decoration: const InputDecoration(
+                  labelText: AppStrings.billFooter,
+                ),
+                maxLines: 2,
+              ),
+              const SizedBox(height: 16),
+              PrimaryButton(
+                label: AppStrings.saveButton,
+                icon: Icons.save,
+                onPressed: _saveProfile,
+              ),
+              const SizedBox(height: 32),
+              Text(
+                AppStrings.largeText,
+                style: Theme.of(context).textTheme.titleLarge,
+              ),
+              SwitchListTile(
+                title: const Text(AppStrings.largeText),
+                contentPadding: EdgeInsets.zero,
+                value: largeText,
+                onChanged: (v) async {
+                  ref.read(largeTextProvider.notifier).state = v;
+                  final repo = await ref.read(
+                    settingsRepositoryFutureProvider.future,
+                  );
+                  await repo.setBool('large_text', v);
+                },
+              ),
+              const SizedBox(height: 32),
+              Text(
+                AppStrings.backupRestore,
+                style: Theme.of(context).textTheme.titleLarge,
+              ),
+              const SizedBox(height: 8),
+              PrimaryButton(
+                label: AppStrings.exportData,
+                icon: Icons.upload_file,
+                onPressed: _exportData,
+              ),
+              const SizedBox(height: 8),
+              PrimaryButton(
+                label: AppStrings.importData,
+                icon: Icons.download,
+                onPressed: _importData,
+              ),
+              const SizedBox(height: 20),
+              const Text(
+                'Security Settings',
+                style: TextStyle(fontSize: 16, fontWeight: FontWeight.bold),
+              ),
+              const SizedBox(height: 10),
+              Card(
+                shape: RoundedRectangleBorder(
+                  borderRadius: BorderRadius.circular(10),
+                ),
+                child: ListTile(
+                  leading: const Icon(Icons.lock, color: Colors.green),
+                  title: const Text('Change PIN'),
+                  subtitle: const Text('Update your login PIN'),
+                  trailing: const Icon(Icons.arrow_forward_ios, size: 16),
+                  onTap: () {
+                    Navigator.push(
+                      context,
+                      MaterialPageRoute(
+                        builder: (_) => const ChangePinScreen(),
+                      ),
+                    );
+                  },
+                ),
+              ),
+            ],
+          ),
         ),
       ),
     );

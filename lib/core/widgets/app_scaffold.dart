@@ -1,8 +1,8 @@
 import 'package:flutter/material.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 
-import 'logout_redirect_page.dart';
 import '../../features/settings/providers/auth_provider.dart';
+import '../../features/settings/screens/role_selection_screen.dart';
 import '../auth/role_provider.dart';
 import '../localization/app_strings.dart';
 
@@ -117,8 +117,8 @@ class AppScaffold extends ConsumerWidget {
   static void _logout(BuildContext context, WidgetRef ref) {
     ref.read(authSessionProvider.notifier).logout();
     Navigator.of(context).pushAndRemoveUntil(
-      MaterialPageRoute(builder: (_) => const LogoutRedirectPage()),
-      (route) => route.isFirst,
+      MaterialPageRoute(builder: (_) => const RoleSelectionScreen()),
+      (route) => false,
     );
   }
 }

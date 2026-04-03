@@ -1,10 +1,9 @@
 import 'package:flutter/material.dart';
 import 'package:flutter/services.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
-import 'package:shared_preferences/shared_preferences.dart';
 
 import '../providers/auth_provider.dart';
-import '../../../core/widgets/logout_redirect_page.dart';
+import 'role_selection_screen.dart';
 import '../utils/pin_utils.dart';
 
 /// PIN verification screen used for sensitive operations.
@@ -205,6 +204,21 @@ class _ChangePinScreenState extends ConsumerState<ChangePinScreen> {
 
   bool _submitted = false;
   bool _isSaving = false;
+  bool hasNavigated = false;
+
+  Future<void> goToRoleScreen() async {
+    if (hasNavigated) return;
+    hasNavigated = true;
+
+    if (!mounted) return;
+
+    debugPrint('Navigating to Role Screen');
+    Navigator.pushAndRemoveUntil(
+      context,
+      MaterialPageRoute(builder: (_) => const RoleSelectionScreen()),
+      (route) => false,
+    );
+  }
 
   String? _targetRole() {
     final session = ref.read(authSessionProvider);
@@ -266,7 +280,6 @@ class _ChangePinScreenState extends ConsumerState<ChangePinScreen> {
 
     try {
       final messenger = ScaffoldMessenger.of(context);
-      final navigator = Navigator.of(context);
       final pinStorage = ref.read(pinStorageProvider);
       final oldPinValid = await pinStorage.verifyPin(role, oldPin);
 
@@ -281,26 +294,22 @@ class _ChangePinScreenState extends ConsumerState<ChangePinScreen> {
         return;
       }
 
-      await pinStorage.setPinHash(role, newPin);
+      await pinStorage.setPinHash(role, newPin.trim());
+      debugPrint('PIN Updated');
 
       if (!mounted) return;
-      final prefs = await SharedPreferences.getInstance();
-      await prefs.remove('logged_in');
-      await prefs.remove('role');
       ref.read(authSessionProvider.notifier).logout();
       messenger.showSnackBar(
         const SnackBar(
           content: Text('PIN changed successfully. Please login again.'),
         ),
       );
-      navigator.pushAndRemoveUntil(
-        MaterialPageRoute(builder: (_) => const LogoutRedirectPage()),
-        (route) => route.isFirst,
-      );
+      await goToRoleScreen();
     } catch (_) {
       if (!mounted) return;
       setState(() {
         _isSaving = false;
+        hasNavigated = false;
       });
       ScaffoldMessenger.of(context).showSnackBar(
         const SnackBar(
@@ -380,7 +389,9 @@ class _ChangePinScreenState extends ConsumerState<ChangePinScreen> {
                             ),
                             const SizedBox(height: 18),
                             ElevatedButton(
-                              onPressed: _isSaving ? null : _changePin,
+                              onPressed: (_isSaving || hasNavigated)
+                                  ? null
+                                  : _changePin,
                               style: ElevatedButton.styleFrom(
                                 minimumSize: const Size.fromHeight(50),
                                 shape: RoundedRectangleBorder(

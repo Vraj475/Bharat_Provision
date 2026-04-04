@@ -1,0 +1,78 @@
+LOGIN SCREEN AND ROLE CHANGES :-
+
+1. Whenever i just Click the role in login the Pin entering screen should appear automatically 
+no continue button needed and in the PIN entering autofocus should be on the PIN  (Improving UX)
+
+2. Only Name of the role should be printed (UI Change)
+
+3. Back to Role Selection is not Working It should Work (UI Error)
+
+4. Print Statements are here for debugging they should be deleted (Print Statement Deletion)
+
+DASHBOARD & BILL CHANGES :-
+
+5. In dashboard list of product is not needed just a search bar with auto focus On is Good and once i added 
+the product in bill the search bar should be automatically cleareds
+
+6. Save Bill should work and in print bill if there is no printer connected or there is some 
+error the bill should be saved
+
+7.In bill the name of the customer should always be there in that the textfield should given 
+when admin enters the name system have to check it if there is existing customer there should be 
+name added and if not that name that is entered in textfield should be printed
+
+8. In dashboard there should be bill history module that shows all bill and there should also be 
+the filtering for the bill by date and also by name
+
+9. the return and replace product module should see all the bills like bill history and it should also 
+searched as the bill history module
+
+10. In the bill by money or by weight there should alwas be by weight auto selected but the option of 
+selecting should be there and also when a admin enters the weight it should be in KG like (1.125) and 
+when admin press enter key the item should added in the bill
+
+
+11. when making a bill all things should be edited and deleted product quantity selling price and also 
+the product should be removed from the bill
+
+OTHER:-
+
+12. In khata module the deleting of  the customer is  working but black screen is coming instead 
+a customer is deleted should be there.
+
+13. In adding the debit account the keyboard is not working in the whole application if there is any 
+type of input there should be added with keyboard as well as mouse also 
+
+14.In the internal screen of the khata the total or the entries of the rupees is not reflecting it should 
+be
+
+15. Reports module have huge errors it shoul be worked in P&L Reports there should be graph of the daily
+sales and in that the time period should be added by the user 
+
+16. in daily Reports the total sales graph , total expense graph and also 
+a total revenue made by the sales graph should show 
+
+17. In data import the black screen is coming that should be changed
+
+NEW MODULE:-
+
+18. There should be 1 module called expense in that module all the busisness expense should be 
+added and there also should be categories of expense for example purchase , personal expense,
+and also in every expense there should be 1 field of any remark (નોંધ) in which we should write any
+remarks 
+
+19. In expense module along with category i also want to add fixed expense account like  in that sectionn
+i should add the name of the shop where i buys the products to purchase and at adding expense that should be
+added in the table 
+
+20. Customers name in udhaar section and khata section are not synchronized they are different that should be 
+one at any point in application 
+
+21. In the bill history i must see the whole bill and i could also edit that bill and the edit should affect
+in the whole application where this data is used
+
+
+22. Suggestion of the product should be shown to the user so that bill making made very fast
+
+23. The searching of prducts should be also from selling price if i enter selling price of a specific product
+i could saw the product

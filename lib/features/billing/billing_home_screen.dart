@@ -50,6 +50,7 @@ class _BillingHomeScreenState extends ConsumerState<BillingHomeScreen> {
   int? _customerId;
   List<Customer> _customerSuggestions = const [];
   bool _isSearchingCustomers = false;
+  bool _isCustomerDropdownOpen = false;
   Timer? _customerSearchDebounce;
   int _customerSearchToken = 0;
   bool _lowStockPopupShown = false;
@@ -63,6 +64,7 @@ class _BillingHomeScreenState extends ConsumerState<BillingHomeScreen> {
         setState(() {
           _customerSuggestions = const [];
           _isSearchingCustomers = false;
+          _isCustomerDropdownOpen = false;
         });
       }
     });
@@ -105,6 +107,7 @@ class _BillingHomeScreenState extends ConsumerState<BillingHomeScreen> {
       _customerId = null;
       _customerSuggestions = const [];
       _isSearchingCustomers = false;
+      _isCustomerDropdownOpen = false;
       if (clearText) {
         _customerName = null;
       }
@@ -136,6 +139,7 @@ class _BillingHomeScreenState extends ConsumerState<BillingHomeScreen> {
       _customerName = typed;
       _customerId = null;
       _isSearchingCustomers = true;
+      _isCustomerDropdownOpen = true;
     });
 
     final searchToken = ++_customerSearchToken;
@@ -151,12 +155,14 @@ class _BillingHomeScreenState extends ConsumerState<BillingHomeScreen> {
         setState(() {
           _customerSuggestions = sortedCustomers.take(5).toList();
           _isSearchingCustomers = false;
+          _isCustomerDropdownOpen = _shouldShowCustomerDropdown();
         });
       } catch (_) {
         if (!mounted || searchToken != _customerSearchToken) return;
         setState(() {
           _customerSuggestions = const [];
           _isSearchingCustomers = false;
+          _isCustomerDropdownOpen = _shouldShowCustomerDropdown();
         });
       }
     });
@@ -169,6 +175,7 @@ class _BillingHomeScreenState extends ConsumerState<BillingHomeScreen> {
       _customerName = customer.nameGujarati;
       _customerSuggestions = const [];
       _isSearchingCustomers = false;
+      _isCustomerDropdownOpen = false;
     });
     _customerController.value = TextEditingValue(
       text: customer.nameGujarati,
@@ -185,6 +192,7 @@ class _BillingHomeScreenState extends ConsumerState<BillingHomeScreen> {
       _customerName = typed.isEmpty ? null : typed;
       _customerSuggestions = const [];
       _isSearchingCustomers = false;
+      _isCustomerDropdownOpen = false;
     });
     _focusProductSearch();
   }
@@ -631,6 +639,7 @@ class _BillingHomeScreenState extends ConsumerState<BillingHomeScreen> {
         _customerName = null;
         _customerId = null;
         _customerSuggestions = const [];
+        _isCustomerDropdownOpen = false;
         _customerController.clear();
       });
 
@@ -764,11 +773,11 @@ class _BillingHomeScreenState extends ConsumerState<BillingHomeScreen> {
 
   Widget _buildProductPanel() {
     final state = ref.watch(billingItemsProvider);
-    return Column(
-      crossAxisAlignment: CrossAxisAlignment.stretch,
+    return Stack(
+      clipBehavior: Clip.none,
       children: [
-        Stack(
-          clipBehavior: Clip.none,
+        Column(
+          crossAxisAlignment: CrossAxisAlignment.stretch,
           children: [
             Padding(
               padding: const EdgeInsets.all(8),
@@ -800,44 +809,26 @@ class _BillingHomeScreenState extends ConsumerState<BillingHomeScreen> {
                     onEditingComplete: _focusProductSearch,
                   ),
                   const SizedBox(height: 8),
-                  TextField(
-                    controller: _searchController,
-                    focusNode: _productSearchFocusNode,
-                    decoration: const InputDecoration(
-                      prefixIcon: Icon(Icons.search),
-                      hintText: strings.AppStrings.searchHintProducts,
-                      border: OutlineInputBorder(),
+                  IgnorePointer(
+                    ignoring: _isCustomerDropdownOpen,
+                    child: TextField(
+                      controller: _searchController,
+                      focusNode: _productSearchFocusNode,
+                      decoration: const InputDecoration(
+                        prefixIcon: Icon(Icons.search),
+                        hintText: strings.AppStrings.searchHintProducts,
+                        border: OutlineInputBorder(),
+                      ),
+                      onChanged: (value) {
+                        ref.read(billingSearchProvider.notifier).state = value;
+                      },
                     ),
-                    onChanged: (value) {
-                      ref.read(billingSearchProvider.notifier).state = value;
-                    },
                   ),
                 ],
               ),
             ),
-            if (_showCustomerDropdown)
-              Positioned(
-                left: 8,
-                right: 8,
-                top: 116,
-                child: Material(
-                  elevation: 10,
-                  borderRadius: BorderRadius.circular(14),
-                  color: Colors.white,
-                  child: ConstrainedBox(
-                    constraints: const BoxConstraints(maxHeight: 320),
-                    child: ListView(
-                      shrinkWrap: true,
-                      padding: EdgeInsets.zero,
-                      children: _customerDropdownChildren(),
-                    ),
-                  ),
-                ),
-              ),
-          ],
-        ),
-        Expanded(
-          child: state.when(
+            Expanded(
+              child: state.when(
             data: (items) {
               if (items.isEmpty) {
                 return Center(
@@ -973,17 +964,42 @@ class _BillingHomeScreenState extends ConsumerState<BillingHomeScreen> {
             },
           ),
         ),
+          ],
+        ),
+        if (_showCustomerDropdown)
+          Positioned(
+            left: 8,
+            right: 8,
+            top: 116,
+            child: Material(
+              elevation: 10,
+              borderRadius: BorderRadius.circular(14),
+              color: Colors.white,
+              child: ConstrainedBox(
+                constraints: const BoxConstraints(maxHeight: 320),
+                child: ListView(
+                  shrinkWrap: true,
+                  padding: EdgeInsets.zero,
+                  children: _customerDropdownChildren(),
+                ),
+              ),
+            ),
+          ),
       ],
     );
   }
 
-  bool get _showCustomerDropdown {
+  bool _shouldShowCustomerDropdown() {
     final typed = _customerController.text.trim();
     if (typed.isEmpty) return false;
     return (_customerFocusNode.hasFocus || _isSearchingCustomers) &&
         (_isSearchingCustomers ||
             _customerSuggestions.isNotEmpty ||
             !_hasExactCustomerMatch(typed, _customerSuggestions));
+  }
+
+  bool get _showCustomerDropdown {
+    return _isCustomerDropdownOpen;
   }
 
   List<Widget> _customerDropdownChildren() {

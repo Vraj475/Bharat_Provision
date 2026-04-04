@@ -1,3 +1,4 @@
+import 'dart:async';
 import 'dart:typed_data';
 import 'dart:ui' as ui;
 
@@ -9,10 +10,12 @@ import 'package:flutter_riverpod/flutter_riverpod.dart';
 import '../../core/constants/app_strings.dart' as strings;
 import '../../core/errors/error_handler.dart';
 import '../../core/errors/error_types.dart';
+import '../../core/database/database_helper.dart';
 import '../../shared/widgets/errors/error_dialogue.dart';
 import '../../core/utils/currency_format.dart';
 import '../../core/utils/weight_calculator.dart';
 import '../../data/models/item.dart';
+import '../../shared/models/customer_model.dart';
 import '../../routing/app_router.dart';
 import 'billing_providers.dart';
 import '../../core/services/notification_service.dart';
@@ -21,6 +24,7 @@ import '../../features/stock/stock_providers.dart';
 import '../../features/settings/settings_providers.dart';
 import '../../data/providers.dart';
 import '../../data/repositories/bill_repository.dart';
+import '../../data/repositories/udhaar_repository.dart';
 import '../../features/reports/reports_providers.dart';
 
 /// Simplified single-screen billing - Create bills and print them.
@@ -34,22 +38,40 @@ class BillingHomeScreen extends ConsumerStatefulWidget {
 class _BillingHomeScreenState extends ConsumerState<BillingHomeScreen> {
   final _billBoundaryKey = GlobalKey();
   final BlueThermalPrinter _bluePrinter = BlueThermalPrinter.instance;
+  final _customerController = TextEditingController();
   final _searchController = TextEditingController();
+  final _customerFocusNode = FocusNode();
+  final _productSearchFocusNode = FocusNode();
   final List<BillLineItem> _billLines = [];
   double _discount = 0;
   String? _bannerMessage;
   String? _customerName;
   String? _shopName;
+  int? _customerId;
+  List<Customer> _customerSuggestions = const [];
+  bool _isSearchingCustomers = false;
+  Timer? _customerSearchDebounce;
+  int _customerSearchToken = 0;
   bool _lowStockPopupShown = false;
 
   @override
   void initState() {
     super.initState();
+    _customerFocusNode.addListener(() {
+      if (!mounted) return;
+      if (!_customerFocusNode.hasFocus) {
+        setState(() {
+          _customerSuggestions = const [];
+          _isSearchingCustomers = false;
+        });
+      }
+    });
     // Load all items when screen loads (from inventory items table)
     WidgetsBinding.instance.addPostFrameCallback((_) {
       ref.read(billingSearchProvider.notifier).state = '';
       ref.invalidate(billingItemsProvider);
       _loadShopProfileFromSettings();
+      _customerFocusNode.requestFocus();
     });
   }
 
@@ -64,8 +86,107 @@ class _BillingHomeScreenState extends ConsumerState<BillingHomeScreen> {
 
   @override
   void dispose() {
+    _customerSearchDebounce?.cancel();
+    _customerController.dispose();
     _searchController.dispose();
+    _customerFocusNode.dispose();
+    _productSearchFocusNode.dispose();
     super.dispose();
+  }
+
+  void _focusProductSearch() {
+    if (!mounted) return;
+    FocusScope.of(context).requestFocus(_productSearchFocusNode);
+  }
+
+  void _clearCustomerSelection({bool clearText = true}) {
+    _customerSearchDebounce?.cancel();
+    setState(() {
+      _customerId = null;
+      _customerSuggestions = const [];
+      _isSearchingCustomers = false;
+      if (clearText) {
+        _customerName = null;
+      }
+    });
+    if (clearText && _customerController.text.isNotEmpty) {
+      _customerController.clear();
+    }
+  }
+
+  bool _hasExactCustomerMatch(String typedName, List<Customer> customers) {
+    final normalizedTyped = typedName.trim().toLowerCase();
+    if (normalizedTyped.isEmpty) return false;
+    return customers.any((customer) {
+      return customer.nameGujarati.trim().toLowerCase() == normalizedTyped ||
+          (customer.nameEnglish?.trim().toLowerCase() == normalizedTyped);
+    });
+  }
+
+  void _onCustomerChanged(String value) {
+    final typed = value.trim();
+    _customerSearchDebounce?.cancel();
+
+    if (typed.isEmpty) {
+      _clearCustomerSelection(clearText: false);
+      return;
+    }
+
+    setState(() {
+      _customerName = typed;
+      _customerId = null;
+      _isSearchingCustomers = true;
+    });
+
+    final searchToken = ++_customerSearchToken;
+    _customerSearchDebounce = Timer(const Duration(milliseconds: 300), () async {
+      try {
+        final repo = UdhaarRepository(DatabaseHelper.instance);
+        final customers = await repo.findSimilarCustomers(typed);
+        if (!mounted || searchToken != _customerSearchToken) return;
+
+        final sortedCustomers = [...customers]
+          ..sort((a, b) => a.nameGujarati.compareTo(b.nameGujarati));
+
+        setState(() {
+          _customerSuggestions = sortedCustomers.take(5).toList();
+          _isSearchingCustomers = false;
+        });
+      } catch (_) {
+        if (!mounted || searchToken != _customerSearchToken) return;
+        setState(() {
+          _customerSuggestions = const [];
+          _isSearchingCustomers = false;
+        });
+      }
+    });
+  }
+
+  void _selectCustomer(Customer customer) {
+    _customerSearchDebounce?.cancel();
+    setState(() {
+      _customerId = customer.id;
+      _customerName = customer.nameGujarati;
+      _customerSuggestions = const [];
+      _isSearchingCustomers = false;
+    });
+    _customerController.value = TextEditingValue(
+      text: customer.nameGujarati,
+      selection: TextSelection.collapsed(offset: customer.nameGujarati.length),
+    );
+    _focusProductSearch();
+  }
+
+  void _selectWalkInCustomer() {
+    final typed = _customerController.text.trim();
+    _customerSearchDebounce?.cancel();
+    setState(() {
+      _customerId = null;
+      _customerName = typed.isEmpty ? null : typed;
+      _customerSuggestions = const [];
+      _isSearchingCustomers = false;
+    });
+    _focusProductSearch();
   }
 
   void _setCustomerName() async {
@@ -487,7 +608,7 @@ class _BillingHomeScreenState extends ConsumerState<BillingHomeScreen> {
       // Save bill to database
       final billRepo = await ref.read(billRepositoryFutureProvider.future);
       final billId = await billRepo.createBill(
-        customerId: null,
+        customerId: _customerId,
         items: billItems,
         discountAmount: _discount,
         paidAmount: _total,
@@ -508,6 +629,9 @@ class _BillingHomeScreenState extends ConsumerState<BillingHomeScreen> {
         _billLines.clear();
         _discount = 0;
         _customerName = null;
+        _customerId = null;
+        _customerSuggestions = const [];
+        _customerController.clear();
       });
 
       if (!mounted) return;
@@ -643,19 +767,74 @@ class _BillingHomeScreenState extends ConsumerState<BillingHomeScreen> {
     return Column(
       crossAxisAlignment: CrossAxisAlignment.stretch,
       children: [
-        Padding(
-          padding: const EdgeInsets.all(8),
-          child: TextField(
-            controller: _searchController,
-            decoration: const InputDecoration(
-              prefixIcon: Icon(Icons.search),
-              hintText: strings.AppStrings.searchHintProducts,
-              border: OutlineInputBorder(),
+        Stack(
+          clipBehavior: Clip.none,
+          children: [
+            Padding(
+              padding: const EdgeInsets.all(8),
+              child: Column(
+                crossAxisAlignment: CrossAxisAlignment.stretch,
+                children: [
+                  TextField(
+                    controller: _customerController,
+                    focusNode: _customerFocusNode,
+                    autofocus: true,
+                    textInputAction: TextInputAction.next,
+                    decoration: InputDecoration(
+                      labelText: 'ગ્રાહકનું નામ',
+                      prefixIcon: const Icon(Icons.person),
+                      suffixIcon: _customerController.text.isEmpty
+                          ? null
+                          : IconButton(
+                              tooltip: 'Clear customer',
+                              onPressed: () {
+                                _clearCustomerSelection();
+                                _focusProductSearch();
+                              },
+                              icon: const Icon(Icons.close),
+                            ),
+                      border: const OutlineInputBorder(),
+                    ),
+                    onChanged: _onCustomerChanged,
+                    onSubmitted: (_) => _focusProductSearch(),
+                    onEditingComplete: _focusProductSearch,
+                  ),
+                  const SizedBox(height: 8),
+                  TextField(
+                    controller: _searchController,
+                    focusNode: _productSearchFocusNode,
+                    decoration: const InputDecoration(
+                      prefixIcon: Icon(Icons.search),
+                      hintText: strings.AppStrings.searchHintProducts,
+                      border: OutlineInputBorder(),
+                    ),
+                    onChanged: (value) {
+                      ref.read(billingSearchProvider.notifier).state = value;
+                    },
+                  ),
+                ],
+              ),
             ),
-            onChanged: (value) {
-              ref.read(billingSearchProvider.notifier).state = value;
-            },
-          ),
+            if (_showCustomerDropdown)
+              Positioned(
+                left: 8,
+                right: 8,
+                top: 116,
+                child: Material(
+                  elevation: 10,
+                  borderRadius: BorderRadius.circular(14),
+                  color: Colors.white,
+                  child: ConstrainedBox(
+                    constraints: const BoxConstraints(maxHeight: 320),
+                    child: ListView(
+                      shrinkWrap: true,
+                      padding: EdgeInsets.zero,
+                      children: _customerDropdownChildren(),
+                    ),
+                  ),
+                ),
+              ),
+          ],
         ),
         Expanded(
           child: state.when(
@@ -796,6 +975,98 @@ class _BillingHomeScreenState extends ConsumerState<BillingHomeScreen> {
         ),
       ],
     );
+  }
+
+  bool get _showCustomerDropdown {
+    final typed = _customerController.text.trim();
+    if (typed.isEmpty) return false;
+    return (_customerFocusNode.hasFocus || _isSearchingCustomers) &&
+        (_isSearchingCustomers ||
+            _customerSuggestions.isNotEmpty ||
+            !_hasExactCustomerMatch(typed, _customerSuggestions));
+  }
+
+  List<Widget> _customerDropdownChildren() {
+    final typed = _customerController.text.trim();
+    final hasExactMatch = _hasExactCustomerMatch(typed, _customerSuggestions);
+
+    final rows = <Widget>[];
+    for (final customer in _customerSuggestions) {
+      rows.add(
+        InkWell(
+          onTap: () => _selectCustomer(customer),
+          child: Padding(
+            padding: const EdgeInsets.symmetric(horizontal: 12, vertical: 10),
+            child: Column(
+              crossAxisAlignment: CrossAxisAlignment.start,
+              children: [
+                Text(
+                  customer.nameGujarati,
+                  style: const TextStyle(fontWeight: FontWeight.w700),
+                ),
+                if (customer.totalOutstanding > 0) ...[
+                  const SizedBox(height: 4),
+                  Text(
+                    'ઉધાર બાકી: ${formatCurrency(customer.totalOutstanding)}',
+                    style: TextStyle(
+                      color: Colors.orange.shade700,
+                      fontWeight: FontWeight.w600,
+                    ),
+                  ),
+                ] else if ((customer.nameEnglish ?? '').trim().isNotEmpty) ...[
+                  const SizedBox(height: 4),
+                  Text(
+                    customer.nameEnglish!,
+                    style: TextStyle(
+                      color: Colors.grey.shade700,
+                      fontSize: 12,
+                    ),
+                  ),
+                ],
+              ],
+            ),
+          ),
+        ),
+      );
+    }
+
+    if (!hasExactMatch) {
+      if (rows.isNotEmpty) {
+        rows.add(const Divider(height: 1));
+      }
+      rows.add(
+        InkWell(
+          onTap: _selectWalkInCustomer,
+          child: Padding(
+            padding: const EdgeInsets.symmetric(horizontal: 12, vertical: 12),
+            child: RichText(
+              text: TextSpan(
+                style: DefaultTextStyle.of(context).style,
+                children: [
+                  TextSpan(
+                    text: 'નવા ગ્રાહક તરીકે ઉમેરો',
+                    style: TextStyle(
+                      color: Colors.green.shade700,
+                      fontWeight: FontWeight.w700,
+                    ),
+                  ),
+                  if (typed.isNotEmpty)
+                    TextSpan(
+                      text: ' - $typed',
+                      style: TextStyle(
+                        color: Colors.grey.shade700,
+                        fontWeight: FontWeight.w500,
+                      ),
+                    ),
+                ],
+              ),
+            ),
+          ),
+        ),
+      );
+    }
+
+    return rows;
   }
 
   Widget _buildBillPanel() {

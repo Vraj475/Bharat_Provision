@@ -62,7 +62,7 @@ class _SplashScreenState extends State<SplashScreen> {
                 future: AppData.getShopName(),
                 builder: (context, snapshot) {
                   return Text(
-                    snapshot.data ?? 'My Shop',
+                    snapshot.data ?? 'ભારત પ્રોવિઝન હાપા',
                     style: const TextStyle(
                       color: Colors.white,
                       fontSize: 24,

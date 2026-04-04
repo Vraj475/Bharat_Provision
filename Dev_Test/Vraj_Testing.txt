@@ -76,5 +76,3 @@ in the whole application where this data is used
 
 23. The searching of prducts should be also from selling price if i enter selling price of a specific product
 i could saw the product
-
-24. The final amount in bill and selling price of product must be edited by the user

@@ -9,9 +9,11 @@ import 'package:flutter_riverpod/flutter_riverpod.dart';
 
 import '../../core/constants/app_strings.dart' as strings;
 import '../../core/errors/error_handler.dart';
+import '../../core/errors/error_logger.dart';
 import '../../core/errors/error_types.dart';
 import '../../core/database/database_helper.dart';
 import '../../shared/widgets/errors/error_dialogue.dart';
+import '../../shared/widgets/errors/error_dialog.dart';
 import '../../core/utils/currency_format.dart';
 import '../../core/utils/weight_calculator.dart';
 import '../../data/models/item.dart';
@@ -24,6 +26,7 @@ import '../../features/stock/stock_providers.dart';
 import '../../features/settings/settings_providers.dart';
 import '../../data/providers.dart';
 import '../../data/repositories/bill_repository.dart';
+import '../../data/services/bill_service_provider.dart';
 import '../../data/repositories/udhaar_repository.dart';
 import '../../features/reports/reports_providers.dart';
 
@@ -283,12 +286,117 @@ class _BillingHomeScreenState extends ConsumerState<BillingHomeScreen> {
   double get _total => _subtotal - _discount;
 
   Future<void> _saveBill() async {
-    // Save bill logic (not shown here)
-    // After saving, check stock alerts for all products in bill
-    final productIds = _billLines
+    if (_billLines.isEmpty) {
+      if (!mounted) return;
+      ScaffoldMessenger.of(context).showSnackBar(
+        const SnackBar(content: Text('બિલ ખાલી છે. કૃપયા આઇટમ ઉમેરો.')),
+      );
+      return;
+    }
+
+    await _saveBillToDatabase(showSuccessMessage: true, clearDraft: true);
+  }
+
+  List<BillItemInput> _buildBillItemsFromLines(List<BillLineItem> lines) {
+    return lines.map((line) {
+      final quantityInStockUnit = _toStockUnitQuantity(line);
+      final double unitPrice = quantityInStockUnit > 0
+          ? line.amount / quantityInStockUnit
+          : 0.0;
+      return BillItemInput(
+        itemId: line.item.id ?? 0,
+        quantity: quantityInStockUnit,
+        unitPrice: unitPrice,
+      );
+    }).toList();
+  }
+
+  void _clearCurrentBillDraft() {
+    setState(() {
+      _billLines.clear();
+      _discount = 0;
+      _customerName = null;
+      _customerId = null;
+      _customerSuggestions = const [];
+      _isCustomerDropdownOpen = false;
+      _customerController.clear();
+    });
+    ref.read(billingTabsProvider.notifier).clearActive();
+  }
+
+  Future<int?> _saveBillToDatabase({
+    required bool showSuccessMessage,
+    required bool clearDraft,
+  }) async {
+    final linesSnapshot = List<BillLineItem>.from(_billLines);
+    final discountSnapshot = _discount;
+    final customerIdSnapshot = _customerId;
+    final customerNameSnapshot = _customerName?.trim();
+    final productIds = linesSnapshot
         .map((l) => l.item.id)
         .whereType<int>()
         .toList();
+
+    try {
+      final billItems = _buildBillItemsFromLines(linesSnapshot);
+      final billRepo = await ref.read(billRepositoryFutureProvider.future);
+      final billId = await billRepo.createBill(
+        customerId: customerIdSnapshot,
+        customerNameSnapshot: (customerNameSnapshot == null || customerNameSnapshot.isEmpty)
+            ? null
+            : customerNameSnapshot,
+        items: billItems,
+        discountAmount: discountSnapshot,
+        paidAmount: linesSnapshot.fold(0.0, (s, l) => s + l.amount) - discountSnapshot,
+        paymentMode: 'cash',
+        userId: null,
+      );
+
+      if (mounted) {
+        ref.invalidate(reportRepositoryFutureProvider);
+        ref.invalidate(salesReportProvider);
+        ref.invalidate(billingItemsProvider);
+        ref.invalidate(itemListProvider);
+        ref.invalidate(stockDashboardProductsProvider);
+        ref.invalidate(todaysBillsProvider);
+      }
+
+      await _updateStockAlerts(productIds);
+
+      if (mounted && clearDraft) {
+        _clearCurrentBillDraft();
+      }
+
+      if (mounted && showSuccessMessage) {
+        ScaffoldMessenger.of(context).showSnackBar(
+          const SnackBar(content: Text('બિલ સેવ થઈ ગયું')),
+        );
+      }
+
+      return billId;
+    } catch (error, stack) {
+      final appError = AppError(
+        code: 'DB_003',
+        category: ErrorCategory.database,
+        technicalMessage: error.toString(),
+        userMessage: 'બિલ સેવ કરવામાં નિષ્ફળ. કોઈ ડેટા બદલાયો નથી. ફરી પ્રયાસ કરો.',
+        isCritical: false,
+        timestamp: DateTime.now(),
+        stackTrace: stack,
+      );
+      await ErrorLogger.log(
+        appError,
+        currentScreen: 'BillingHomeScreen._saveBillToDatabase',
+      );
+
+      if (mounted) {
+        await ErrorDialog.show(context, appError);
+      }
+      return null;
+    }
+  }
+
+  Future<void> _updateStockAlerts(List<int> productIds) async {
     final stockRepo = ref.read(stockRepositoryProvider);
     final alertResult = await stockRepo.checkStockAlerts(productIds);
     final userRole = await _getCurrentUserRole();
@@ -554,38 +662,15 @@ class _BillingHomeScreenState extends ConsumerState<BillingHomeScreen> {
       );
       return;
     }
-    try {
-      final connected = await _bluePrinter.isConnected ?? false;
-      if (!connected) {
-        if (!mounted) return;
-        ErrorDialogue.showSnackbar(
-          context,
-          message: 'પ્રિન્ટર કનેક્ટ નથી. Bluetooth તપાસો.',
-          code: 'PRINT_001',
-          type: ErrorDialogueType.error,
-        );
-        return;
-      }
-
-      final billImageBytes = await _captureBillImageBytes();
-      if (billImageBytes == null) {
-        throw StateError('PRINT_003');
-      }
-
-      await _bluePrinter.writeBytes(billImageBytes);
-      if (!mounted) return;
-      ScaffoldMessenger.of(context).showSnackBar(
-        const SnackBar(content: Text('બિલ સફળતાથી પ્રિન્ટ થયું')),
-      );
-
-      // Save bill after successful print dispatch.
-      await _saveBillAfterPrint();
-    } catch (e) {
-      if (!mounted) return;
-      ScaffoldMessenger.of(
-        context,
-      ).showSnackBar(SnackBar(content: Text('ભૂલ: $e')));
+    final billId = await _saveBillToDatabase(
+      showSuccessMessage: false,
+      clearDraft: false,
+    );
+    if (billId == null) {
+      return;
     }
+
+    await _attemptPrintSavedBill(billId, allowRetry: true);
   }
 
   Future<Uint8List?> _captureBillImageBytes() async {
@@ -598,65 +683,65 @@ class _BillingHomeScreenState extends ConsumerState<BillingHomeScreen> {
     return byteData?.buffer.asUint8List();
   }
 
-  Future<void> _saveBillAfterPrint() async {
+  Future<void> _attemptPrintSavedBill(
+    int billId, {
+    required bool allowRetry,
+  }) async {
     try {
-      // Convert bill line items to BillItemInput format
-      final billItems = _billLines.map((line) {
-        final quantityInStockUnit = _toStockUnitQuantity(line);
-        final double unitPrice = quantityInStockUnit > 0
-            ? line.amount / quantityInStockUnit
-            : 0.0;
-        return BillItemInput(
-          itemId: line.item.id ?? 0,
-          quantity: quantityInStockUnit,
-          unitPrice: unitPrice,
-        );
-      }).toList();
-
-      // Save bill to database
       final billRepo = await ref.read(billRepositoryFutureProvider.future);
-      final billId = await billRepo.createBill(
-        customerId: _customerId,
-        items: billItems,
-        discountAmount: _discount,
-        paidAmount: _total,
-        paymentMode: 'cash',
-        userId: null,
-      );
-
-      // Invalidate reports providers to refresh data
-      if (mounted) {
-        ref.invalidate(reportRepositoryFutureProvider);
-        ref.invalidate(salesReportProvider);
-        ref.invalidate(billingItemsProvider);
-        ref.invalidate(itemListProvider);
+      final savedBill = await billRepo.getById(billId);
+      final savedBillItems = await billRepo.getBillItems(billId);
+      if (savedBill == null || savedBillItems.isEmpty) {
+        throw StateError('PRINT_001');
       }
 
-      // Clear bill after successful save
-      setState(() {
-        _billLines.clear();
-        _discount = 0;
-        _customerName = null;
-        _customerId = null;
-        _customerSuggestions = const [];
-        _isCustomerDropdownOpen = false;
-        _customerController.clear();
-      });
+      final connected = await _bluePrinter.isConnected ?? false;
+      if (!connected) {
+        throw StateError('PRINT_001');
+      }
+
+      final billImageBytes = await _captureBillImageBytes();
+      if (billImageBytes == null) {
+        throw StateError('PRINT_001');
+      }
+
+      await _bluePrinter.writeBytes(billImageBytes);
+      if (!mounted) return;
+      _clearCurrentBillDraft();
+      ScaffoldMessenger.of(context).showSnackBar(
+        const SnackBar(content: Text('બિલ પ્રિન્ટ થઈ ગયું.')),
+      );
+    } catch (error, stack) {
+      final appError = AppError(
+        code: 'PRINT_001',
+        category: ErrorCategory.printing,
+        technicalMessage: error.toString(),
+        userMessage: 'પ્રિન્ટર કનેક્ટ નથી અથવા ભૂલ આવી. બિલ સેવ થઈ ગયું છે.',
+        isCritical: false,
+        timestamp: DateTime.now(),
+        stackTrace: stack,
+      );
+      await ErrorLogger.log(
+        appError,
+        currentScreen: 'BillingHomeScreen._attemptPrintSavedBill',
+      );
 
       if (!mounted) return;
-      ScaffoldMessenger.of(context).showSnackBar(
-        SnackBar(
-          content: Text(
-            'બિલ #$billId સફળતાથી બચાવવામાં આવ્યો! રિપોર્ટમાં અપડેટ થયો.',
-          ),
-          duration: const Duration(seconds: 3),
-        ),
-      );
-    } catch (e) {
-      if (!mounted) return;
-      ScaffoldMessenger.of(
+
+      if (!allowRetry) {
+        _clearCurrentBillDraft();
+        return;
+      }
+
+      ErrorDialogue.showSnackbar(
         context,
-      ).showSnackBar(SnackBar(content: Text('બિલ બચાવવામાં ભૂલ: $e')));
+        message: 'પ્રિન્ટર કનેક્ટ નથી અથવા ભૂલ આવી. બિલ સેવ થઈ ગયું છે.',
+        code: 'PRINT_001',
+        type: ErrorDialogueType.error,
+        retryCallback: () {
+          _attemptPrintSavedBill(billId, allowRetry: false);
+        },
+      );
     }
   }
 

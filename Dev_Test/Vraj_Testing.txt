@@ -14,10 +14,10 @@ DASHBOARD & BILL CHANGES :-
 5. In dashboard list of product is not needed just a search bar with auto focus On is Good and once i added 
 the product in bill the search bar should be automatically cleareds
 
-6. Save Bill should work and in print bill if there is no printer connected or there is some 
+6.Done Save Bill should work and in print bill if there is no printer connected or there is some 
 error the bill should be saved
 
-7.In bill the name of the customer should always be there in that the textfield should given 
+7.DONE In bill the name of the customer should always be there in that the textfield should given 
 when admin enters the name system have to check it if there is existing customer there should be 
 name added and if not that name that is entered in textfield should be printed
 
@@ -76,3 +76,5 @@ in the whole application where this data is used
 
 23. The searching of prducts should be also from selling price if i enter selling price of a specific product
 i could saw the product
+
+24. The final amount in bill must be edited by the user

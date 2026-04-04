@@ -44,7 +44,6 @@ class _SettingsScreenState extends ConsumerState<SettingsScreen>
 
   @override
   Widget build(BuildContext context) {
-    debugPrint('Settings screen loaded');
     final session = ref.watch(authSessionProvider);
 
     // Check access - only Admin and Superadmin
@@ -129,7 +128,6 @@ class _ShopInfoTab extends ConsumerWidget {
                     await repo.set('shop_name', shopName);
                     final prefs = await SharedPreferences.getInstance();
                     await prefs.setString('shop_name', shopName);
-                    debugPrint('Shop Name: $shopName');
                     ref.invalidate(settingsValuesProvider);
                     if (context.mounted) {
                       ScaffoldMessenger.of(context).showSnackBar(
@@ -457,7 +455,6 @@ class _SecuritySettingsTab extends ConsumerWidget {
 
     return securitySettings.when(
       data: (data) {
-        debugPrint('Change PIN tile rendered');
         final changePinFooter = Column(
           crossAxisAlignment: CrossAxisAlignment.start,
           children: [

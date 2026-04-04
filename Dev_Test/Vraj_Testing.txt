@@ -1,13 +1,13 @@
 LOGIN SCREEN AND ROLE CHANGES :-
 
-1. Whenever i just Click the role in login the Pin entering screen should appear automatically 
-no continue button needed and in the PIN entering autofocus should be on the PIN  (Improving UX)
+1.DONE Whenever i just Click the role in login the Pin entering screen should appear automatically 
+no continue button needed and in the PIN entering autofocus should be on the PIN  (Improving UX)  -- DONE
 
-2. Only Name of the role should be printed (UI Change)
+2.DONEOnly Name of the role should be printed (UI Change)
 
-3. Back to Role Selection is not Working It should Work (UI Error)
+3.DONE Back to Role Selection is not Working It should Work (UI Error)
 
-4. Print Statements are here for debugging they should be deleted (Print Statement Deletion)
+4.DONE Print Statements are here for debugging they should be deleted (Print Statement Deletion)
 
 DASHBOARD & BILL CHANGES :-
 

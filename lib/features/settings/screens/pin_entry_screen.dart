@@ -134,14 +134,11 @@ class _PinEntryScreenState extends ConsumerState<PinEntryScreen> {
       final prefs = await SharedPreferences.getInstance();
       final storedPin = prefs.getString('user_pin') ?? '0000';
       final enteredPin = pin.trim();
-      debugPrint('Entered PIN: $enteredPin');
-      debugPrint('Stored PIN: $storedPin');
 
       final isValid = enteredPin == storedPin;
       if (!mounted) return;
 
       if (!isValid) {
-        debugPrint('Incorrect PIN');
         setState(() {
           _errorMessage = 'Incorrect PIN. Please try again.';
           _isLoading = false;
@@ -166,7 +163,6 @@ class _PinEntryScreenState extends ConsumerState<PinEntryScreen> {
 
       if (isNavigating) return;
       isNavigating = true;
-      debugPrint('Login Success → Navigating to Dashboard');
       if (!mounted) return;
       Navigator.of(context).pushAndRemoveUntil(
         MaterialPageRoute(builder: (_) => const HomeScreen()),

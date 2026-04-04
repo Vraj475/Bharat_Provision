@@ -49,8 +49,6 @@ class _AuthGateState extends ConsumerState<AuthGate>
       final prefs = await SharedPreferences.getInstance();
       final role = prefs.getString('role');
 
-      debugPrint('Role: $role');
-
       if (!mounted) return;
       setState(() {
         _restoredRole = role;

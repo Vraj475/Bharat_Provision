@@ -69,7 +69,6 @@ class _LoginScreenState extends ConsumerState<LoginScreen> {
       );
 
       if (isLoggedIn == true && mounted) {
-        debugPrint('Login Success');
         widget.onLoginSuccess(_selectedRole!);
       }
     } finally {

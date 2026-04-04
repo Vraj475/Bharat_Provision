@@ -34,9 +34,7 @@ class _SplashScreenState extends State<SplashScreen> {
         context,
         MaterialPageRoute(builder: (_) => const RoleSelectionScreen()),
       );
-    } catch (e, stack) {
-      debugPrint('SplashScreen error: $e');
-      debugPrintStack(stackTrace: stack);
+    } catch (_) {
       if (!mounted) return;
       Navigator.pushReplacement(
         context,

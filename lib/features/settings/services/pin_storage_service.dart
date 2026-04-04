@@ -1,4 +1,3 @@
-import 'package:flutter/foundation.dart';
 import 'package:shared_preferences/shared_preferences.dart';
 
 import '../utils/pin_utils.dart';
@@ -19,11 +18,8 @@ class PinStorageService {
         storedPin = defaultPin;
         await prefs.setString(_pinKey, defaultPin);
       }
-      debugPrint('Stored PIN: $storedPin');
       return storedPin;
-    } catch (e, stack) {
-      debugPrint('PinStorageService.getPinHash failed: $e');
-      debugPrintStack(stackTrace: stack);
+    } catch (_) {
       return defaultPin;
     }
   }
@@ -37,7 +33,6 @@ class PinStorageService {
 
     final prefs = await SharedPreferences.getInstance();
     await prefs.setString(_pinKey, normalizedPin);
-    debugPrint('New PIN Saved: $normalizedPin');
   }
 
   // Verify PIN for a role
@@ -49,13 +44,9 @@ class PinStorageService {
       }
 
       final storedPin = await getPinHash(role);
-      debugPrint('Entered PIN: $enteredPin');
-      debugPrint('Stored PIN: $storedPin');
 
       return enteredPin == storedPin;
-    } catch (e, stack) {
-      debugPrint('PinStorageService.verifyPin failed: $e');
-      debugPrintStack(stackTrace: stack);
+    } catch (_) {
       return false;
     }
   }

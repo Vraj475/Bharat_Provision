@@ -52,7 +52,10 @@ class _KiranaAppState extends ConsumerState<KiranaApp> {
   @override
   void initState() {
     super.initState();
-    WidgetsBinding.instance.addPostFrameCallback((_) => _loadLargeText());
+    WidgetsBinding.instance.addPostFrameCallback((_) {
+      _loadLargeText();
+      debugPrint('Application Ran Without error and warning');
+    });
   }
 
   Future<void> _loadLargeText() async {

@@ -211,8 +211,6 @@ class _ChangePinScreenState extends ConsumerState<ChangePinScreen> {
     hasNavigated = true;
 
     if (!mounted) return;
-
-    debugPrint('Navigating to Role Screen');
     Navigator.pushAndRemoveUntil(
       context,
       MaterialPageRoute(builder: (_) => const RoleSelectionScreen()),
@@ -295,7 +293,6 @@ class _ChangePinScreenState extends ConsumerState<ChangePinScreen> {
       }
 
       await pinStorage.setPinHash(role, newPin.trim());
-      debugPrint('PIN Updated');
 
       if (!mounted) return;
       ref.read(authSessionProvider.notifier).logout();

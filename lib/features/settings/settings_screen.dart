@@ -64,7 +64,6 @@ class _SettingsScreenState extends ConsumerState<SettingsScreen> {
     await repo.set('shop_name', shopName);
     final prefs = await SharedPreferences.getInstance();
     await prefs.setString('shop_name', shopName);
-    debugPrint('Shop Name: $shopName');
     await repo.set('shop_address', _addressController.text.trim());
     await repo.set('shop_phone', _phoneController.text.trim());
     await repo.set('gstin', _gstinController.text.trim());

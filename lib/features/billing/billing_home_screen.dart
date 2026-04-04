@@ -5,6 +5,7 @@ import 'dart:ui' as ui;
 import 'package:blue_thermal_printer/blue_thermal_printer.dart';
 import 'package:flutter/material.dart';
 import 'package:flutter/rendering.dart';
+import 'package:flutter/services.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 
 import '../../core/constants/app_strings.dart' as strings;
@@ -473,8 +474,10 @@ class _BillingHomeScreenState extends ConsumerState<BillingHomeScreen> {
 
     double amountPaid = item.salePrice;
     double weightGrams = 1000;
-    String mode = 'amount';
+    String mode = 'weight';
     bool itemAdded = false;
+    final weightKgController = TextEditingController();
+    final weightInputFocusNode = FocusNode();
 
     if (!mounted) return;
     await showDialog<void>(
@@ -485,12 +488,64 @@ class _BillingHomeScreenState extends ConsumerState<BillingHomeScreen> {
             double? calculatedWeight;
             double? calculatedAmount;
 
+            void addCurrentItem() {
+              if (item.id == null) {
+                ScaffoldMessenger.of(context).showSnackBar(
+                  const SnackBar(content: Text('પ્રોડક્ટ પસંદ કરો')),
+                );
+                _focusProductSearch();
+                return;
+              }
+
+              double finalAmount;
+              double finalQty;
+
+              if (mode == 'amount') {
+                finalQty = WeightCalculator.calculateWeightFromAmount(
+                  amountPaid: amountPaid,
+                  sellPricePerKg: item.salePrice,
+                );
+                finalAmount = amountPaid;
+              } else {
+                final rawKg = weightKgController.text.trim();
+                final parsedKg = double.tryParse(rawKg);
+                if (rawKg.isEmpty || parsedKg == null || parsedKg <= 0) {
+                  ScaffoldMessenger.of(context).showSnackBar(
+                    const SnackBar(content: Text('વજન દાખલ કરો')),
+                  );
+                  FocusScope.of(ctx).requestFocus(weightInputFocusNode);
+                  return;
+                }
+                final grams = parsedKg * 1000.0;
+                finalAmount = WeightCalculator.calculateAmountFromWeight(
+                  weightGrams: grams,
+                  sellPricePerKg: item.salePrice,
+                );
+                finalQty = grams;
+              }
+
+              _billLines.add(
+                BillLineItem(
+                  item: item,
+                  qtyGrams: finalQty,
+                  amount: finalAmount,
+                ),
+              );
+              weightKgController.clear();
+              itemAdded = true;
+              Navigator.of(ctx).pop();
+            }
+
             if (mode == 'amount') {
               calculatedWeight = WeightCalculator.calculateWeightFromAmount(
                 amountPaid: amountPaid,
                 sellPricePerKg: item.salePrice,
               );
             } else {
+              final parsedKg = double.tryParse(weightKgController.text.trim());
+              if (parsedKg != null && parsedKg > 0) {
+                weightGrams = parsedKg * 1000.0;
+              }
               calculatedAmount = WeightCalculator.calculateAmountFromWeight(
                 weightGrams: weightGrams,
                 sellPricePerKg: item.salePrice,
@@ -548,19 +603,39 @@ class _BillingHomeScreenState extends ConsumerState<BillingHomeScreen> {
                         ),
                       ),
                   ] else ...[
-                    TextField(
-                      keyboardType: const TextInputType.numberWithOptions(
-                        decimal: true,
-                      ),
-                      decoration: const InputDecoration(
-                        labelText: 'ગ્રામમાં વજન દાખલ કરો',
-                      ),
-                      onChanged: (v) {
-                        final parsed = double.tryParse(v);
-                        if (parsed != null) {
-                          setDialogState(() => weightGrams = parsed);
+                    Focus(
+                      onKeyEvent: (node, event) {
+                        if (event is KeyDownEvent &&
+                            weightInputFocusNode.hasFocus &&
+                            (event.logicalKey == LogicalKeyboardKey.enter ||
+                                event.logicalKey ==
+                                    LogicalKeyboardKey.numpadEnter)) {
+                          addCurrentItem();
+                          return KeyEventResult.handled;
                         }
+                        return KeyEventResult.ignored;
                       },
+                      child: TextField(
+                        controller: weightKgController,
+                        focusNode: weightInputFocusNode,
+                        keyboardType: const TextInputType.numberWithOptions(
+                          decimal: true,
+                        ),
+                        textInputAction: TextInputAction.done,
+                        inputFormatters: [
+                          FilteringTextInputFormatter.allow(
+                            RegExp(r'^\d*\.?\d{0,3}'),
+                          ),
+                        ],
+                        decoration: const InputDecoration(
+                          labelText: 'વજન (કિલો)',
+                          hintText: 'કિલોમાં દાખલ કરો જેમ કે 1.500',
+                        ),
+                        onChanged: (_) {
+                          setDialogState(() {});
+                        },
+                        onSubmitted: (_) => addCurrentItem(),
+                      ),
                     ),
                     const SizedBox(height: 8),
                     if (calculatedAmount != null)
@@ -581,31 +656,7 @@ class _BillingHomeScreenState extends ConsumerState<BillingHomeScreen> {
                   child: const Text(strings.AppStrings.cancelButton),
                 ),
                 ElevatedButton(
-                  onPressed: () {
-                    double finalAmount, finalQty;
-                    if (mode == 'amount') {
-                      finalQty = WeightCalculator.calculateWeightFromAmount(
-                        amountPaid: amountPaid,
-                        sellPricePerKg: item.salePrice,
-                      );
-                      finalAmount = amountPaid;
-                    } else {
-                      finalAmount = WeightCalculator.calculateAmountFromWeight(
-                        weightGrams: weightGrams,
-                        sellPricePerKg: item.salePrice,
-                      );
-                      finalQty = weightGrams;
-                    }
-                    _billLines.add(
-                      BillLineItem(
-                        item: item,
-                        qtyGrams: finalQty,
-                        amount: finalAmount,
-                      ),
-                    );
-                    itemAdded = true;
-                    Navigator.of(ctx).pop();
-                  },
+                  onPressed: addCurrentItem,
                   child: const Text(strings.AppStrings.addButton),
                 ),
               ],
@@ -615,9 +666,13 @@ class _BillingHomeScreenState extends ConsumerState<BillingHomeScreen> {
       },
     );
 
+    weightKgController.dispose();
+    weightInputFocusNode.dispose();
+
     // Trigger parent widget rebuild after dialog closes
     if (itemAdded && mounted) {
       setState(() {});
+      _focusProductSearch();
     }
   }
 

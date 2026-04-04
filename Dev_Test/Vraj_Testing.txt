@@ -27,7 +27,7 @@ the filtering for the bill by date and also by name
 9. the return and replace product module should see all the bills like bill history and it should also 
 searched as the bill history module
 
-10. In the bill by money or by weight there should alwas be by weight auto selected but the option of 
+10.DONE In the bill by money or by weight there should alwas be by weight auto selected but the option of 
 selecting should be there and also when a admin enters the weight it should be in KG like (1.125) and 
 when admin press enter key the item should added in the bill
 
@@ -77,4 +77,4 @@ in the whole application where this data is used
 23. The searching of prducts should be also from selling price if i enter selling price of a specific product
 i could saw the product
 
-24. The final amount in bill must be edited by the user
+24. The final amount in bill and selling price of product must be edited by the user

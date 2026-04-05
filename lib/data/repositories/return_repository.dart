@@ -57,6 +57,7 @@ class ReturnRepository {
     int? limit,
   }) async {
     final db = await _helper.database;
+    final dateColumn = await _billDateColumn(db);
     final conditions = <String>[];
     final args = <dynamic>[];
 
@@ -68,12 +69,37 @@ class ReturnRepository {
     }
 
     if (from != null && to != null) {
-      final fromEpoch = DateTime(from.year, from.month, from.day)
-        .millisecondsSinceEpoch;
-      final toEpoch = DateTime(to.year, to.month, to.day, 23, 59, 59, 999)
-        .millisecondsSinceEpoch;
-      conditions.add('date_time >= ? AND date_time <= ?');
-      args.addAll([fromEpoch, toEpoch]);
+      if (dateColumn == 'date_time') {
+        final fromEpoch = DateTime(
+          from.year,
+          from.month,
+          from.day,
+        ).millisecondsSinceEpoch;
+        final toEpoch = DateTime(
+          to.year,
+          to.month,
+          to.day,
+          23,
+          59,
+          59,
+          999,
+        ).millisecondsSinceEpoch;
+        conditions.add('date_time >= ? AND date_time <= ?');
+        args.addAll([fromEpoch, toEpoch]);
+      } else {
+        final fromDate = DateTime(
+          from.year,
+          from.month,
+          from.day,
+        ).toIso8601String().substring(0, 10);
+        final toDate = DateTime(
+          to.year,
+          to.month,
+          to.day,
+        ).toIso8601String().substring(0, 10);
+        conditions.add('$dateColumn >= ? AND $dateColumn <= ?');
+        args.addAll([fromDate, toDate]);
+      }
     }
 
     final whereClause = conditions.isEmpty
@@ -84,7 +110,7 @@ class ReturnRepository {
     final rows = await db.rawQuery('''
       SELECT * FROM bills
       $whereClause
-      ORDER BY date_time DESC, id DESC
+      ORDER BY $dateColumn DESC, id DESC
       $limitClause
     ''', args);
 
@@ -93,6 +119,19 @@ class ReturnRepository {
 
   Future<List<Bill>> searchBills(String query) async {
     return getBillHistory(query: query, limit: 30);
+  }
+
+  Future<String> _billDateColumn(Database db) async {
+    final columns = await db.rawQuery('PRAGMA table_info(bills)');
+    final names = columns
+        .map((row) => row['name']?.toString())
+        .whereType<String>()
+        .toList();
+
+    if (names.contains('date_time')) return 'date_time';
+    if (names.contains('bill_date')) return 'bill_date';
+    if (names.contains('created_at')) return 'created_at';
+    return 'id';
   }
 
   Future<List<BillItem>> getBillItems(int billId) async {

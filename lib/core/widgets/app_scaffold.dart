@@ -41,7 +41,7 @@ class AppScaffold extends ConsumerWidget {
               selectedIndex: effectiveIndex,
               onDestinationSelected: onDestinationSelected,
               labelType: NavigationRailLabelType.all,
-              minWidth: 84,
+              minWidth: 104,
               selectedIconTheme: IconThemeData(color: primaryColor),
               selectedLabelTextStyle: TextStyle(
                 color: primaryColor,
@@ -62,8 +62,8 @@ class AppScaffold extends ConsumerWidget {
                       AppStrings.appTitle,
                       textAlign: TextAlign.center,
                       style: Theme.of(context).textTheme.titleSmall?.copyWith(
-                            fontWeight: FontWeight.w800,
-                          ),
+                        fontWeight: FontWeight.w800,
+                      ),
                     ),
                     const SizedBox(height: 6),
                     Text(

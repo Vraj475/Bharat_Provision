@@ -130,7 +130,7 @@ class _LoginScreenState extends ConsumerState<LoginScreen> {
                                 future: AppData.getShopName(),
                                 builder: (context, snapshot) {
                                   return Text(
-                                    snapshot.data ?? 'My Shop',
+                                    snapshot.data ?? 'ભારત પ્રોવિઝન હાપા',
                                     textAlign: TextAlign.center,
                                     style: Theme.of(context)
                                         .textTheme

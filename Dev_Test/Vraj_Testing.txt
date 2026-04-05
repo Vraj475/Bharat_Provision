@@ -1,4 +1,4 @@
-LOGIN SCREEN AND ROLE CHANGES :-
+LOGIN SCREEN AND ROLE CHANGES :- 
 
 1.DONE Whenever i just Click the role in login the Pin entering screen should appear automatically 
 no continue button needed and in the PIN entering autofocus should be on the PIN  (Improving UX)  -- DONE
@@ -32,7 +32,7 @@ selecting should be there and also when a admin enters the weight it should be i
 when admin press enter key the item should added in the bill
 
 
-11. when making a bill all things should be edited and deleted product quantity selling price and also 
+11.DONE when making a bill all things should be edited and deleted product quantity selling price and also 
 the product should be removed from the bill
 
 OTHER:-

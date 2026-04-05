@@ -50,20 +50,49 @@ class ReturnRepository {
   ReturnRepository(this._helper);
   final DatabaseHelper _helper;
 
-  Future<List<Bill>> searchBills(String query) async {
+  Future<List<Bill>> getBillHistory({
+    String? query,
+    DateTime? from,
+    DateTime? to,
+    int? limit,
+  }) async {
     final db = await _helper.database;
-    final like = '%${query.trim()}%';
-    final rows = await db.rawQuery(
-      '''
+    final conditions = <String>[];
+    final args = <dynamic>[];
+
+    final trimmedQuery = query?.trim() ?? '';
+    if (trimmedQuery.isNotEmpty) {
+      final like = '%$trimmedQuery%';
+      conditions.add('(bill_number LIKE ? OR customer_name_snapshot LIKE ?)');
+      args.addAll([like, like]);
+    }
+
+    if (from != null && to != null) {
+      final fromEpoch = DateTime(from.year, from.month, from.day)
+        .millisecondsSinceEpoch;
+      final toEpoch = DateTime(to.year, to.month, to.day, 23, 59, 59, 999)
+        .millisecondsSinceEpoch;
+      conditions.add('date_time >= ? AND date_time <= ?');
+      args.addAll([fromEpoch, toEpoch]);
+    }
+
+    final whereClause = conditions.isEmpty
+        ? ''
+        : 'WHERE ${conditions.join(' AND ')}';
+    final limitClause = limit != null ? 'LIMIT $limit' : '';
+
+    final rows = await db.rawQuery('''
       SELECT * FROM bills
-      WHERE bill_number LIKE ?
-         OR customer_name_snapshot LIKE ?
-      ORDER BY bill_date DESC
-      LIMIT 30
-    ''',
-      [like, like],
-    );
+      $whereClause
+      ORDER BY date_time DESC, id DESC
+      $limitClause
+    ''', args);
+
     return rows.map((r) => Bill.fromMap(r)).toList();
+  }
+
+  Future<List<Bill>> searchBills(String query) async {
+    return getBillHistory(query: query, limit: 30);
   }
 
   Future<List<BillItem>> getBillItems(int billId) async {

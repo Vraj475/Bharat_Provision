@@ -3,6 +3,7 @@ import 'package:flutter/material.dart';
 import '../core/widgets/app_scaffold.dart';
 import '../core/auth/role_guard.dart';
 import '../features/billing/billing_home_screen.dart';
+import '../features/billing/bill_history_screen.dart';
 import '../features/inventory/category_list_screen.dart';
 import '../features/inventory/item_list_screen.dart';
 import '../features/inventory/item_edit_screen.dart';
@@ -33,6 +34,7 @@ class AppRouter {
   AppRouter._();
 
   static const String billing = '/billing';
+  static const String billHistory = '/bill-history';
   static const String dashboard = '/';
   static const String inventory = '/inventory';
   static const String customers = '/customers';
@@ -80,6 +82,12 @@ class AppRouter {
         return _buildShell(0, const DashboardScreen());
       case billing:
         return _build(const BillingHomeScreen());
+      case billHistory:
+        return _buildShellGuarded(
+          1,
+          const BillHistoryScreen(),
+          allowedRoles: const ['admin', 'superadmin'],
+        );
       case inventory:
         return _buildShell(1, const ItemListScreen());
       case customers:

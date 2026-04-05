@@ -7,6 +7,7 @@ class AppColors {
   static const Color success = Color(0xFF43A047);
   static const Color warning = Color(0xFFFB8C00);
   static const Color alert = Color(0xFFE53935);
+  static const Color divider = Color(0xFFD9DDD9);
 
   static const Color primary = Color(0xFF2E7D32);
   static const Color primaryLight = Color(0xFF4CAF50);

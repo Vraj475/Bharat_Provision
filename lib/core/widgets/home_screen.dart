@@ -2,6 +2,7 @@ import 'package:flutter/material.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 
 import '../../features/billing/billing_home_screen.dart';
+import '../../features/billing/bill_history_screen.dart';
 import '../../features/inventory/item_list_screen.dart';
 import '../../features/khata/customer_list_screen.dart';
 import '../../features/reports/reports_home_screen.dart';
@@ -21,14 +22,6 @@ class HomeScreen extends ConsumerStatefulWidget {
 class _HomeScreenState extends ConsumerState<HomeScreen>
     with WidgetsBindingObserver {
   int _currentIndex = 0;
-
-  static const List<Widget> _baseScreens = [
-    BillingHomeScreen(),
-    ItemListScreen(),
-    CustomerListScreen(),
-    ReportsHomeScreen(),
-    SettingsScreen(),
-  ];
 
   @override
   void initState() {
@@ -63,17 +56,25 @@ class _HomeScreenState extends ConsumerState<HomeScreen>
   Widget build(BuildContext context) {
     final role = ref.watch(currentRoleProvider);
     final isAdmin = canAccessUdhaar(role);
-    final Widget currentScreen;
-    if (_currentIndex == 5 && isAdmin) {
-      currentScreen = const UdhaarDashboardScreen();
-    } else {
-      currentScreen = _baseScreens[_currentIndex.clamp(0, 4)];
-    }
+    final screens = _screensForRole(isAdmin);
+    final currentScreen = screens[_currentIndex.clamp(0, screens.length - 1)];
 
     return AppScaffold(
       currentIndex: _currentIndex,
       onDestinationSelected: (i) => setState(() => _currentIndex = i),
       child: currentScreen,
     );
+  }
+
+  List<Widget> _screensForRole(bool isAdmin) {
+    return [
+      const BillingHomeScreen(),
+      if (isAdmin) const BillHistoryScreen(),
+      const ItemListScreen(),
+      const CustomerListScreen(),
+      const ReportsHomeScreen(),
+      const SettingsScreen(),
+      if (isAdmin) const UdhaarDashboardScreen(),
+    ];
   }
 }

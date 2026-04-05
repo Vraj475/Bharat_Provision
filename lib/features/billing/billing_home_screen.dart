@@ -1555,17 +1555,11 @@ class _BillingHomeScreenState extends ConsumerState<BillingHomeScreen> {
                 Navigator.of(context).pushNamed(AppRouter.returnsNew);
               } else if (value == 'replace') {
                 Navigator.of(context).pushNamed(AppRouter.returnsReplace);
-              } else if (value == 'history') {
-                Navigator.of(context).pushNamed(AppRouter.returnsHistory);
               }
             },
             itemBuilder: (context) => [
               const PopupMenuItem(value: 'returns', child: Text('પાછું આપવું')),
               const PopupMenuItem(value: 'replace', child: Text('બદલવું')),
-              const PopupMenuItem(
-                value: 'history',
-                child: Text('પાછું આપવાનો ઇતિહાસ'),
-              ),
             ],
           ),
         ],

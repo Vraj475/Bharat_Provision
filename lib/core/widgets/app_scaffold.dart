@@ -28,34 +28,70 @@ class AppScaffold extends ConsumerWidget {
     final roleLabel = _roleLabel(role);
     final screenWidth = MediaQuery.sizeOf(context).width;
 
-    final items = [
-      const _NavItem(AppStrings.navBilling, Icons.point_of_sale),
-      const _NavItem(AppStrings.navInventory, Icons.inventory_2),
-      const _NavItem(AppStrings.navKhata, Icons.people),
-      const _NavItem(AppStrings.navReports, Icons.assessment),
-      const _NavItem(AppStrings.navSettings, Icons.settings),
-      if (isAdmin) const _NavItem('ઉધાર', Icons.account_balance_wallet),
-    ];
+    final items = _navItems(isAdmin);
 
     final effectiveIndex = currentIndex.clamp(0, items.length - 1);
+    final primaryColor = Theme.of(context).colorScheme.primary;
 
     if (screenWidth >= 900) {
       return Scaffold(
         body: Row(
           children: [
-            SizedBox(
-              width: 280,
-              child: Drawer(
-                elevation: 0,
-                child: _SidebarContent(
-                  roleLabel: roleLabel,
-                  selectedIndex: effectiveIndex,
-                  items: items,
-                  onDestinationSelected: onDestinationSelected,
-                  onLogout: () => _logout(context, ref),
-                  isDrawerRoute: false,
+            NavigationRail(
+              selectedIndex: effectiveIndex,
+              onDestinationSelected: onDestinationSelected,
+              labelType: NavigationRailLabelType.all,
+              minWidth: 84,
+              selectedIconTheme: IconThemeData(color: primaryColor),
+              selectedLabelTextStyle: TextStyle(
+                color: primaryColor,
+                fontWeight: FontWeight.w600,
+              ),
+              unselectedIconTheme: IconThemeData(
+                color: Theme.of(context).colorScheme.onSurfaceVariant,
+              ),
+              unselectedLabelTextStyle: TextStyle(
+                color: Theme.of(context).colorScheme.onSurfaceVariant,
+              ),
+              leading: Padding(
+                padding: const EdgeInsets.only(top: 16, bottom: 12),
+                child: Column(
+                  mainAxisSize: MainAxisSize.min,
+                  children: [
+                    Text(
+                      AppStrings.appTitle,
+                      textAlign: TextAlign.center,
+                      style: Theme.of(context).textTheme.titleSmall?.copyWith(
+                            fontWeight: FontWeight.w800,
+                          ),
+                    ),
+                    const SizedBox(height: 6),
+                    Text(
+                      roleLabel,
+                      style: TextStyle(
+                        fontSize: 12,
+                        color: Theme.of(context).colorScheme.onSurfaceVariant,
+                      ),
+                    ),
+                  ],
                 ),
               ),
+              trailing: Padding(
+                padding: const EdgeInsets.only(bottom: 16),
+                child: IconButton(
+                  tooltip: 'Logout',
+                  onPressed: () => _logout(context, ref),
+                  icon: const Icon(Icons.logout),
+                ),
+              ),
+              destinations: [
+                for (final item in items)
+                  NavigationRailDestination(
+                    icon: Icon(item.icon),
+                    selectedIcon: Icon(item.icon),
+                    label: Text(item.label),
+                  ),
+              ],
             ),
             const VerticalDivider(width: 1, thickness: 1),
             Expanded(child: child),
@@ -66,14 +102,25 @@ class AppScaffold extends ConsumerWidget {
 
     return Scaffold(
       drawer: Drawer(
-        child: _SidebarContent(
+        child: _DrawerContent(
           roleLabel: roleLabel,
-          selectedIndex: effectiveIndex,
-          items: items,
-          onDestinationSelected: onDestinationSelected,
           onLogout: () => _logout(context, ref),
-          isDrawerRoute: true,
         ),
+      ),
+      bottomNavigationBar: BottomNavigationBar(
+        currentIndex: effectiveIndex,
+        onTap: onDestinationSelected,
+        type: BottomNavigationBarType.fixed,
+        selectedItemColor: primaryColor,
+        unselectedItemColor: Theme.of(context).colorScheme.onSurfaceVariant,
+        items: [
+          for (final item in items)
+            BottomNavigationBarItem(
+              icon: Icon(item.icon),
+              activeIcon: Icon(item.icon),
+              label: item.label,
+            ),
+        ],
       ),
       body: Stack(
         children: [
@@ -121,6 +168,18 @@ class AppScaffold extends ConsumerWidget {
       (route) => false,
     );
   }
+
+  List<_NavItem> _navItems(bool isAdmin) {
+    return [
+      const _NavItem(AppStrings.navBilling, Icons.point_of_sale),
+      if (isAdmin) const _NavItem('બિલ ઇતિહાસ', Icons.receipt_long),
+      const _NavItem(AppStrings.navInventory, Icons.inventory_2),
+      const _NavItem(AppStrings.navKhata, Icons.people),
+      const _NavItem(AppStrings.navReports, Icons.assessment),
+      const _NavItem(AppStrings.navSettings, Icons.settings),
+      if (isAdmin) const _NavItem('ઉધાર', Icons.account_balance_wallet),
+    ];
+  }
 }
 
 class _NavItem {
@@ -129,22 +188,11 @@ class _NavItem {
   final IconData icon;
 }
 
-class _SidebarContent extends StatelessWidget {
-  const _SidebarContent({
-    required this.roleLabel,
-    required this.selectedIndex,
-    required this.items,
-    required this.onDestinationSelected,
-    required this.onLogout,
-    required this.isDrawerRoute,
-  });
+class _DrawerContent extends StatelessWidget {
+  const _DrawerContent({required this.roleLabel, required this.onLogout});
 
   final String roleLabel;
-  final int selectedIndex;
-  final List<_NavItem> items;
-  final ValueChanged<int> onDestinationSelected;
   final VoidCallback onLogout;
-  final bool isDrawerRoute;
 
   @override
   Widget build(BuildContext context) {
@@ -162,25 +210,7 @@ class _SidebarContent extends StatelessWidget {
               ).textTheme.titleLarge?.copyWith(fontWeight: FontWeight.w800),
             ),
             const SizedBox(height: 12),
-            Expanded(
-              child: ListView.builder(
-                itemCount: items.length,
-                itemBuilder: (context, index) {
-                  final item = items[index];
-                  return ListTile(
-                    selected: index == selectedIndex,
-                    leading: Icon(item.icon),
-                    title: Text(item.label),
-                    onTap: () {
-                      if (isDrawerRoute) {
-                        Navigator.of(context).pop();
-                      }
-                      onDestinationSelected(index);
-                    },
-                  );
-                },
-              ),
-            ),
+            const Spacer(),
             const Divider(),
             Padding(
               padding: const EdgeInsets.symmetric(horizontal: 12, vertical: 8),
@@ -193,9 +223,7 @@ class _SidebarContent extends StatelessWidget {
               leading: const Icon(Icons.logout),
               title: const Text('Logout'),
               onTap: () {
-                if (isDrawerRoute) {
-                  Navigator.of(context).pop();
-                }
+                Navigator.of(context).pop();
                 onLogout();
               },
             ),

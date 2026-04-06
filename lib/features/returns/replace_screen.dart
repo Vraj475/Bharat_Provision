@@ -1,6 +1,11 @@
+import 'dart:async';
+
 import 'package:flutter/material.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
+import 'package:intl/intl.dart';
 
+import '../../core/theme/app_colors.dart';
+import '../../core/utils/currency_format.dart';
 import '../../data/repositories/return_repository.dart';
 import '../../shared/models/bill_item_model.dart';
 import '../../shared/models/bill_model.dart';
@@ -16,9 +21,16 @@ class ReplaceScreen extends ConsumerStatefulWidget {
 
 class _ReplaceScreenState extends ConsumerState<ReplaceScreen> {
   final _searchCtrl = TextEditingController();
-  List<Bill> _searchResults = [];
-  Bill? _selectedBill;
+  final _scrollController = ScrollController();
+  Timer? _searchDebounce;
+
+  String _query = '';
+  String _status = 'all';
+  DateTime? _fromDate;
+  DateTime? _toDate;
+
   List<BillItem> _billItems = [];
+  Bill? _selectedBill;
   BillItem? _selectedReturnItem;
   final _returnQtyCtrl = TextEditingController();
 
@@ -31,39 +43,83 @@ class _ReplaceScreenState extends ConsumerState<ReplaceScreen> {
 
   @override
   void dispose() {
+    _searchDebounce?.cancel();
     _searchCtrl.dispose();
+    _scrollController.dispose();
     _returnQtyCtrl.dispose();
     _replacementQtyCtrl.dispose();
     super.dispose();
   }
 
-  Future<void> _searchBills() async {
+  bool get _hasDateFilter => _fromDate != null && _toDate != null;
+
+  bool get _hasActiveFilters =>
+      _query.isNotEmpty || _status != 'all' || _hasDateFilter;
+
+  BillListQueryParams get _queryParams => BillListQueryParams(
+    query: _query,
+    status: _status,
+    from: _hasDateFilter ? _fromDate : null,
+    to: _hasDateFilter ? _toDate : null,
+  );
+
+  void _scheduleSearch() {
+    _searchDebounce?.cancel();
+    _searchDebounce = Timer(const Duration(milliseconds: 100), () {
+      if (!mounted) return;
+      setState(() {
+        _query = _searchCtrl.text.trim();
+      });
+    });
+  }
+
+  Future<void> _pickFromDate() async {
+    final picked = await showDatePicker(
+      context: context,
+      initialDate: _fromDate ?? DateTime.now(),
+      firstDate: DateTime(2020),
+      lastDate: DateTime.now().add(const Duration(days: 1)),
+    );
+    if (picked != null) {
+      setState(() => _fromDate = picked);
+    }
+  }
+
+  Future<void> _pickToDate() async {
+    final picked = await showDatePicker(
+      context: context,
+      initialDate: _toDate ?? _fromDate ?? DateTime.now(),
+      firstDate: DateTime(2020),
+      lastDate: DateTime.now().add(const Duration(days: 1)),
+    );
+    if (picked != null) {
+      setState(() => _toDate = picked);
+    }
+  }
+
+  void _clearDates() {
     setState(() {
-      _isLoading = true;
+      _fromDate = null;
+      _toDate = null;
+    });
+  }
+
+  Future<void> _openBill(Bill bill) async {
+    setState(() {
+      _selectedBill = bill;
       _error = null;
-      _searchResults = [];
+    });
+    await _loadBillItems(bill.id!);
+  }
+
+  void _backToBillList() {
+    setState(() {
       _selectedBill = null;
       _billItems = [];
       _selectedReturnItem = null;
-      _productSearchResults = [];
       _selectedReplacementProduct = null;
+      _productSearchResults = [];
     });
-
-    try {
-      final repo = ref.read(returnRepositoryProvider);
-      final results = await repo.searchBills(_searchCtrl.text.trim());
-      setState(() {
-        _searchResults = results;
-      });
-    } catch (e) {
-      setState(() {
-        _error = e.toString();
-      });
-    } finally {
-      setState(() {
-        _isLoading = false;
-      });
-    }
   }
 
   Future<void> _loadBillItems(int billId) async {
@@ -78,23 +134,28 @@ class _ReplaceScreenState extends ConsumerState<ReplaceScreen> {
     try {
       final repo = ref.read(returnRepositoryProvider);
       final items = await repo.getBillItems(billId);
+      if (!mounted) return;
       setState(() {
         _billItems = items;
       });
     } catch (e) {
+      if (!mounted) return;
       setState(() {
         _error = e.toString();
       });
     } finally {
-      setState(() {
-        _isLoading = false;
-      });
+      if (mounted) {
+        setState(() {
+          _isLoading = false;
+        });
+      }
     }
   }
 
   Future<void> _searchProducts(String query) async {
     final repo = ref.read(returnRepositoryProvider);
     final results = await repo.getProducts(query: query);
+    if (!mounted) return;
     setState(() {
       _productSearchResults = results;
     });
@@ -172,8 +233,8 @@ class _ReplaceScreenState extends ConsumerState<ReplaceScreen> {
       returnedPricePerKg: _selectedReturnItem!.sellPriceSnapshot ?? 0,
       replacementProductId: _selectedReplacementProduct!.id!,
       replacementPricePerKg: _selectedReplacementProduct!.sellPrice,
-      replacementQtyGiven: replacementQtyGiven,
       replacementQtyCalculated: _replacementQtyCalculated,
+      replacementQtyGiven: replacementQtyGiven,
       priceDifference: _priceDifference,
       differenceMode: ref.read(returnModeProvider),
     );
@@ -248,56 +309,54 @@ class _ReplaceScreenState extends ConsumerState<ReplaceScreen> {
         _productSearchResults = [];
       });
     } catch (e) {
+      if (!mounted) return;
       setState(() {
         _error = e.toString();
       });
     } finally {
-      setState(() {
-        _isLoading = false;
-      });
+      if (mounted) {
+        setState(() {
+          _isLoading = false;
+        });
+      }
     }
   }
 
   @override
   Widget build(BuildContext context) {
+    final billsAsync = ref.watch(returnBillListProvider(_queryParams));
+
     return Scaffold(
       appBar: AppBar(title: const Text('બદલવું')),
       body: Padding(
         padding: const EdgeInsets.all(12.0),
         child: Column(
           children: [
-            Row(
-              children: [
-                Expanded(
-                  child: TextField(
-                    controller: _searchCtrl,
-                    decoration: const InputDecoration(
-                      labelText: 'બિલ નંબર અથવા ગ્રાહક નામ',
-                      border: OutlineInputBorder(),
-                    ),
-                    onSubmitted: (_) => _searchBills(),
-                  ),
-                ),
-                const SizedBox(width: 8),
-                SizedBox(
-                  width: 100,
-                  child: ElevatedButton(
-                    onPressed: _searchBills,
-                    child: const Text('શોધો'),
-                  ),
-                ),
-              ],
-            ),
+            _buildSearchBar(),
+            const SizedBox(height: 10),
+            _buildStatusChips(),
+            const SizedBox(height: 10),
+            _buildDateRow(),
             const SizedBox(height: 12),
             if (_error != null) ...[
               Text(_error!, style: const TextStyle(color: Colors.red)),
               const SizedBox(height: 8),
             ],
             if (_isLoading) const LinearProgressIndicator(),
+            const SizedBox(height: 8),
             Expanded(
-              child: _selectedBill == null
-                  ? _buildSearchResults()
-                  : _buildReplaceForm(),
+              child: Stack(
+                children: [
+                  Offstage(
+                    offstage: _selectedBill != null,
+                    child: _buildBillList(billsAsync),
+                  ),
+                  Offstage(
+                    offstage: _selectedBill == null,
+                    child: _buildReplaceForm(),
+                  ),
+                ],
+              ),
             ),
           ],
         ),
@@ -305,23 +364,124 @@ class _ReplaceScreenState extends ConsumerState<ReplaceScreen> {
     );
   }
 
-  Widget _buildSearchResults() {
-    if (_searchResults.isEmpty) {
-      return const Center(child: Text('બિલ શોધવા માટે ઉપર શોધ બાર ઉપયોગ કરો'));
-    }
-    return ListView.builder(
-      itemCount: _searchResults.length,
-      itemBuilder: (context, index) {
-        final bill = _searchResults[index];
-        return ListTile(
-          title: Text('બિલ #: ${bill.billNumber}'),
-          subtitle: Text('ગ્રાહક: ${bill.customerNameSnapshot ?? '-'}'),
-          trailing: Text(bill.paymentStatus ?? ''),
-          onTap: () async {
+  Widget _buildSearchBar() {
+    return TextField(
+      controller: _searchCtrl,
+      decoration: const InputDecoration(
+        prefixIcon: Icon(Icons.search),
+        hintText: 'બિલ નંબર, ગ્રાહકનું નામ, અથવા કુલ રકમ',
+        border: OutlineInputBorder(),
+      ),
+      onChanged: (_) => _scheduleSearch(),
+    );
+  }
+
+  Widget _buildStatusChips() {
+    const statuses = <String, String>{
+      'all': 'બધા',
+      'paid': 'ચૂકવેલ',
+      'udhaar': 'ઉધાર',
+      'partial': 'આંશિક',
+    };
+
+    return Wrap(
+      spacing: 8,
+      runSpacing: 8,
+      children: statuses.entries.map((entry) {
+        final selected = _status == entry.key;
+        return ChoiceChip(
+          label: Text(entry.value),
+          selected: selected,
+          selectedColor: AppColors.primaryLight,
+          backgroundColor: Colors.white,
+          labelStyle: TextStyle(
+            color: selected ? Colors.white : Colors.black87,
+            fontWeight: FontWeight.w600,
+          ),
+          side: const BorderSide(color: AppColors.divider),
+          onSelected: (_) {
             setState(() {
-              _selectedBill = bill;
+              _status = entry.key;
             });
-            await _loadBillItems(bill.id!);
+          },
+        );
+      }).toList(),
+    );
+  }
+
+  Widget _buildDateRow() {
+    final fromLabel = _fromDate == null
+        ? 'તારીખ થી'
+        : DateFormat('dd/MM/yyyy').format(_fromDate!);
+    final toLabel = _toDate == null
+        ? 'તારીખ સુધી'
+        : DateFormat('dd/MM/yyyy').format(_toDate!);
+
+    return Row(
+      children: [
+        Expanded(
+          child: OutlinedButton.icon(
+            onPressed: _pickFromDate,
+            icon: const Icon(Icons.date_range),
+            label: Text(fromLabel),
+          ),
+        ),
+        const SizedBox(width: 12),
+        Expanded(
+          child: OutlinedButton.icon(
+            onPressed: _pickToDate,
+            icon: const Icon(Icons.date_range),
+            label: Text(toLabel),
+          ),
+        ),
+        const SizedBox(width: 8),
+        IconButton(
+          onPressed: _clearDates,
+          icon: const Icon(Icons.close),
+          tooltip: 'Clear dates',
+        ),
+      ],
+    );
+  }
+
+  Widget _buildBillList(AsyncValue<List<Bill>> billsAsync) {
+    return billsAsync.when(
+      loading: () => const Center(
+        child: Column(
+          mainAxisSize: MainAxisSize.min,
+          children: [
+            CircularProgressIndicator(),
+            SizedBox(height: 8),
+            Text('બિલ લોડ થઈ રહ્યા છે'),
+          ],
+        ),
+      ),
+      error: (e, _) => Center(child: Text('ભૂલ: $e')),
+      data: (bills) {
+        if (bills.isEmpty) {
+          return Center(
+            child: Column(
+              mainAxisSize: MainAxisSize.min,
+              children: [
+                Icon(
+                  _hasActiveFilters ? Icons.search : Icons.shopping_cart,
+                  size: 42,
+                ),
+                const SizedBox(height: 8),
+                Text(
+                  _hasActiveFilters ? 'કોઈ બિલ મળ્યું નથી' : 'હજુ કોઈ બિલ નથી',
+                ),
+              ],
+            ),
+          );
+        }
+
+        return ListView.builder(
+          controller: _scrollController,
+          itemCount: bills.length,
+          itemBuilder: (context, index) {
+            final bill = bills[index];
+            return _BillListCard(bill: bill, onTap: () => _openBill(bill));
           },
         );
       },
@@ -329,24 +489,42 @@ class _ReplaceScreenState extends ConsumerState<ReplaceScreen> {
   }
 
   Widget _buildReplaceForm() {
+    if (_selectedBill == null) {
+      return const SizedBox.shrink();
+    }
+
+    if (_billItems.isEmpty && _isLoading) {
+      return const Center(
+        child: Column(
+          mainAxisSize: MainAxisSize.min,
+          children: [
+            CircularProgressIndicator(),
+            SizedBox(height: 8),
+            Text('બિલ લોડ થઈ રહ્યા છે'),
+          ],
+        ),
+      );
+    }
+
     return Column(
       crossAxisAlignment: CrossAxisAlignment.stretch,
       children: [
         Row(
           children: [
-            Expanded(child: Text('બિલ #: ${_selectedBill?.billNumber ?? ''}')),
-            TextButton(
-              onPressed: () {
-                setState(() {
-                  _selectedBill = null;
-                  _billItems = [];
-                  _selectedReturnItem = null;
-                  _selectedReplacementProduct = null;
-                });
-              },
-              child: const Text('પાછા'),
+            TextButton.icon(
+              onPressed: _backToBillList,
+              icon: const Icon(Icons.arrow_back),
+              label: const Text('બિલ યાદી પર પાછા જાઓ'),
             ),
+            const Spacer(),
+            if (_selectedBill?.paymentStatus == 'fully_returned')
+              const _GreyReturnedLabel(),
           ],
+        ),
+        const SizedBox(height: 4),
+        Text(
+          'બિલ #: ${_selectedBill?.billNumber ?? ''}',
+          style: const TextStyle(fontWeight: FontWeight.w700),
         ),
         const SizedBox(height: 12),
         const Text('પાછું લેવારું આઇટમ પસંદ કરો'),
@@ -357,16 +535,33 @@ class _ReplaceScreenState extends ConsumerState<ReplaceScreen> {
             itemBuilder: (context, index) {
               final item = _billItems[index];
               final isSelected = _selectedReturnItem?.id == item.id;
-              return ListTile(
-                title: Text(item.productNameSnapshot ?? ''),
-                subtitle: Text('Qty: ${item.qty.toStringAsFixed(2)}'),
-                trailing: isSelected ? const Icon(Icons.check_circle) : null,
-                onTap: () {
-                  setState(() {
-                    _selectedReturnItem = item;
-                    _returnQtyCtrl.text = item.qty.toStringAsFixed(2);
-                  });
-                },
+              final alreadyReturned = item.isReturned;
+              return Card(
+                color: alreadyReturned ? Colors.grey.shade100 : null,
+                child: ListTile(
+                  title: Text(
+                    item.productNameSnapshot ?? '',
+                    style: TextStyle(
+                      decoration: alreadyReturned
+                          ? TextDecoration.lineThrough
+                          : null,
+                    ),
+                  ),
+                  subtitle: Text('Qty: ${item.qty.toStringAsFixed(2)}'),
+                  trailing: Row(
+                    mainAxisSize: MainAxisSize.min,
+                    children: [
+                      if (alreadyReturned) const _GreyReturnedLabel(),
+                      if (isSelected) const Icon(Icons.check_circle),
+                    ],
+                  ),
+                  onTap: () {
+                    setState(() {
+                      _selectedReturnItem = item;
+                      _returnQtyCtrl.text = item.qty.toStringAsFixed(2);
+                    });
+                  },
+                ),
               );
             },
           ),
@@ -475,6 +670,152 @@ class _ReplaceScreenState extends ConsumerState<ReplaceScreen> {
           ],
         ],
       ],
+    );
+  }
+}
+
+class _BillListCard extends StatelessWidget {
+  const _BillListCard({required this.bill, required this.onTap});
+
+  final Bill bill;
+  final VoidCallback onTap;
+
+  @override
+  Widget build(BuildContext context) {
+    final isReturned = bill.paymentStatus == 'fully_returned';
+    final customerName = (bill.customerNameSnapshot?.trim().isNotEmpty ?? false)
+        ? bill.customerNameSnapshot!
+        : 'અજ્ઞાત ગ્રાહક';
+    final dateText = _formatDate(bill.billDate);
+
+    return Opacity(
+      opacity: isReturned ? 0.5 : 1,
+      child: Card(
+        margin: const EdgeInsets.symmetric(vertical: 6),
+        color: Colors.white,
+        elevation: 0,
+        shape: RoundedRectangleBorder(
+          borderRadius: BorderRadius.circular(12),
+          side: const BorderSide(color: AppColors.divider, width: 1),
+        ),
+        child: InkWell(
+          borderRadius: BorderRadius.circular(12),
+          onTap: onTap,
+          child: Padding(
+            padding: const EdgeInsets.all(12),
+            child: Row(
+              crossAxisAlignment: CrossAxisAlignment.start,
+              children: [
+                Expanded(
+                  child: Column(
+                    crossAxisAlignment: CrossAxisAlignment.start,
+                    children: [
+                      Text(
+                        'બિલ નં. ${bill.billNumber}',
+                        style: const TextStyle(
+                          fontWeight: FontWeight.w700,
+                          fontSize: 15,
+                        ),
+                      ),
+                      const SizedBox(height: 4),
+                      Text(dateText, style: const TextStyle(fontSize: 12)),
+                      const SizedBox(height: 4),
+                      Text(
+                        customerName,
+                        style: const TextStyle(
+                          fontSize: 13,
+                          color: Colors.grey,
+                        ),
+                      ),
+                      const SizedBox(height: 8),
+                      _StatusBadge(status: bill.paymentStatus),
+                    ],
+                  ),
+                ),
+                const SizedBox(width: 12),
+                Column(
+                  crossAxisAlignment: CrossAxisAlignment.end,
+                  children: [
+                    Text(
+                      formatCurrency(bill.totalAmount),
+                      style: const TextStyle(
+                        fontWeight: FontWeight.w700,
+                        fontSize: 15,
+                      ),
+                    ),
+                    if (isReturned) ...[
+                      const SizedBox(height: 6),
+                      const _GreyReturnedLabel(),
+                    ],
+                  ],
+                ),
+              ],
+            ),
+          ),
+        ),
+      ),
+    );
+  }
+
+  String _formatDate(String rawDate) {
+    final parsed = DateTime.tryParse(rawDate);
+    if (parsed != null) {
+      return DateFormat('dd/MM/yyyy').format(parsed.toLocal());
+    }
+    return rawDate;
+  }
+}
+
+class _StatusBadge extends StatelessWidget {
+  const _StatusBadge({required this.status});
+
+  final String? status;
+
+  @override
+  Widget build(BuildContext context) {
+    final normalized = (status ?? '').trim();
+    final (label, color) = switch (normalized) {
+      'paid' => ('ચૂકવાયું', Colors.green),
+      'udhaar' => ('ઉધાર', Colors.orange),
+      'partial' => ('આંશિક', Colors.amber),
+      'partial_return' => ('આંશિક પરત', Colors.blue),
+      'fully_returned' => ('પૂર્ણ પરત', Colors.grey),
+      _ => (normalized.isEmpty ? 'અજ્ઞાત' : normalized, Colors.grey),
+    };
+
+    return Container(
+      padding: const EdgeInsets.symmetric(horizontal: 10, vertical: 4),
+      decoration: BoxDecoration(
+        color: color.withValues(alpha: 0.12),
+        borderRadius: BorderRadius.circular(999),
+      ),
+      child: Text(
+        label,
+        style: TextStyle(
+          fontSize: 12,
+          fontWeight: FontWeight.w600,
+          color: color,
+          decoration: normalized == 'fully_returned'
+              ? TextDecoration.lineThrough
+              : null,
+        ),
+      ),
+    );
+  }
+}
+
+class _GreyReturnedLabel extends StatelessWidget {
+  const _GreyReturnedLabel();
+
+  @override
+  Widget build(BuildContext context) {
+    return const Text(
+      'પહેલેથી પરત',
+      style: TextStyle(
+        color: Colors.grey,
+        fontSize: 12,
+        fontWeight: FontWeight.w600,
+      ),
     );
   }
 }

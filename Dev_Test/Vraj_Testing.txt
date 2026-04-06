@@ -21,10 +21,10 @@ error the bill should be saved
 when admin enters the name system have to check it if there is existing customer there should be 
 name added and if not that name that is entered in textfield should be printed
 
-8. In dashboard there should be bill history module that shows all bill and there should also be 
+8.DONE In dashboard there should be bill history module that shows all bill and there should also be 
 the filtering for the bill by date and also by name
 
-9. the return and replace product module should see all the bills like bill history and it should also 
+9.DONE the return and replace product module should see all the bills like bill history and it should also 
 searched as the bill history module
 
 10.DONE In the bill by money or by weight there should alwas be by weight auto selected but the option of 

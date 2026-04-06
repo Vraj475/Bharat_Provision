@@ -52,6 +52,7 @@ class ReturnRepository {
 
   Future<List<Bill>> getBillHistory({
     String? query,
+    String? paymentStatus,
     DateTime? from,
     DateTime? to,
     int? limit,
@@ -64,8 +65,15 @@ class ReturnRepository {
     final trimmedQuery = query?.trim() ?? '';
     if (trimmedQuery.isNotEmpty) {
       final like = '%$trimmedQuery%';
-      conditions.add('(bill_number LIKE ? OR customer_name_snapshot LIKE ?)');
-      args.addAll([like, like]);
+      conditions.add(
+        '(bill_number LIKE ? OR customer_name_snapshot LIKE ? OR CAST(total_amount AS TEXT) LIKE ?)',
+      );
+      args.addAll([like, like, like]);
+    }
+
+    if (paymentStatus != null && paymentStatus.isNotEmpty) {
+      conditions.add('payment_status = ?');
+      args.add(paymentStatus);
     }
 
     if (from != null && to != null) {

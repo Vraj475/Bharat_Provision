@@ -1,4 +1,4 @@
-import 'package:sqflite/sqflite.dart' hide DatabaseException;
+import 'package:sqflite_sqlcipher/sqflite.dart' hide DatabaseException;
 import '../models/incomplete_transaction.dart';
 import '../../core/utils/error_handler.dart';
 

@@ -1,3 +1,4 @@
+import 'dart:io';
 import 'package:flutter/material.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 
@@ -26,14 +27,14 @@ class AppScaffold extends ConsumerWidget {
     final String role = session?.role ?? ref.watch(currentRoleProvider);
     final isAdmin = canAccessUdhaar(role);
     final roleLabel = _roleLabel(role);
-    final screenWidth = MediaQuery.sizeOf(context).width;
+    final isWindows = Platform.isWindows;
 
     final items = _navItems(isAdmin);
 
     final effectiveIndex = currentIndex.clamp(0, items.length - 1);
     final primaryColor = Theme.of(context).colorScheme.primary;
 
-    if (screenWidth >= 900) {
+    if (isWindows) {
       return Scaffold(
         body: Row(
           children: [

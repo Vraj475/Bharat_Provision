@@ -178,13 +178,12 @@ class _RoleSelectionScreenState extends ConsumerState<RoleSelectionScreen> {
 
   @override
   Widget build(BuildContext context) {
-    return WillPopScope(
-      onWillPop: () async {
+    return PopScope(
+      canPop: !_showPinEntry,
+      onPopInvokedWithResult: (didPop, result) {
         if (_showPinEntry) {
           _backToRoleSelection();
-          return false;
         }
-        return true;
       },
       child: Scaffold(
         resizeToAvoidBottomInset: true,

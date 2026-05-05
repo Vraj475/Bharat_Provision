@@ -1,8 +1,27 @@
 <manifest xmlns:android="http://schemas.android.com/apk/res/android">
+    <!-- Required permissions -->
+    <uses-permission android:name="android.permission.INTERNET" />
+    <uses-permission android:name="android.permission.BLUETOOTH" android:maxSdkVersion="30" />
+    <uses-permission android:name="android.permission.BLUETOOTH_ADMIN" android:maxSdkVersion="30" />
+    <uses-permission android:name="android.permission.BLUETOOTH_CONNECT" />
+    <uses-permission android:name="android.permission.BLUETOOTH_SCAN" android:usesPermissionFlags="neverForLocation" />
+    <uses-permission android:name="android.permission.BLUETOOTH_ADVERTISE" />
+    <uses-permission android:name="android.permission.ACCESS_FINE_LOCATION" />
+    <uses-permission android:name="android.permission.ACCESS_COARSE_LOCATION" />
+    <uses-permission android:name="android.permission.WRITE_EXTERNAL_STORAGE" android:maxSdkVersion="29" />
+    <uses-permission android:name="android.permission.READ_EXTERNAL_STORAGE" android:maxSdkVersion="32" />
+    <uses-permission android:name="android.permission.POST_NOTIFICATIONS" />
+    <uses-permission android:name="android.permission.VIBRATE" />
+    <uses-permission android:name="android.permission.RECEIVE_BOOT_COMPLETED" />
+    <uses-permission android:name="android.permission.MANAGE_EXTERNAL_STORAGE" />
+
     <application
         android:label="bharat_provision"
         android:name="${applicationName}"
-        android:icon="@mipmap/ic_launcher">
+        android:icon="@mipmap/ic_launcher"
+        android:requestLegacyExternalStorage="true"
+        android:usesCleartextTraffic="true"
+        android:hardwareAccelerated="true">
         <activity
             android:name=".MainActivity"
             android:exported="true"
@@ -30,16 +49,30 @@
         <meta-data
             android:name="flutterEmbedding"
             android:value="2" />
+        
+        <!-- FileProvider for share_plus and file operations -->
+        <provider
+            android:name="androidx.core.content.FileProvider"
+            android:authorities="${applicationId}.fileprovider"
+            android:exported="false"
+            android:grantUriPermissions="true">
+            <meta-data
+                android:name="androidx.core.content.FILE_PROVIDER_PATHS"
+                android:resource="@xml/file_paths" />
+        </provider>
     </application>
-    <!-- Required to query activities that can process text, see:
-         https://developer.android.com/training/package-visibility and
-         https://developer.android.com/reference/android/content/Intent#ACTION_PROCESS_TEXT.
 
-         In particular, this is used by the Flutter engine in io.flutter.plugin.text.ProcessTextPlugin. -->
+    <!-- Package visibility for WhatsApp (Android 11+) -->
     <queries>
+        <package android:name="com.whatsapp" />
+        <package android:name="com.whatsapp.w4b" />
         <intent>
-            <action android:name="android.intent.action.PROCESS_TEXT"/>
-            <data android:mimeType="text/plain"/>
+            <action android:name="android.intent.action.PROCESS_TEXT" />
+            <data android:mimeType="text/plain" />
+        </intent>
+        <intent>
+            <action android:name="android.intent.action.VIEW" />
+            <data android:scheme="https" />
         </intent>
     </queries>
 </manifest>

@@ -22,3 +22,13 @@ subprojects {
 tasks.register<Delete>("clean") {
     delete(rootProject.layout.buildDirectory)
 }
+
+subprojects {
+    val subproject = this
+    if (subproject.name == "blue_thermal_printer") {
+        plugins.withType<com.android.build.gradle.api.AndroidBasePlugin> {
+            val android = subproject.extensions.getByType<com.android.build.gradle.BaseExtension>()
+            android.namespace = "id.kakzaki.blue_thermal_printer"
+        }
+    }
+}

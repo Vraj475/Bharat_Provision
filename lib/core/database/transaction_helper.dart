@@ -1,4 +1,4 @@
-import 'package:sqflite/sqflite.dart';
+import 'package:sqflite_sqlcipher/sqflite.dart';
 
 /// Helper class for atomic (transactional) database operations
 /// Ensures data consistency across multiple related updates

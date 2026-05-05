@@ -2,7 +2,6 @@ import 'dart:convert';
 import 'dart:io';
 
 import 'package:path/path.dart' as p;
-import 'package:path_provider/path_provider.dart';
 import 'package:sqflite_common/sqflite.dart';
 import 'package:sqflite_common_ffi/sqflite_ffi.dart' as sqflite_ffi;
 import 'package:sqflite_sqlcipher/sqflite.dart' as sqlcipher;
@@ -68,10 +67,10 @@ class DatabaseHelper {
         );
       }
 
-      // On desktop (Windows/Linux/macOS), fall back to sqflite_common_ffi without encryption.
+      // On desktop (Windows/Linux/macOS), use the database path from sqflite and open via ffi
       sqflite_ffi.sqfliteFfiInit();
-      final supportDir = await getApplicationSupportDirectory();
-      final path = p.join(supportDir.path, dbFileName);
+      final dbPath = await sqlcipher.getDatabasesPath();
+      final path = p.join(dbPath, dbFileName);
       final factory = sqflite_ffi.databaseFactoryFfi;
 
       return factory.openDatabase(

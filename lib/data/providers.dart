@@ -1,5 +1,5 @@
 import 'package:flutter_riverpod/flutter_riverpod.dart';
-import 'package:sqflite/sqflite.dart';
+import 'package:sqflite_sqlcipher/sqflite.dart';
 
 import 'db/app_database.dart';
 import 'repositories/bill_repository.dart';

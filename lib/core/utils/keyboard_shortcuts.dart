@@ -1,7 +1,9 @@
+import 'dart:io';
 import 'package:flutter/services.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 
 /// Windows keyboard shortcuts handler
+/// This class is only active on Windows and should not be used on Android.
 class KeyboardShortcutsHandler {
   // Shortcut callbacks
   final VoidCallback? onF1; // Billing
@@ -34,8 +36,11 @@ class KeyboardShortcutsHandler {
     this.onEscape,
   });
 
-  /// Handle key press events
+  /// Handle key press events (Windows only)
   bool handleKeyPress(KeyEvent event) {
+    // No-op on non-Windows platforms
+    if (!Platform.isWindows) return false;
+    
     if (event is! KeyDownEvent) return false;
 
     // Check for F1-F7
@@ -102,8 +107,10 @@ class KeyboardShortcutsHandler {
   }
 }
 
-/// Keyboard shortcuts provider
+/// Keyboard shortcuts provider (Windows only)
+/// Returns a no-op handler on non-Windows platforms
 final keyboardShortcutsProvider = Provider<KeyboardShortcutsHandler>((ref) {
+  // Return instance only on Windows; other platforms get a no-op instance
   return KeyboardShortcutsHandler();
 });
 

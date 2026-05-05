@@ -1,4 +1,4 @@
-import 'package:sqflite/sqflite.dart';
+import 'package:sqflite_sqlcipher/sqflite.dart';
 
 import '../../shared/models/expense_account_model.dart';
 import '../../shared/models/expense_model.dart';

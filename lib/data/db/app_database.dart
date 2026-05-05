@@ -3,7 +3,7 @@ import 'dart:io';
 
 import 'package:path/path.dart' as p;
 import 'package:path_provider/path_provider.dart';
-import 'package:sqflite/sqflite.dart';
+import 'package:sqflite_sqlcipher/sqflite.dart' as sqlcipher;
 import 'package:sqflite_common_ffi/sqflite_ffi.dart';
 
 class AppDatabase {
@@ -40,7 +40,7 @@ class AppDatabase {
         ),
       );
     }
-    return openDatabase(
+    return sqlcipher.openDatabase(
       path,
       version: schemaVersion,
       onCreate: _onCreate,
@@ -182,7 +182,7 @@ class AppDatabase {
   }
 
   static Future<void> _insertDefaults(Database db) async {
-    final count = Sqflite.firstIntValue(
+    final count = sqlcipher.Sqflite.firstIntValue(
       await db.rawQuery('SELECT COUNT(*) FROM users'),
     );
     if ((count ?? 0) == 0) {
@@ -194,7 +194,7 @@ class AppDatabase {
       });
     }
 
-    final settingsCount = Sqflite.firstIntValue(
+    final settingsCount = sqlcipher.Sqflite.firstIntValue(
       await db.rawQuery('SELECT COUNT(*) FROM settings'),
     );
     if ((settingsCount ?? 0) == 0) {

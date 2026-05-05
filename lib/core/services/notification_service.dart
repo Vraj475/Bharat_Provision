@@ -1,5 +1,6 @@
 import 'dart:io';
 
+import 'package:flutter/foundation.dart';
 import 'package:flutter_local_notifications/flutter_local_notifications.dart';
 
 /// Wraps flutter_local_notifications with platform guards.
@@ -34,6 +35,21 @@ class NotificationService {
       linux: linuxSettings,
     );
     await _plugin.initialize(initSettings);
+    
+    // Request POST_NOTIFICATIONS permission on Android 13+
+    if (Platform.isAndroid) {
+      try {
+        final androidPlugin = _plugin.resolvePlatformSpecificImplementation<
+            AndroidFlutterLocalNotificationsPlugin>();
+        if (androidPlugin != null) {
+          await androidPlugin.requestNotificationsPermission();
+        }
+      } catch (e) {
+        // Silently handle any errors in permission request
+        debugPrint('Notification permission request failed: $e');
+      }
+    }
+    
     _initialised = true;
   }
 

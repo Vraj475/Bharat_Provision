@@ -1,4 +1,4 @@
-import 'package:sqflite/sqflite.dart';
+import 'package:sqflite_sqlcipher/sqflite.dart';
 
 import '../../core/database/database_helper.dart';
 import '../../shared/models/bill_item_model.dart';

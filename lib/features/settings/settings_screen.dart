@@ -3,6 +3,7 @@ import 'dart:io';
 import 'package:file_picker/file_picker.dart';
 import 'package:flutter/material.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
+import 'package:path/path.dart' as p;
 import 'package:path_provider/path_provider.dart';
 import 'package:shared_preferences/shared_preferences.dart';
 
@@ -86,12 +87,16 @@ class _SettingsScreenState extends ConsumerState<SettingsScreen> {
       String path;
       if (Platform.isAndroid || Platform.isIOS) {
         final dir = await getApplicationDocumentsDirectory();
-        path =
-            '${dir.path}/kirana_backup_${DateTime.now().millisecondsSinceEpoch}.json';
+        path = p.join(
+          dir.path,
+          'kirana_backup_${DateTime.now().millisecondsSinceEpoch}.json',
+        );
       } else {
         final dir = await getApplicationSupportDirectory();
-        path =
-            '${dir.path}/kirana_backup_${DateTime.now().millisecondsSinceEpoch}.json';
+        path = p.join(
+          dir.path,
+          'kirana_backup_${DateTime.now().millisecondsSinceEpoch}.json',
+        );
       }
       final file = File(path);
       await file.writeAsString(json);

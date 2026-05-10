@@ -7,6 +7,7 @@ plugins {
 
 import java.util.Properties
 import java.io.File
+import org.gradle.api.tasks.Exec
 
 // Load local.properties and expose flutterRoot for tasks that need an absolute Flutter path
 val localProperties = Properties().apply {
@@ -19,17 +20,18 @@ val flutterRoot: String? = localProperties.getProperty("flutter.sdk") ?: System.
 
 android {
     namespace = "com.example.bharat_provision"
-    compileSdk = 34
+    compileSdk = 36
+    
     ndkVersion = flutter.ndkVersion
 
     compileOptions {
-        sourceCompatibility = JavaVersion.VERSION_1_8
-        targetCompatibility = JavaVersion.VERSION_1_8
+        sourceCompatibility = JavaVersion.VERSION_17
+        targetCompatibility = JavaVersion.VERSION_17
         isCoreLibraryDesugaringEnabled = true
     }
 
     kotlinOptions {
-        jvmTarget = "1.8"
+        jvmTarget = "17"
     }
 
     signingConfigs {
@@ -56,7 +58,7 @@ android {
         // You can update the following values to match your application needs.
         // For more information, see: https://flutter.dev/to/review-gradle-config.
         minSdk = flutter.minSdkVersion
-        targetSdk = 34
+        targetSdk = 36
         versionCode = flutter.versionCode
         versionName = flutter.versionName
 
@@ -65,7 +67,7 @@ android {
 
         // Reduce APK size by excluding emulator architectures.
         ndk {
-            abiFilters.addAll(listOf("arm64-v8a", "armeabi-v7a"))
+            abiFilters.add("arm64-v8a")
         }
     }
 
@@ -98,6 +100,14 @@ android {
                 "META-INF/*.kotlin_module",
             )
         }
+        jniLibs {
+    useLegacyPackaging = true
+
+    pickFirsts += setOf(
+        "**/libc++_shared.so",
+        "**/libjsc.so"
+    )
+}
     }
 }
 
@@ -107,28 +117,20 @@ flutter {
 
 dependencies {
     implementation("androidx.multidex:multidex:2.0.1")
-    coreLibraryDesugaring("com.android.tools:desugar_jdk_libs:2.0.4")
-}
 
-// Add commonly required AndroidX libs
-dependencies {
+    coreLibraryDesugaring("com.android.tools:desugar_jdk_libs:2.0.4")
+
     implementation("androidx.core:core-ktx:1.12.0")
     implementation("androidx.appcompat:appcompat:1.6.1")
 }
 
-// Ensure compileFlutter* tasks can use an absolute flutter binary path when available
-tasks.matching { it.name.contains("compileFlutter") }.configureEach {
-    doFirst {
-        if (!flutterRoot.isNullOrBlank()) {
-            val flutterBin = File(flutterRoot, "bin/flutter${if (org.gradle.internal.os.OperatingSystem.current().isWindows) ".bat" else ""}")
-            if (flutterBin.exists()) {
-                try {
-                    // Some Flutter plugin tasks call the `flutter` executable; expose an env var for those tasks
-                    if (this is org.gradle.process.ExecSpec) {
-                        environment("FLUTTER_BINARY", flutterBin.absolutePath)
-                    }
-                } catch (_: Exception) {}
-            }
+// Force Flutter compile tasks to use an explicit absolute flutter.bat path.
+tasks.withType<Exec>().configureEach {
+    if (name.startsWith("compileFlutterBuild") && !flutterRoot.isNullOrBlank()) {
+        val flutterBin = File(flutterRoot, "bin/flutter${if (org.gradle.internal.os.OperatingSystem.current().isWindows) ".bat" else ""}")
+        if (flutterBin.exists()) {
+            executable = flutterBin.absolutePath
+            environment("FLUTTER_ROOT", flutterRoot)
         }
     }
 }

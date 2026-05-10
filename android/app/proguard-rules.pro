@@ -1,7 +1,7 @@
- -keep class net.sqlcipher.** { ; }
- -keep class net.sqlcipher.database.* { ; }
- -keep class io.flutter.* { ; }
- -keep class io.flutter.plugins.* { ; }
- -dontwarn net.sqlcipher.
- -keep class androidx.security.crypto. { ; }
- -keep class com.google.crypto.tink. { *; }
+-keep class net.sqlcipher.** { ; }
+-keep class net.sqlcipher.database.* { ; }
+-keep class io.flutter.* { ; }
+-keep class io.flutter.plugins.* { ; }
+-dontwarn net.sqlcipher.
+-keep class androidx.security.crypto. { ; }
+-keep class com.google.crypto.tink. { *; }

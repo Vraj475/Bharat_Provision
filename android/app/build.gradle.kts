@@ -98,15 +98,19 @@ android {
                 "META-INF/notice.txt",
                 "META-INF/ASL2.0",
                 "META-INF/*.kotlin_module",
+                "META-INF/androidsupportmultidexversion.txt",
             )
+            pickFirsts += setOf(
+         "androidsupportmultidexversion.txt"
+    )
         }
         jniLibs {
     useLegacyPackaging = true
-
-    pickFirsts += setOf(
-        "**/libc++_shared.so",
-        "**/libjsc.so"
-    )
+  pickFirsts += setOf(
+            "**/libc++_shared.so",
+            "**/libjsc.so"
+        )
+    
 }
     }
 }
@@ -132,5 +136,10 @@ tasks.withType<Exec>().configureEach {
             executable = flutterBin.absolutePath
             environment("FLUTTER_ROOT", flutterRoot)
         }
+    }
+}
+configurations.all {
+    resolutionStrategy {
+        force("androidx.multidex:multidex:2.0.1")
     }
 }

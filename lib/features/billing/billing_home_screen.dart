@@ -1,4 +1,5 @@
 import 'dart:async';
+import 'dart:io';
 import 'dart:ui' as ui;
 
 import 'package:blue_thermal_printer/blue_thermal_printer.dart';
@@ -13,17 +14,21 @@ import '../../core/errors/error_logger.dart';
 import '../../core/errors/error_types.dart';
 import '../../core/database/database_helper.dart';
 import '../../core/theme/app_colors.dart';
+import '../../core/widgets/numpad.dart';
 import '../../shared/widgets/errors/error_dialogue.dart';
 import '../../shared/widgets/errors/error_dialog.dart';
 import '../../core/utils/currency_format.dart';
 import '../../core/utils/weight_calculator.dart';
 import '../../data/models/item.dart';
+import '../../core/auth/role_provider.dart';
 import '../../shared/models/customer_model.dart';
 import '../../routing/app_router.dart';
 import 'billing_providers.dart';
 import '../../core/services/notification_service.dart';
 import '../../features/inventory/inventory_providers.dart';
 import '../../features/stock/stock_providers.dart';
+import '../../features/settings/providers/auth_provider.dart';
+import '../../features/settings/screens/role_selection_screen.dart';
 import '../../features/settings/settings_providers.dart';
 import '../../data/providers.dart';
 import '../../data/repositories/bill_repository.dart';
@@ -606,6 +611,377 @@ class _BillingHomeScreenState extends ConsumerState<BillingHomeScreen> {
 
     final requestedQtyKg = newQtyGrams / 1000.0;
     return (existingQtyKg + requestedQtyKg) <= latestStockKg;
+  }
+
+  bool _isOutOfStock(Item item) => item.currentStock <= 0;
+
+  bool _isLowStock(Item item) =>
+      item.currentStock > 0 && item.currentStock <= item.lowStockThreshold;
+
+  Widget _buildStockBadge(Item item) {
+    if (_isOutOfStock(item)) {
+      return Container(
+        margin: const EdgeInsets.only(left: 8),
+        padding: const EdgeInsets.symmetric(horizontal: 6, vertical: 2),
+        decoration: BoxDecoration(
+          color: Colors.red.withValues(alpha: 0.12),
+          borderRadius: BorderRadius.circular(999),
+          border: Border.all(color: Colors.red.withValues(alpha: 0.4)),
+        ),
+        child: const Row(
+          mainAxisSize: MainAxisSize.min,
+          children: [
+            Icon(Icons.block, size: 14, color: Colors.red),
+            SizedBox(width: 4),
+            Text(
+              'સ્ટોક નથી',
+              style: TextStyle(
+                fontSize: 11,
+                color: Colors.red,
+                fontWeight: FontWeight.w700,
+              ),
+            ),
+          ],
+        ),
+      );
+    }
+
+    if (_isLowStock(item)) {
+      return Container(
+        margin: const EdgeInsets.only(left: 8),
+        padding: const EdgeInsets.symmetric(horizontal: 6, vertical: 2),
+        decoration: BoxDecoration(
+          color: Colors.amber.withValues(alpha: 0.16),
+          borderRadius: BorderRadius.circular(999),
+          border: Border.all(color: Colors.amber.withValues(alpha: 0.5)),
+        ),
+        child: const Row(
+          mainAxisSize: MainAxisSize.min,
+          children: [
+            Icon(Icons.warning_amber_rounded, size: 14, color: Colors.amber),
+            SizedBox(width: 4),
+            Text(
+              'ઓછો સ્ટોક',
+              style: TextStyle(
+                fontSize: 11,
+                color: Color(0xFF8A5A00),
+                fontWeight: FontWeight.w700,
+              ),
+            ),
+          ],
+        ),
+      );
+    }
+
+    return const SizedBox.shrink();
+  }
+
+  Widget _buildProductNameLine(Item item) {
+    final hasBadge = _isOutOfStock(item) || _isLowStock(item);
+    return Row(
+      children: [
+        Expanded(
+          child: Text(
+            item.nameGu,
+            maxLines: 1,
+            overflow: TextOverflow.ellipsis,
+            style: const TextStyle(fontWeight: FontWeight.w700),
+          ),
+        ),
+        if (hasBadge) _buildStockBadge(item),
+      ],
+    );
+  }
+
+  Future<bool> _addProductWithWeightFromBottomSheet({
+    required Item item,
+    required double weightKg,
+  }) async {
+    if (!mounted || _isDisposed) return false;
+
+    if (item.currentStock <= 0) {
+      ScaffoldMessenger.of(
+        context,
+      ).showSnackBar(const SnackBar(content: Text('સ્ટોક ઉપલબ્ધ નથી')));
+      return false;
+    }
+
+    if (item.isLowStock) {
+      final shouldContinue = await showDialog<bool>(
+        context: context,
+        builder: (ctx) => AlertDialog(
+          title: const Text('લો સ્ટોક ચેતવણી'),
+          content: Text(
+            '${item.nameGu} નો સ્ટોક ઓછો છે.\nહાલ સ્ટોક: ${item.currentStock.toStringAsFixed(2)} ${item.unit}',
+          ),
+          actions: [
+            TextButton(
+              onPressed: () => Navigator.of(ctx).pop(false),
+              child: const Text('રદ કરો'),
+            ),
+            ElevatedButton(
+              onPressed: () => Navigator.of(ctx).pop(true),
+              child: const Text('ઉમેરો'),
+            ),
+          ],
+        ),
+      );
+
+      if (shouldContinue != true) {
+        return false;
+      }
+    }
+
+    final grams = weightKg * 1000.0;
+    final itemId = item.id;
+    if (itemId != null) {
+      final hasStock = await _hasEnoughStockForDraft(
+        itemId: itemId,
+        newQtyGrams: grams,
+      );
+      if (!mounted || _isDisposed) return false;
+      if (!hasStock) {
+        ScaffoldMessenger.of(context).showSnackBar(
+          const SnackBar(
+            content: Text('સ્ટોક અવેલેબલ નથી કૃપા કરી ખરીદી ની યાદી માં એડ કરો'),
+          ),
+        );
+        return false;
+      }
+    }
+
+    final amount = WeightCalculator.calculateAmountFromWeight(
+      weightGrams: grams,
+      sellPricePerKg: item.salePrice,
+    );
+
+    setState(() {
+      _billLines.add(
+        BillLineItem(
+          draftKey: _nextDraftLineKey(item.id),
+          item: item,
+          qtyGrams: grams,
+          amount: amount,
+        ),
+      );
+      _registerLineResources(_billLines.last.draftKey);
+    });
+    return true;
+  }
+
+  Future<void> _openAndroidProductBottomSheet() async {
+    if (!mounted || _isDisposed) return;
+    Item? selectedItem;
+    _weightEntryController.clear();
+
+    if (_searchController.text.isNotEmpty) {
+      _searchController.clear();
+    }
+    ref.read(billingSearchProvider.notifier).state = '';
+
+    await showModalBottomSheet<void>(
+      context: context,
+      isScrollControlled: true,
+      useSafeArea: true,
+      builder: (sheetContext) {
+        return StatefulBuilder(
+          builder: (ctx, setSheetState) {
+            return Consumer(
+              builder: (context, ref, _) {
+                final state = ref.watch(billingItemsProvider);
+                final maxHeight = MediaQuery.of(ctx).size.height * 0.88;
+
+                return SizedBox(
+                  height: maxHeight,
+                  child: Padding(
+                    padding: EdgeInsets.fromLTRB(
+                      12,
+                      12,
+                      12,
+                      12 + MediaQuery.of(ctx).viewInsets.bottom,
+                    ),
+                    child: selectedItem == null
+                        ? Column(
+                            crossAxisAlignment: CrossAxisAlignment.stretch,
+                            children: [
+                              TextField(
+                                controller: _searchController,
+                                decoration: const InputDecoration(
+                                  prefixIcon: Icon(Icons.search),
+                                  hintText: 'નામ અથવા marchu chaval tel ટાઈપ કરો',
+                                  border: OutlineInputBorder(),
+                                ),
+                                onChanged: (value) {
+                                  ref.read(billingSearchProvider.notifier).state =
+                                      value;
+                                },
+                              ),
+                              const SizedBox(height: 10),
+                              Expanded(
+                                child: state.when(
+                                  data: (items) {
+                                    if (items.isEmpty) {
+                                      return const Center(
+                                        child: Text('કોઈ ઉત્પાદન મળ્યું નહીં'),
+                                      );
+                                    }
+                                    return ListView.separated(
+                                      itemCount: items.length,
+                                      separatorBuilder: (_, _) =>
+                                          const SizedBox(height: 8),
+                                      itemBuilder: (_, i) {
+                                        final item = items[i];
+                                        final outOfStock = _isOutOfStock(item);
+                                        return Opacity(
+                                          opacity: outOfStock ? 0.5 : 1,
+                                          child: Card(
+                                            child: InkWell(
+                                              onTap: outOfStock
+                                                  ? null
+                                                  : () {
+                                                      setSheetState(() {
+                                                        selectedItem = item;
+                                                        _weightEntryController.clear();
+                                                      });
+                                                    },
+                                              borderRadius: BorderRadius.circular(12),
+                                              child: Padding(
+                                                padding: const EdgeInsets.all(12),
+                                                child: Column(
+                                                  crossAxisAlignment:
+                                                      CrossAxisAlignment.start,
+                                                  children: [
+                                                    _buildProductNameLine(item),
+                                                    const SizedBox(height: 6),
+                                                    Text(
+                                                      '₹${item.salePrice.toStringAsFixed(2)} પ્રતિ કિલો',
+                                                    ),
+                                                    const SizedBox(height: 2),
+                                                    Text(
+                                                      'સ્ટોક: ${item.currentStock.toStringAsFixed(2)} ${item.unit}',
+                                                      style: TextStyle(
+                                                        color: Colors.grey.shade700,
+                                                      ),
+                                                    ),
+                                                  ],
+                                                ),
+                                              ),
+                                            ),
+                                          ),
+                                        );
+                                      },
+                                    );
+                                  },
+                                  loading: () => const Center(
+                                    child: CircularProgressIndicator(),
+                                  ),
+                                  error: (e, st) => Center(
+                                    child: Text(
+                                      (e is AppError)
+                                          ? e.userMessage
+                                          : 'ભૂલ આવી છે. ફરી પ્રયાસ કરો.',
+                                    ),
+                                  ),
+                                ),
+                              ),
+                            ],
+                          )
+                        : Column(
+                            crossAxisAlignment: CrossAxisAlignment.stretch,
+                            children: [
+                              Row(
+                                children: [
+                                  IconButton(
+                                    onPressed: () {
+                                      setSheetState(() {
+                                        selectedItem = null;
+                                        _weightEntryController.clear();
+                                      });
+                                    },
+                                    icon: const Icon(Icons.arrow_back),
+                                  ),
+                                  Expanded(
+                                    child: _buildProductNameLine(selectedItem!),
+                                  ),
+                                ],
+                              ),
+                              const SizedBox(height: 8),
+                              NumpadTextField(
+                                controller: _weightEntryController,
+                                allowDecimal: true,
+                                decoration: const InputDecoration(
+                                  labelText: 'વજન (કિલો)',
+                                  hintText: 'કિલોમાં દાખલ કરો જેમ કે 1.500',
+                                  border: OutlineInputBorder(),
+                                ),
+                              ),
+                              const SizedBox(height: 12),
+                              NumpadWidget(
+                                controller: _weightEntryController,
+                                allowDecimal: true,
+                              ),
+                              const SizedBox(height: 12),
+                              ElevatedButton.icon(
+                                onPressed: () async {
+                                  final rawKg = _weightEntryController.text.trim();
+                                  final parsedKg = double.tryParse(rawKg);
+                                  if (rawKg.isEmpty ||
+                                      parsedKg == null ||
+                                      parsedKg <= 0) {
+                                    ScaffoldMessenger.of(context).showSnackBar(
+                                      const SnackBar(
+                                        content: Text('વજન દાખલ કરો'),
+                                      ),
+                                    );
+                                    return;
+                                  }
+
+                                  final added = await _addProductWithWeightFromBottomSheet(
+                                    item: selectedItem!,
+                                    weightKg: parsedKg,
+                                  );
+                                  if (!mounted || !ctx.mounted) return;
+                                  if (added) {
+                                    Navigator.of(ctx).pop();
+                                  }
+                                },
+                                icon: const Icon(Icons.add_shopping_cart),
+                                label: const Text('Add to Bill'),
+                              ),
+                            ],
+                          ),
+                  ),
+                );
+              },
+            );
+          },
+        );
+      },
+    );
+
+    if (!mounted || _isDisposed) return;
+    _searchController.clear();
+    ref.read(billingSearchProvider.notifier).state = '';
+  }
+
+  String _currentRoleGujaratiLabel() {
+    final session = ref.read(authSessionProvider);
+    final String role = session?.role ?? ref.read(currentRoleProvider) ?? 'employee';
+    return RoleInfo.fromRole(role).displayNameGu;
+  }
+
+  String _roleInitialForAvatar(String roleLabel) {
+    final trimmed = roleLabel.trim();
+    if (trimmed.isEmpty) return 'R';
+    return trimmed.substring(0, 1);
+  }
+
+  void _logoutFromBilling() {
+    ref.read(authSessionProvider.notifier).logout();
+    Navigator.of(context).pushAndRemoveUntil(
+      MaterialPageRoute(builder: (_) => const RoleSelectionScreen()),
+      (route) => false,
+    );
   }
 
   void _addProductToBill(Item item) async {
@@ -1511,7 +1887,9 @@ class _BillingHomeScreenState extends ConsumerState<BillingHomeScreen> {
 
   @override
   Widget build(BuildContext context) {
-    final isMobile = MediaQuery.of(context).size.width < 700;
+    final isWindows = Platform.isWindows;
+    final roleLabelGu = _currentRoleGujaratiLabel();
+    final avatarText = _roleInitialForAvatar(roleLabelGu);
     return Scaffold(
       appBar: AppBar(
         title: const Text(strings.AppStrings.billingTitle),
@@ -1562,6 +1940,45 @@ class _BillingHomeScreenState extends ConsumerState<BillingHomeScreen> {
               const PopupMenuItem(value: 'replace', child: Text('બદલવું')),
             ],
           ),
+          if (!isWindows)
+            PopupMenuButton<String>(
+              tooltip: 'એકાઉન્ટ',
+              onSelected: (value) {
+                if (value == 'logout') {
+                  _logoutFromBilling();
+                }
+              },
+              itemBuilder: (context) => [
+                PopupMenuItem<String>(
+                  enabled: false,
+                  child: Text(
+                    roleLabelGu,
+                    style: TextStyle(color: Colors.grey.shade600),
+                  ),
+                ),
+                const PopupMenuDivider(),
+                const PopupMenuItem<String>(
+                  value: 'logout',
+                  child: Row(
+                    children: [
+                      Icon(Icons.logout, color: Colors.red),
+                      SizedBox(width: 8),
+                      Text('લૉગ આઉટ', style: TextStyle(color: Colors.red)),
+                    ],
+                  ),
+                ),
+              ],
+              child: Padding(
+                padding: const EdgeInsets.symmetric(horizontal: 8),
+                child: CircleAvatar(
+                  radius: 15,
+                  child: Text(
+                    avatarText,
+                    style: const TextStyle(fontWeight: FontWeight.w700),
+                  ),
+                ),
+              ),
+            ),
         ],
       ),
       body: Column(
@@ -1587,7 +2004,7 @@ class _BillingHomeScreenState extends ConsumerState<BillingHomeScreen> {
               ),
             ),
           Expanded(
-            child: isMobile ? _buildMobileLayout() : _buildDesktopLayout(),
+            child: isWindows ? _buildDesktopLayout() : _buildAndroidLayout(),
           ),
         ],
       ),
@@ -1603,26 +2020,17 @@ class _BillingHomeScreenState extends ConsumerState<BillingHomeScreen> {
           flex: 3,
           child: RepaintBoundary(
             key: _billBoundaryDesktopKey,
-            child: _buildBillPanel(),
+            child: _buildBillPanel(isWindows: true),
           ),
         ),
       ],
     );
   }
 
-  Widget _buildMobileLayout() {
-    return Column(
-      children: [
-        Expanded(flex: 2, child: _buildProductPanel()),
-        const Divider(height: 1),
-        Expanded(
-          flex: 3,
-          child: RepaintBoundary(
-            key: _billBoundaryMobileKey,
-            child: _buildBillPanel(),
-          ),
-        ),
-      ],
+  Widget _buildAndroidLayout() {
+    return RepaintBoundary(
+      key: _billBoundaryMobileKey,
+      child: _buildBillPanel(isWindows: false),
     );
   }
 
@@ -1793,30 +2201,32 @@ class _BillingHomeScreenState extends ConsumerState<BillingHomeScreen> {
                           });
                         }
                       }
-                      return ListTile(
-                        leading: const Icon(Icons.inventory_2),
-                        title: Text(item.nameGu),
-                        subtitle: Column(
-                          crossAxisAlignment: CrossAxisAlignment.start,
-                          children: [
-                            Text('₹${item.salePrice.toStringAsFixed(2)}'),
-                            Text(
-                              'સ્ટોક: ${item.currentStock.toStringAsFixed(2)} ${item.unit}',
-                              style: TextStyle(
-                                color: item.isLowStock
-                                    ? Colors.red
-                                    : Colors.grey,
-                                fontWeight: item.isLowStock
-                                    ? FontWeight.w600
-                                    : FontWeight.normal,
+                      return Opacity(
+                        opacity: _isOutOfStock(item) ? 0.5 : 1,
+                        child: ListTile(
+                          leading: const Icon(Icons.inventory_2),
+                          title: _buildProductNameLine(item),
+                          subtitle: Column(
+                            crossAxisAlignment: CrossAxisAlignment.start,
+                            children: [
+                              Text('₹${item.salePrice.toStringAsFixed(2)}'),
+                              Text(
+                                'સ્ટોક: ${item.currentStock.toStringAsFixed(2)} ${item.unit}',
+                                style: TextStyle(
+                                  color: item.isLowStock
+                                      ? Colors.red
+                                      : Colors.grey,
+                                  fontWeight: item.isLowStock
+                                      ? FontWeight.w600
+                                      : FontWeight.normal,
+                                ),
                               ),
-                            ),
-                          ],
+                            ],
+                          ),
+                          onTap: _isOutOfStock(item)
+                              ? null
+                              : () => _addProductToBill(item),
                         ),
-                        trailing: item.isLowStock
-                            ? const Icon(Icons.warning_amber, color: Colors.red)
-                            : null,
-                        onTap: () => _addProductToBill(item),
                       );
                     },
                   );
@@ -1966,44 +2376,49 @@ class _BillingHomeScreenState extends ConsumerState<BillingHomeScreen> {
         ? _customerDropdownChildren()
         : productRows
               .map(
-                (item) => InkWell(
-                  onTap: () {
-                    if (_isDropdownClosing || !mounted || _isDisposed) return;
-                    _closeAllDropdowns(markClosing: true);
-                    WidgetsBinding.instance.addPostFrameCallback((_) {
-                      if (!mounted || _isDisposed) return;
-                      _addProductToBill(item);
-                      _releaseDropdownClosingFlagNextFrame();
-                    });
-                  },
-                  child: Padding(
-                    padding: const EdgeInsets.symmetric(
-                      horizontal: 12,
-                      vertical: 10,
-                    ),
-                    child: Column(
-                      crossAxisAlignment: CrossAxisAlignment.start,
-                      children: [
-                        Text(
-                          item.nameGu,
-                          maxLines: 1,
-                          overflow: TextOverflow.ellipsis,
-                          style: const TextStyle(fontWeight: FontWeight.w700),
+                (item) {
+                  final outOfStock = _isOutOfStock(item);
+                  return Opacity(
+                    opacity: outOfStock ? 0.5 : 1,
+                    child: InkWell(
+                      onTap: outOfStock
+                          ? null
+                          : () {
+                              if (_isDropdownClosing || !mounted || _isDisposed) {
+                                return;
+                              }
+                              _closeAllDropdowns(markClosing: true);
+                              WidgetsBinding.instance.addPostFrameCallback((_) {
+                                if (!mounted || _isDisposed) return;
+                                _addProductToBill(item);
+                                _releaseDropdownClosingFlagNextFrame();
+                              });
+                            },
+                      child: Padding(
+                        padding: const EdgeInsets.symmetric(
+                          horizontal: 12,
+                          vertical: 10,
                         ),
-                        const SizedBox(height: 4),
-                        Text(
-                          '₹${item.salePrice.toStringAsFixed(2)} | સ્ટોક: ${item.currentStock.toStringAsFixed(2)} ${item.unit}',
-                          maxLines: 1,
-                          overflow: TextOverflow.ellipsis,
-                          style: TextStyle(
-                            color: Colors.grey.shade700,
-                            fontSize: 12,
-                          ),
+                        child: Column(
+                          crossAxisAlignment: CrossAxisAlignment.start,
+                          children: [
+                            _buildProductNameLine(item),
+                            const SizedBox(height: 4),
+                            Text(
+                              '₹${item.salePrice.toStringAsFixed(2)} | સ્ટોક: ${item.currentStock.toStringAsFixed(2)} ${item.unit}',
+                              maxLines: 1,
+                              overflow: TextOverflow.ellipsis,
+                              style: TextStyle(
+                                color: Colors.grey.shade700,
+                                fontSize: 12,
+                              ),
+                            ),
+                          ],
                         ),
-                      ],
+                      ),
                     ),
-                  ),
-                ),
+                  );
+                },
               )
               .toList();
 
@@ -2031,7 +2446,7 @@ class _BillingHomeScreenState extends ConsumerState<BillingHomeScreen> {
     );
   }
 
-  Widget _buildBillPanel() {
+  Widget _buildBillPanel({required bool isWindows}) {
     return Column(
       crossAxisAlignment: CrossAxisAlignment.stretch,
       children: [
@@ -2112,6 +2527,34 @@ class _BillingHomeScreenState extends ConsumerState<BillingHomeScreen> {
           ),
         ),
         const Divider(height: 1),
+        if (!isWindows)
+          Padding(
+            padding: const EdgeInsets.fromLTRB(8, 8, 8, 4),
+            child: Card(
+              child: InkWell(
+                borderRadius: BorderRadius.circular(12),
+                onTap: _openAndroidProductBottomSheet,
+                child: const Padding(
+                  padding: EdgeInsets.symmetric(horizontal: 12, vertical: 14),
+                  child: Row(
+                    children: [
+                      Icon(Icons.add_circle_outline),
+                      SizedBox(width: 10),
+                      Expanded(
+                        child: Text(
+                          'ઉત્પાદન ઉમેરો',
+                          style: TextStyle(
+                            fontWeight: FontWeight.w700,
+                            fontSize: 15,
+                          ),
+                        ),
+                      ),
+                    ],
+                  ),
+                ),
+              ),
+            ),
+          ),
         if (_billLines.isEmpty)
           Expanded(
             child: Center(
@@ -2129,9 +2572,11 @@ class _BillingHomeScreenState extends ConsumerState<BillingHomeScreen> {
                     style: TextStyle(fontSize: 16, fontWeight: FontWeight.bold),
                   ),
                   const SizedBox(height: 8),
-                  const Text(
-                    'ડાબી બાજુથી ઉત્પાદન પસંદ કરો',
-                    style: TextStyle(color: Colors.grey),
+                  Text(
+                    isWindows
+                        ? 'ડાબી બાજુથી ઉત્પાદન પસંદ કરો'
+                        : 'ઉત્પાદન ઉમેરો પર ટૅપ કરી ઉત્પાદન પસંદ કરો',
+                    style: const TextStyle(color: Colors.grey),
                   ),
                 ],
               ),

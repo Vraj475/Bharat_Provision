@@ -102,12 +102,6 @@ class AppScaffold extends ConsumerWidget {
     }
 
     return Scaffold(
-      drawer: Drawer(
-        child: _DrawerContent(
-          roleLabel: roleLabel,
-          onLogout: () => _logout(context, ref),
-        ),
-      ),
       bottomNavigationBar: BottomNavigationBar(
         currentIndex: effectiveIndex,
         onTap: onDestinationSelected,
@@ -123,31 +117,7 @@ class AppScaffold extends ConsumerWidget {
             ),
         ],
       ),
-      body: Stack(
-        children: [
-          child,
-          SafeArea(
-            child: Padding(
-              padding: const EdgeInsets.all(12),
-              child: Align(
-                alignment: Alignment.topLeft,
-                child: Builder(
-                  builder: (menuContext) => Material(
-                    color: Theme.of(menuContext).colorScheme.surface,
-                    elevation: 3,
-                    shape: const CircleBorder(),
-                    child: IconButton(
-                      tooltip: 'Open menu',
-                      icon: const Icon(Icons.menu),
-                      onPressed: () => Scaffold.of(menuContext).openDrawer(),
-                    ),
-                  ),
-                ),
-              ),
-            ),
-          ),
-        ],
-      ),
+      body: child,
     );
   }
 
@@ -187,50 +157,4 @@ class _NavItem {
   const _NavItem(this.label, this.icon);
   final String label;
   final IconData icon;
-}
-
-class _DrawerContent extends StatelessWidget {
-  const _DrawerContent({required this.roleLabel, required this.onLogout});
-
-  final String roleLabel;
-  final VoidCallback onLogout;
-
-  @override
-  Widget build(BuildContext context) {
-    return SafeArea(
-      child: Padding(
-        padding: const EdgeInsets.all(12),
-        child: Column(
-          crossAxisAlignment: CrossAxisAlignment.stretch,
-          children: [
-            const SizedBox(height: 4),
-            Text(
-              AppStrings.appTitle,
-              style: Theme.of(
-                context,
-              ).textTheme.titleLarge?.copyWith(fontWeight: FontWeight.w800),
-            ),
-            const SizedBox(height: 12),
-            const Spacer(),
-            const Divider(),
-            Padding(
-              padding: const EdgeInsets.symmetric(horizontal: 12, vertical: 8),
-              child: Text(
-                'Logged in as: $roleLabel',
-                style: const TextStyle(fontWeight: FontWeight.bold),
-              ),
-            ),
-            ListTile(
-              leading: const Icon(Icons.logout),
-              title: const Text('Logout'),
-              onTap: () {
-                Navigator.of(context).pop();
-                onLogout();
-              },
-            ),
-          ],
-        ),
-      ),
-    );
-  }
 }

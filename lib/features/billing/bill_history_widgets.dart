@@ -1,18 +1,20 @@
 import 'package:flutter/material.dart';
+import 'package:flutter_riverpod/flutter_riverpod.dart';
 import 'package:intl/intl.dart';
 
 import '../../core/theme/app_colors.dart';
 import '../../core/utils/currency_format.dart';
 import '../../shared/models/bill_model.dart';
+import 'bill_history_providers.dart';
 
-class BillHistoryCard extends StatelessWidget {
+class BillHistoryCard extends ConsumerWidget {
   const BillHistoryCard({super.key, required this.bill, required this.onTap});
 
   final Bill bill;
   final VoidCallback onTap;
 
   @override
-  Widget build(BuildContext context) {
+  Widget build(BuildContext context, WidgetRef ref) {
     final customerName = (bill.customerNameSnapshot?.trim().isNotEmpty ?? false)
         ? bill.customerNameSnapshot!
         : 'અજ્ઞાત ગ્રાહક';
@@ -46,7 +48,17 @@ class BillHistoryCard extends StatelessWidget {
                       ),
                     ),
                     const SizedBox(height: 4),
-                    Text(dateText, style: const TextStyle(fontSize: 12)),
+                    GestureDetector(
+                      onTap: () => _onDateTap(context, ref),
+                      child: Text(
+                        dateText,
+                        style: const TextStyle(
+                          fontSize: 12,
+                          color: Colors.blue,
+                          decoration: TextDecoration.underline,
+                        ),
+                      ),
+                    ),
                     const SizedBox(height: 4),
                     Text(
                       customerName,
@@ -78,6 +90,45 @@ class BillHistoryCard extends StatelessWidget {
         ),
       ),
     );
+  }
+
+  Future<void> _onDateTap(BuildContext context, WidgetRef ref) async {
+    final parsed = DateTime.tryParse(bill.billDate);
+    final initialDate = parsed ?? DateTime.now();
+
+    final picked = await showDatePicker(
+      context: context,
+      initialDate: initialDate,
+      firstDate: DateTime(2020),
+      lastDate: DateTime.now().add(const Duration(days: 1)),
+    );
+
+    if (picked != null) {
+      final newDateStr = DateFormat('yyyy-MM-dd').format(picked);
+
+      if (bill.id == null) return;
+
+      try {
+        // Update bill date through the bills provider notifier
+        final billsNotifier = ref.read(billsProvider.notifier);
+        await billsNotifier.updateBillDate(bill.id!, newDateStr);
+
+        if (context.mounted) {
+          ScaffoldMessenger.of(context).showSnackBar(
+            const SnackBar(
+              content: Text('બિલ તારીખ અપડેટ કરવામાં આવી'),
+              duration: Duration(milliseconds: 1500),
+            ),
+          );
+        }
+      } catch (e) {
+        if (context.mounted) {
+          ScaffoldMessenger.of(context).showSnackBar(
+            SnackBar(content: Text('ભૂલ: $e')),
+          );
+        }
+      }
+    }
   }
 
   String _formatDate(String rawDate) {

@@ -540,4 +540,15 @@ class ReturnRepository {
 
     return rows.map((r) => ReturnEntry.fromMap(r)).toList();
   }
+
+  /// Update bill_date for an existing bill (for editing bill dates)
+  Future<void> updateBillDate(int billId, String newBillDate) async {
+    final db = await _helper.database;
+    await db.update(
+      'bills',
+      {'bill_date': newBillDate},
+      where: 'id = ?',
+      whereArgs: [billId],
+    );
+  }
 }

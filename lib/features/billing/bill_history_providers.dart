@@ -36,6 +36,54 @@ class BillHistoryPreviewResult {
   final bool hasMore;
 }
 
+/// Master provider for saved bills - single source of truth for all bill data.
+/// All screens that display bills should watch this provider.
+class BillsNotifier extends AsyncNotifier<List<Bill>> {
+  @override
+  Future<List<Bill>> build() async {
+    // Load all bills initially with no filters
+    final repo = ref.watch(returnRepositoryProvider);
+    return repo.getBillHistory();
+  }
+
+  /// Fetch bills with optional filters
+  Future<List<Bill>> fetchBills({
+    String? query,
+    DateTime? from,
+    DateTime? to,
+    int? limit,
+  }) async {
+    final repo = ref.read(returnRepositoryProvider);
+    return repo.getBillHistory(
+      query: query,
+      from: from,
+      to: to,
+      limit: limit,
+    );
+  }
+
+  /// Update bill date and invalidate provider so all watching screens refresh
+  Future<void> updateBillDate(int billId, String newBillDate) async {
+    final repo = ref.read(returnRepositoryProvider);
+    await repo.updateBillDate(billId, newBillDate);
+    
+    // Reload bills after update
+    state = await AsyncValue.guard(() => _reloadBills());
+  }
+
+  /// Reload all bills from database
+  Future<List<Bill>> _reloadBills() async {
+    final repo = ref.read(returnRepositoryProvider);
+    return repo.getBillHistory();
+  }
+}
+
+/// MASTER provider for all saved bills - single source of truth
+final billsProvider = AsyncNotifierProvider<BillsNotifier, List<Bill>>(
+  () => BillsNotifier(),
+);
+
+/// Provider for filtered bill history - uses billsProvider and filters in-memory
 final billHistoryProvider =
     FutureProvider.family<List<Bill>, BillHistoryQueryParams>((
       ref,

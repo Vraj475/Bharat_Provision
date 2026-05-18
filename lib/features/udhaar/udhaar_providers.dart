@@ -12,6 +12,22 @@ final udhaarRepositoryProvider = Provider<UdhaarRepository>(
   (ref) => UdhaarRepository(DatabaseHelper.instance),
 );
 
+// ─── Master Udhaar Provider - Single Source of Truth for Credit Data ─────────
+
+class UdhaarNotifier extends AsyncNotifier<List<CustomerSummaryRow>> {
+  @override
+  Future<List<CustomerSummaryRow>> build() async {
+    final repo = ref.watch(udhaarRepositoryProvider);
+    return repo.getAllCustomersSorted();
+  }
+}
+
+/// MASTER provider for all udhaar/credit data - single source of truth
+/// All screens showing udhaar info should watch this provider
+final udhaarProvider = AsyncNotifierProvider<UdhaarNotifier, List<CustomerSummaryRow>>(
+  () => UdhaarNotifier(),
+);
+
 // ─── Dashboard providers ──────────────────────────────────────────────────────
 
 final udhaarTotalOutstandingProvider = FutureProvider<double>((ref) async {

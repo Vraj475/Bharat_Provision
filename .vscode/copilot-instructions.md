@@ -8,3 +8,4 @@ Always:
 - generate production ready code
 - make sure you plan first and then work accordingly
 - first read the code then only edit any file
+-always plan first and then implement all the changes

@@ -1,39 +1,10 @@
 LOGIN SCREEN AND ROLE CHANGES :- 
 
-1.DONE Whenever i just Click the role in login the Pin entering screen should appear automatically 
-no continue button needed and in the PIN entering autofocus should be on the PIN  (Improving UX)  -- DONE
-
-2.DONEOnly Name of the role should be printed (UI Change)
-
-3.DONE Back to Role Selection is not Working It should Work (UI Error)
-
-4.DONE Print Statements are here for debugging they should be deleted (Print Statement Deletion)
 
 DASHBOARD & BILL CHANGES :-
 
 5. In dashboard list of product is not needed just a search bar with auto focus On is Good and once i added 
 the product in bill the search bar should be automatically cleareds
-
-6.Done Save Bill should work and in print bill if there is no printer connected or there is some 
-error the bill should be saved
-
-7.DONE In bill the name of the customer should always be there in that the textfield should given 
-when admin enters the name system have to check it if there is existing customer there should be 
-name added and if not that name that is entered in textfield should be printed
-
-8.DONE In dashboard there should be bill history module that shows all bill and there should also be 
-the filtering for the bill by date and also by name
-
-9.DONE the return and replace product module should see all the bills like bill history and it should also 
-searched as the bill history module
-
-10.DONE In the bill by money or by weight there should alwas be by weight auto selected but the option of 
-selecting should be there and also when a admin enters the weight it should be in KG like (1.125) and 
-when admin press enter key the item should added in the bill
-
-
-11.DONE when making a bill all things should be edited and deleted product quantity selling price and also 
-the product should be removed from the bill
 
 OTHER:-
 

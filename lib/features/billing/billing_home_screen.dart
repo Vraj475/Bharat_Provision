@@ -794,11 +794,11 @@ class _BillingHomeScreenState extends ConsumerState<BillingHomeScreen> {
                 return SizedBox(
                   height: maxHeight,
                   child: Padding(
-                    padding: EdgeInsets.fromLTRB(
+                    padding: const EdgeInsets.fromLTRB(
                       12,
                       12,
                       12,
-                      12 + MediaQuery.of(ctx).viewInsets.bottom,
+                      12,
                     ),
                     child: selectedItem == null
                         ? Column(
@@ -839,10 +839,26 @@ class _BillingHomeScreenState extends ConsumerState<BillingHomeScreen> {
                                               onTap: outOfStock
                                                   ? null
                                                   : () {
-                                                      setSheetState(() {
-                                                        selectedItem = item;
-                                                        _weightEntryController.clear();
-                                                      });
+                                                      if (_isDropdownClosing ||
+                                                          !mounted ||
+                                                          _isDisposed) {
+                                                        return;
+                                                      }
+                                                      _closeAllDropdowns(
+                                                        markClosing: true,
+                                                      );
+                                                      Navigator.of(ctx).pop();
+                                                      WidgetsBinding.instance
+                                                          .addPostFrameCallback(
+                                                        (_) {
+                                                          if (!mounted ||
+                                                              _isDisposed) {
+                                                            return;
+                                                          }
+                                                          _addProductToBill(item);
+                                                          _releaseDropdownClosingFlagNextFrame();
+                                                        },
+                                                      );
                                                     },
                                               borderRadius: BorderRadius.circular(12),
                                               child: Padding(
@@ -985,6 +1001,7 @@ class _BillingHomeScreenState extends ConsumerState<BillingHomeScreen> {
   }
 
   void _addProductToBill(Item item) async {
+    try {
     if (item.currentStock <= 0) {
       ScaffoldMessenger.of(context).showSnackBar(
         const SnackBar(content: Text('સ્ટોક ઉપલબ્ધ નથી')), // Gujarati message
@@ -1033,6 +1050,7 @@ class _BillingHomeScreenState extends ConsumerState<BillingHomeScreen> {
             double? calculatedAmount;
 
             Future<void> addCurrentItem() async {
+              try {
               if (!mounted || _isDisposed || !ctx.mounted) return;
               if (item.id == null) {
                 ScaffoldMessenger.of(context).showSnackBar(
@@ -1103,6 +1121,25 @@ class _BillingHomeScreenState extends ConsumerState<BillingHomeScreen> {
               _weightEntryController.clear();
               itemAdded = true;
               Navigator.of(ctx).pop();
+              } catch (error, stack) {
+                await ErrorLogger.log(
+                  AppError(
+                    code: 'BILLING_ADD_001',
+                    category: ErrorCategory.validation,
+                    technicalMessage: error.toString(),
+                    userMessage: 'આઇટમ ઉમેરવામાં ભૂલ આવી. ફરી પ્રયાસ કરો.',
+                    isCritical: false,
+                    timestamp: DateTime.now(),
+                    stackTrace: stack,
+                  ),
+                  currentScreen: 'BillingHomeScreen._addProductToBill.addCurrentItem',
+                );
+                if (mounted && ctx.mounted) {
+                  ScaffoldMessenger.of(context).showSnackBar(
+                    const SnackBar(content: Text('આઇટમ ઉમેરવામાં ભૂલ આવી')),
+                  );
+                }
+              }
             }
 
             if (mode == 'amount') {
@@ -1166,9 +1203,11 @@ class _BillingHomeScreenState extends ConsumerState<BillingHomeScreen> {
                       const SizedBox(height: 12),
                       if (mode == 'amount') ...[
                         TextField(
+                          autofocus: true,
                           keyboardType: const TextInputType.numberWithOptions(
                             decimal: true,
                           ),
+                          textInputAction: TextInputAction.done,
                           decoration: const InputDecoration(
                             labelText: '₹ રકમ દાખલ કરો',
                           ),
@@ -1177,6 +1216,9 @@ class _BillingHomeScreenState extends ConsumerState<BillingHomeScreen> {
                             if (parsed != null) {
                               setDialogState(() => amountPaid = parsed);
                             }
+                          },
+                          onSubmitted: (_) async {
+                            await addCurrentItem();
                           },
                         ),
                         const SizedBox(height: 8),
@@ -1210,7 +1252,7 @@ class _BillingHomeScreenState extends ConsumerState<BillingHomeScreen> {
                           child: TextField(
                             controller: _weightEntryController,
                             focusNode: _weightEntryFocusNode,
-                            autofocus: false,
+                            autofocus: true,
                             keyboardType: const TextInputType.numberWithOptions(
                               decimal: true,
                             ),
@@ -1275,6 +1317,25 @@ class _BillingHomeScreenState extends ConsumerState<BillingHomeScreen> {
     if (itemAdded && mounted) {
       setState(() {});
       _focusProductSearch();
+    }
+    } catch (error, stack) {
+      await ErrorLogger.log(
+        AppError(
+          code: 'BILLING_ADD_002',
+          category: ErrorCategory.validation,
+          technicalMessage: error.toString(),
+          userMessage: 'આઇટમ ઉમેરવામાં ભૂલ આવી. ફરી પ્રયાસ કરો.',
+          isCritical: false,
+          timestamp: DateTime.now(),
+          stackTrace: stack,
+        ),
+        currentScreen: 'BillingHomeScreen._addProductToBill',
+      );
+      if (mounted) {
+        ScaffoldMessenger.of(context).showSnackBar(
+          const SnackBar(content: Text('આઇટમ ઉમેરવામાં ભૂલ આવી')),
+        );
+      }
     }
   }
 
@@ -1891,6 +1952,7 @@ class _BillingHomeScreenState extends ConsumerState<BillingHomeScreen> {
     final roleLabelGu = _currentRoleGujaratiLabel();
     final avatarText = _roleInitialForAvatar(roleLabelGu);
     return Scaffold(
+      resizeToAvoidBottomInset: true,
       appBar: AppBar(
         title: const Text(strings.AppStrings.billingTitle),
         actions: [

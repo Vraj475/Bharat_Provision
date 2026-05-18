@@ -10,9 +10,9 @@ import 'core/localization/app_strings.dart';
 import 'core/theme/app_theme.dart';
 import 'data/providers.dart';
 import 'features/settings/settings_providers.dart';
+
 import 'routing/app_router.dart';
 import 'features/settings/screens/splash_screen.dart';
-
 final GlobalKey<NavigatorState> _navigatorKey = GlobalKey<NavigatorState>();
 
 void main() {

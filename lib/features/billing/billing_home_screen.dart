@@ -474,6 +474,7 @@ class _BillingHomeScreenState extends ConsumerState<BillingHomeScreen> {
     required bool showSuccessMessage,
     required bool clearDraft,
   }) async {
+    debugPrint('SAVE TRACE: entered _saveBillToDatabase');
     final linesSnapshot = List<BillLineItem>.from(_billLines);
     final discountSnapshot = _discount;
     final customerIdSnapshot = _customerId;
@@ -484,8 +485,11 @@ class _BillingHomeScreenState extends ConsumerState<BillingHomeScreen> {
         .toList();
 
     try {
+      debugPrint('SAVE TRACE: building BillItemInput list');
       final billItems = _buildBillItemsFromLines(linesSnapshot);
+      debugPrint('SAVE TRACE: reading billRepositoryFutureProvider');
       final billRepo = await ref.read(billRepositoryFutureProvider.future);
+      debugPrint('SAVE TRACE: calling BillRepository.createBill');
       final billId = await billRepo.createBill(
         customerId: customerIdSnapshot,
         customerNameSnapshot:
@@ -499,6 +503,7 @@ class _BillingHomeScreenState extends ConsumerState<BillingHomeScreen> {
         paymentMode: 'cash',
         userId: null,
       );
+      debugPrint('SAVE TRACE: createBill returned billId=$billId');
 
       if (mounted) {
         ref.invalidate(reportRepositoryFutureProvider);
@@ -509,7 +514,14 @@ class _BillingHomeScreenState extends ConsumerState<BillingHomeScreen> {
         ref.invalidate(todaysBillsProvider);
       }
 
-      await _updateStockAlerts(productIds);
+      try {
+        debugPrint('SAVE TRACE: updating stock alerts');
+        await _updateStockAlerts(productIds);
+        debugPrint('SAVE TRACE: stock alerts updated');
+      } catch (_) {
+        // Do not block bill save if stock-alert refresh fails.
+        debugPrint('SAVE TRACE: stock alert update failed (non-blocking)');
+      }
 
       if (mounted && clearDraft) {
         _clearCurrentBillDraft();
@@ -523,6 +535,7 @@ class _BillingHomeScreenState extends ConsumerState<BillingHomeScreen> {
 
       return billId;
     } catch (error, stack) {
+      debugPrint('SAVE FAILED: $error \n $stack');
       final appError = AppError(
         code: 'DB_003',
         category: ErrorCategory.database,

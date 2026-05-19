@@ -26,14 +26,16 @@ class Item {
   factory Item.fromMap(Map<String, dynamic> map) {
     return Item(
       id: map['id'] as int?,
-      nameGu: map['name_gu'] as String,
+      nameGu: (map['name_gu'] ?? map['name_gujarati'] ?? '') as String,
       categoryId: map['category_id'] as int?,
       barcode: map['barcode'] as String?,
-      unit: map['unit'] as String? ?? 'નંગ',
-      salePrice: (map['sale_price'] as num?)?.toDouble() ?? 0,
-      purchasePrice: (map['purchase_price'] as num?)?.toDouble() ?? 0,
-      currentStock: (map['current_stock'] as num?)?.toDouble() ?? 0,
-      lowStockThreshold: (map['low_stock_threshold'] as num?)?.toDouble() ?? 0,
+      unit: (map['unit'] ?? map['unit_type']) as String? ?? 'નંગ',
+      salePrice: ((map['sale_price'] ?? map['sell_price']) as num?)?.toDouble() ?? 0,
+      purchasePrice:
+          ((map['purchase_price'] ?? map['buy_price']) as num?)?.toDouble() ?? 0,
+      currentStock: ((map['current_stock'] ?? map['stock_qty']) as num?)?.toDouble() ?? 0,
+      lowStockThreshold:
+          ((map['low_stock_threshold'] ?? map['min_stock_qty']) as num?)?.toDouble() ?? 0,
       isActive: (map['is_active'] as int? ?? 1) == 1,
     );
   }

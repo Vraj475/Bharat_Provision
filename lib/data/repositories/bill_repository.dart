@@ -9,18 +9,11 @@ class BillRepository {
   final Database _db;
 
   Future<int> getNextBillNumber() async {
-    final counter = await _db.rawQuery(
-      "SELECT value FROM settings WHERE key = 'bill_counter'",
-    );
-    final current = counter.isNotEmpty
-        ? int.tryParse(counter.first['value'] as String? ?? '1') ?? 1
-        : 1;
-    await _db.update(
-      'settings',
-      {'value': (current + 1).toString()},
-      where: "key = 'bill_counter'",
-    );
-    return current;
+    return _db.transaction((txn) async {
+      final current = await _nextBillNumberInTransaction(txn);
+      await _setBillCounter(txn, current + 1);
+      return current;
+    });
   }
 
   Future<int> createBill({
@@ -32,7 +25,6 @@ class BillRepository {
     required String paymentMode,
     int? userId,
   }) async {
-    final billNumber = await _peekNextBillNumber();
     final now = DateTime.now();
     final nowEpoch = now.millisecondsSinceEpoch;
     final nowIso = now.toIso8601String();
@@ -46,6 +38,13 @@ class BillRepository {
     final udhaarAmount = (totalAmount - paidAmount).clamp(0.0, totalAmount);
 
     return _db.transaction((txn) async {
+      final billNumber = await _nextBillNumberInTransaction(txn);
+      final itemTable = await _resolveItemTable(txn);
+      final itemStockColumn = await _firstExistingColumn(txn, itemTable, [
+        'current_stock',
+        'stock_qty',
+      ]);
+
       final hasCustomerNameSnapshot = await _columnExists(
         txn,
         'bills',
@@ -118,33 +117,68 @@ class BillRepository {
       final billId = await txn.insert('bills', billValues);
 
       final hasStockLog = await _tableExists(txn, 'stock_log');
-      final hasStockQty = await _columnExists(txn, 'items', 'current_stock');
+      final hasStockQty = itemStockColumn != null;
+      final hasBillItemProductId = await _columnExists(
+        txn,
+        'bill_items',
+        'product_id',
+      );
+      final hasBillItemItemId = await _columnExists(txn, 'bill_items', 'item_id');
+      final hasBillItemQty = await _columnExists(txn, 'bill_items', 'qty');
+      final hasBillItemQuantity = await _columnExists(
+        txn,
+        'bill_items',
+        'quantity',
+      );
+      final hasBillItemAmount = await _columnExists(txn, 'bill_items', 'amount');
+      final hasBillItemLineTotal = await _columnExists(
+        txn,
+        'bill_items',
+        'line_total',
+      );
+      final hasBillItemUnitPrice = await _columnExists(
+        txn,
+        'bill_items',
+        'unit_price',
+      );
+      final hasBillItemSellPriceSnapshot = await _columnExists(
+        txn,
+        'bill_items',
+        'sell_price_snapshot',
+      );
 
       for (final i in items) {
         final lineTotal = i.quantity * i.unitPrice;
-        await txn.insert('bill_items', {
-          'bill_id': billId,
-          'item_id': i.itemId,
-          'quantity': i.quantity,
-          'unit_price': i.unitPrice,
-          'line_total': lineTotal,
-        });
+        final billItemValues = <String, Object?>{'bill_id': billId};
+        if (hasBillItemItemId) billItemValues['item_id'] = i.itemId;
+        if (hasBillItemProductId) billItemValues['product_id'] = i.itemId;
+        if (hasBillItemQuantity) billItemValues['quantity'] = i.quantity;
+        if (hasBillItemQty) billItemValues['qty'] = i.quantity;
+        if (hasBillItemUnitPrice) billItemValues['unit_price'] = i.unitPrice;
+        if (hasBillItemSellPriceSnapshot) {
+          billItemValues['sell_price_snapshot'] = i.unitPrice;
+        }
+        if (hasBillItemLineTotal) billItemValues['line_total'] = lineTotal;
+        if (hasBillItemAmount) billItemValues['amount'] = lineTotal;
+        await txn.insert('bill_items', billItemValues);
 
         double qtyBefore = 0;
         if (hasStockQty) {
           final stockRow = await txn.query(
-            'items',
-            columns: ['current_stock'],
+            itemTable,
+            columns: [itemStockColumn],
             where: 'id = ?',
             whereArgs: [i.itemId],
           );
-          qtyBefore = (stockRow.firstOrNull?['current_stock'] as num?)?.toDouble() ?? 0;
+          qtyBefore = (stockRow.firstOrNull?[itemStockColumn] as num?)?.toDouble() ?? 0;
         }
 
-        await txn.rawUpdate(
-          'UPDATE items SET current_stock = current_stock - ? WHERE id = ?',
-          [i.quantity, i.itemId],
-        );
+        if (itemStockColumn != null) {
+          await txn.rawUpdate(
+            'UPDATE $itemTable SET $itemStockColumn = COALESCE($itemStockColumn, 0) - ? WHERE id = ?',
+            [i.quantity, i.itemId],
+          );
+        }
 
         if (hasStockLog) {
           final hasProductId = await _columnExists(txn, 'stock_log', 'product_id');
@@ -266,23 +300,10 @@ class BillRepository {
         }
       }
 
-      await txn.update(
-        'settings',
-        {'value': (billNumber + 1).toString()},
-        where: "key = 'bill_counter'",
-      );
+      await _setBillCounter(txn, billNumber + 1);
 
       return billId;
     });
-  }
-
-  Future<int> _peekNextBillNumber() async {
-    final counter = await _db.rawQuery(
-      "SELECT value FROM settings WHERE key = 'bill_counter'",
-    );
-    return counter.isNotEmpty
-        ? int.tryParse(counter.first['value'] as String? ?? '1') ?? 1
-        : 1;
   }
 
   Future<bool> _tableExists(Transaction txn, String tableName) async {
@@ -302,10 +323,72 @@ class BillRepository {
     return rows.any((row) => row['name'] == columnName);
   }
 
+  Future<int> _nextBillNumberInTransaction(Transaction txn) async {
+    final counterRows = await txn.rawQuery(
+      "SELECT value FROM settings WHERE key = 'bill_counter' LIMIT 1",
+    );
+    final counterValue = counterRows.isNotEmpty
+        ? int.tryParse(counterRows.first['value']?.toString() ?? '') ?? 1
+        : 1;
+
+    final maxBillRows = await txn.rawQuery(
+      'SELECT COALESCE(MAX(CAST(bill_number AS INTEGER)), 0) AS max_bill FROM bills',
+    );
+    final maxBill = (maxBillRows.first['max_bill'] as num?)?.toInt() ?? 0;
+
+    return counterValue > maxBill ? counterValue : (maxBill + 1);
+  }
+
+  Future<void> _setBillCounter(Transaction txn, int nextValue) async {
+    final updated = await txn.update(
+      'settings',
+      {'value': nextValue.toString()},
+      where: "key = 'bill_counter'",
+    );
+    if (updated == 0) {
+      await txn.insert('settings', {
+        'key': 'bill_counter',
+        'value': nextValue.toString(),
+      });
+    }
+  }
+
+  Future<String> _resolveItemTable(Transaction txn) async {
+    if (await _tableExists(txn, 'items')) return 'items';
+    return 'products';
+  }
+
+  Future<String?> _firstExistingColumn(
+    Transaction txn,
+    String table,
+    List<String> candidates,
+  ) async {
+    for (final name in candidates) {
+      if (await _columnExists(txn, table, name)) return name;
+    }
+    return null;
+  }
+
+  int _resolveBillEpoch(Map<String, dynamic> map) {
+    final rawDateTime = map['date_time'];
+    if (rawDateTime is int) return rawDateTime;
+    if (rawDateTime is num) return rawDateTime.toInt();
+
+    final dateStr =
+        (map['bill_date'] ?? map['created_at'] ?? DateTime.now().toIso8601String())
+            .toString();
+    final parsed = DateTime.tryParse(dateStr);
+    return (parsed ?? DateTime.now()).millisecondsSinceEpoch;
+  }
+
   Future<Bill?> getById(int id) async {
     final maps = await _db.query('bills', where: 'id = ?', whereArgs: [id]);
     if (maps.isEmpty) return null;
-    return Bill.fromMap(maps.first);
+    final normalized = Map<String, dynamic>.from(maps.first);
+    normalized['date_time'] ??= _resolveBillEpoch(normalized);
+    normalized['discount_amount'] ??= normalized['discount'];
+    normalized['tax_amount'] ??= normalized['gst_amount'];
+    return Bill.fromMap(normalized);
   }
 
   Future<List<BillItem>> getBillItems(int billId) async {
@@ -314,7 +397,14 @@ class BillRepository {
       where: 'bill_id = ?',
       whereArgs: [billId],
     );
-    return maps.map((m) => BillItem.fromMap(m)).toList();
+    return maps.map((m) {
+      final normalized = Map<String, dynamic>.from(m);
+      normalized['item_id'] ??= normalized['product_id'];
+      normalized['quantity'] ??= normalized['qty'];
+      normalized['unit_price'] ??= normalized['sell_price_snapshot'];
+      normalized['line_total'] ??= normalized['amount'];
+      return BillItem.fromMap(normalized);
+    }).toList();
   }
 
   Future<double> getSalesTotal(int startEpoch, int endEpoch) async {

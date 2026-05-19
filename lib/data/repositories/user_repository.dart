@@ -16,7 +16,7 @@ class UserRepository {
   Future<User?> validatePin(String pin) async {
     final maps = await _db.query(
       'users',
-      where: 'pin = ? AND is_active = 1',
+      where: 'pin_hash = ? AND is_active = 1',
       whereArgs: [pin],
     );
     if (maps.isEmpty) return null;
@@ -29,14 +29,25 @@ class UserRepository {
   }
 
   Future<int> insert(User u) async {
-    return _db.insert('users', u.toMap());
+    return _db.insert('users', {
+      'role': u.role,
+      'display_name': u.name,
+      'pin_hash': u.pin,
+      'is_active': u.isActive ? 1 : 0,
+      'created_at': DateTime.now().toIso8601String(),
+    });
   }
 
   Future<int> update(User u) async {
     if (u.id == null) return 0;
     return _db.update(
       'users',
-      u.toMap(),
+      {
+        'role': u.role,
+        'display_name': u.name,
+        'pin_hash': u.pin,
+        'is_active': u.isActive ? 1 : 0,
+      },
       where: 'id = ?',
       whereArgs: [u.id],
     );

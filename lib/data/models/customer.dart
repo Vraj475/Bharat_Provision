@@ -16,7 +16,7 @@ class Customer {
   factory Customer.fromMap(Map<String, dynamic> map) {
     return Customer(
       id: map['id'] as int?,
-      name: map['name'] as String,
+      name: (map['name'] ?? map['name_gujarati'] ?? '') as String,
       phone: map['phone'] as String?,
       address: map['address'] as String?,
       note: map['note'] as String?,

@@ -85,6 +85,11 @@ class ErrorHandler {
       }
 
       if (error is StateError) {
+        final msg = error.toString().toLowerCase();
+        // Database-related StateErrors
+        if (msg.contains('database') || msg.contains('sqflite')) {
+          return 'DB_004';
+        }
         return 'UNK_001';
       }
 
@@ -93,6 +98,10 @@ class ErrorHandler {
         final message = (error.message ?? '').toLowerCase();
         if (code.contains('bluetooth') || message.contains('bluetooth')) {
           return 'PRINT_005';
+        }
+        // Check for database-related platform exceptions
+        if (code.contains('database') || message.contains('database')) {
+          return 'DB_004';
         }
       }
 

@@ -47,12 +47,14 @@ class BillDraft {
     this.discountAmount = 0,
     this.customerId,
     this.customerName,
+    this.transactionType = 'cash',
   });
 
   final List<BillLine> lines;
   final double discountAmount;
   final int? customerId;
   final String? customerName;
+  final String transactionType; // 'cash' or 'udhaar'
 
   double get subtotal => lines.fold(0, (s, l) => s + l.amount);
   double get total => subtotal - discountAmount;
@@ -62,12 +64,14 @@ class BillDraft {
     double? discountAmount,
     int? customerId,
     String? customerName,
+    String? transactionType,
   }) {
     return BillDraft(
       lines: lines ?? this.lines,
       discountAmount: discountAmount ?? this.discountAmount,
       customerId: customerId ?? this.customerId,
       customerName: customerName ?? this.customerName,
+      transactionType: transactionType ?? this.transactionType,
     );
   }
 
@@ -151,6 +155,22 @@ class BillingTabsNotifier extends StateNotifier<BillingTabsState> {
       customerId: customerId,
       customerName: customerName,
     );
+    state = state.copyWith(drafts: drafts);
+  }
+
+  void setTransactionTypeForActive(String type) {
+    final drafts = [...state.drafts];
+    final current = drafts[state.activeIndex];
+    // When switching from udhaar to cash, clear customer selection
+    if (current.transactionType == 'udhaar' && type == 'cash') {
+      drafts[state.activeIndex] = current.copyWith(
+        transactionType: type,
+        customerId: null,
+        customerName: null,
+      );
+    } else {
+      drafts[state.activeIndex] = current.copyWith(transactionType: type);
+    }
     state = state.copyWith(drafts: drafts);
   }
 

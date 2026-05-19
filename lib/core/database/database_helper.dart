@@ -1,7 +1,9 @@
 import 'dart:convert';
 import 'dart:io';
 
+import 'package:flutter/foundation.dart';
 import 'package:path/path.dart' as p;
+import 'package:path_provider/path_provider.dart';
 import 'package:sqflite_common/sqflite.dart';
 import 'package:sqflite_common_ffi/sqflite_ffi.dart' as sqflite_ffi;
 import 'package:sqflite_sqlcipher/sqflite.dart' as sqlcipher;
@@ -45,31 +47,104 @@ class DatabaseHelper {
     try {
       // On Android/iOS, use sqlcipher plugin with password.
       if (Platform.isAndroid || Platform.isIOS) {
-        final dbPath = await sqlcipher.getDatabasesPath();
-        final path = p.join(dbPath, dbFileName);
+        try {
+          final dbPath = await sqlcipher.getDatabasesPath();
+          
+          // Ensure the directory exists (create if needed)
+          final dbDir = Directory(dbPath);
+          if (!await dbDir.exists()) {
+            await dbDir.create(recursive: true);
+            debugPrint('DatabaseHelper: Created database directory at $dbPath');
+          }
+          
+          final path = p.join(dbPath, dbFileName);
+          debugPrint('DatabaseHelper: Opening encrypted database at $path');
 
-        final password = _password ?? PinHasher.sha256('1234');
+          final password = _password ?? PinHasher.sha256('1234');
 
-        return sqlcipher.openDatabase(
-          path,
-          version: schemaVersion,
-          password: password,
-          onConfigure: (db) async {
-            await db.execute('PRAGMA foreign_keys = ON');
-          },
-          onCreate: (db, version) async {
-            await _createSchema(db);
-            await _insertDefaultData(db);
-          },
-          onUpgrade: (db, oldVersion, newVersion) async {
-            await _createSchema(db);
-          },
-        );
+          final db = await sqlcipher.openDatabase(
+            path,
+            version: schemaVersion,
+            password: password,
+            onConfigure: (db) async {
+              await db.execute('PRAGMA foreign_keys = ON');
+            },
+            onCreate: (db, version) async {
+              debugPrint('DatabaseHelper: Creating new schema (version $version)');
+              await _createSchema(db);
+              await _insertDefaultData(db);
+            },
+            onUpgrade: (db, oldVersion, newVersion) async {
+              debugPrint('DatabaseHelper: Upgrading schema from $oldVersion to $newVersion');
+              await _createSchema(db);
+            },
+          );
+          debugPrint('DatabaseHelper: Successfully opened database');
+          return db;
+        } catch (e) {
+          debugPrint('DatabaseHelper: Android database open error: $e');
+          
+          // Try to recover by deleting corrupted database and recreating
+          if (e.toString().contains('database is encrypted') ||
+              e.toString().contains('file is encrypted') ||
+              e.toString().contains('malformed') ||
+              e.toString().contains('no such table') ||
+              e.toString().contains('bad decrypt')) {
+            try {
+              debugPrint('DatabaseHelper: Attempting database recovery...');
+              final dbPath = await sqlcipher.getDatabasesPath();
+              final path = p.join(dbPath, dbFileName);
+              final file = File(path);
+              
+              // Also try to delete -wal and -shm files
+              final walFile = File('$path-wal');
+              final shmFile = File('$path-shm');
+              
+              if (await file.exists()) {
+                await file.delete();
+                debugPrint('DatabaseHelper: Deleted corrupted database file');
+              }
+              if (await walFile.exists()) {
+                await walFile.delete();
+                debugPrint('DatabaseHelper: Deleted WAL file');
+              }
+              if (await shmFile.exists()) {
+                await shmFile.delete();
+                debugPrint('DatabaseHelper: Deleted SHM file');
+              }
+              
+              // Retry opening with fresh database
+              final password = PinHasher.sha256('1234');
+              return sqlcipher.openDatabase(
+                path,
+                version: schemaVersion,
+                password: password,
+                onConfigure: (db) async {
+                  await db.execute('PRAGMA foreign_keys = ON');
+                },
+                onCreate: (db, version) async {
+                  debugPrint('DatabaseHelper: Creating schema after recovery');
+                  await _createSchema(db);
+                  await _insertDefaultData(db);
+                },
+                onUpgrade: (db, oldVersion, newVersion) async {
+                  await _createSchema(db);
+                },
+              );
+            } catch (recoveryError) {
+              debugPrint('DatabaseHelper: Recovery failed: $recoveryError');
+              rethrow;
+            }
+          }
+          rethrow;
+        }
       }
 
       // On desktop (Windows/Linux/macOS), use the database path from sqflite and open via ffi
       sqflite_ffi.sqfliteFfiInit();
-      final dbPath = await sqlcipher.getDatabasesPath();
+      final dbPath = Platform.isAndroid || Platform.isIOS
+          ? await sqlcipher.getDatabasesPath()
+          : (await getApplicationSupportDirectory()).path;
       final path = p.join(dbPath, dbFileName);
       final factory = sqflite_ffi.databaseFactoryFfi;
 

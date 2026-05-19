@@ -475,6 +475,24 @@ class _BillingHomeScreenState extends ConsumerState<BillingHomeScreen> {
     required bool clearDraft,
   }) async {
     debugPrint('SAVE TRACE: entered _saveBillToDatabase');
+    
+    // Get current transaction type from provider
+    final billingState = ref.read(billingTabsProvider);
+    final transactionType = billingState.activeDraft.transactionType;
+    
+    // Validate: Udhaar requires a customer with ID (not just name)
+    if (transactionType == 'udhaar' && _customerId == null) {
+      if (mounted) {
+        ScaffoldMessenger.of(context).showSnackBar(
+          const SnackBar(
+            content: Text('ઉધાર માટે ગ્રાહક પસંદ કરવો જરૂરી છે'),
+            duration: Duration(seconds: 3),
+          ),
+        );
+      }
+      return null;
+    }
+    
     final linesSnapshot = List<BillLineItem>.from(_billLines);
     final discountSnapshot = _discount;
     final customerIdSnapshot = _customerId;
@@ -500,7 +518,7 @@ class _BillingHomeScreenState extends ConsumerState<BillingHomeScreen> {
         discountAmount: discountSnapshot,
         paidAmount:
             linesSnapshot.fold(0.0, (s, l) => s + l.amount) - discountSnapshot,
-        paymentMode: 'cash',
+        paymentMode: transactionType,
         userId: null,
       );
       debugPrint('SAVE TRACE: createBill returned billId=$billId');
@@ -817,6 +835,41 @@ class _BillingHomeScreenState extends ConsumerState<BillingHomeScreen> {
                         ? Column(
                             crossAxisAlignment: CrossAxisAlignment.stretch,
                             children: [
+                              // Transaction type selector for Android bottom sheet
+                              Consumer(
+                                builder: (context, ref, _) {
+                                  final billingState = ref.watch(billingTabsProvider);
+                                  final transactionType = billingState.activeDraft.transactionType;
+                                  return Row(
+                                    children: [
+                                      Expanded(
+                                        child: _buildTransactionTypeButton(
+                                          label: 'રોકડ',
+                                          icon: Icons.payments,
+                                          value: 'cash',
+                                          selected: transactionType == 'cash',
+                                          onPressed: () {
+                                            ref.read(billingTabsProvider.notifier).setTransactionTypeForActive('cash');
+                                          },
+                                        ),
+                                      ),
+                                      const SizedBox(width: 12),
+                                      Expanded(
+                                        child: _buildTransactionTypeButton(
+                                          label: 'ઉધાર',
+                                          icon: Icons.account_balance_wallet,
+                                          value: 'udhaar',
+                                          selected: transactionType == 'udhaar',
+                                          onPressed: () {
+                                            ref.read(billingTabsProvider.notifier).setTransactionTypeForActive('udhaar');
+                                          },
+                                        ),
+                                      ),
+                                    ],
+                                  );
+                                },
+                              ),
+                              const SizedBox(height: 10),
                               TextField(
                                 controller: _searchController,
                                 decoration: const InputDecoration(
@@ -2111,6 +2164,8 @@ class _BillingHomeScreenState extends ConsumerState<BillingHomeScreen> {
 
   Widget _buildProductPanel() {
     final state = ref.watch(billingItemsProvider);
+    final billingState = ref.watch(billingTabsProvider);
+    final transactionType = billingState.activeDraft.transactionType;
     final productsForDropdown = state.valueOrNull ?? const <Item>[];
     return Stack(
       key: _productPanelStackKey,
@@ -2124,6 +2179,36 @@ class _BillingHomeScreenState extends ConsumerState<BillingHomeScreen> {
               child: Column(
                 crossAxisAlignment: CrossAxisAlignment.stretch,
                 children: [
+                  // Transaction type selector
+                  Row(
+                    spacing: 12,
+                    children: [
+                      Expanded(
+                        child: _buildTransactionTypeButton(
+                          label: 'રોકડ',
+                          icon: Icons.payments,
+                          value: 'cash',
+                          selected: transactionType == 'cash',
+                          onPressed: () {
+                            ref.read(billingTabsProvider.notifier).setTransactionTypeForActive('cash');
+                          },
+                        ),
+                      ),
+                      Expanded(
+                        child: _buildTransactionTypeButton(
+                          label: 'ઉધાર',
+                          icon: Icons.account_balance_wallet,
+                          value: 'udhaar',
+                          selected: transactionType == 'udhaar',
+                          onPressed: () {
+                            ref.read(billingTabsProvider.notifier).setTransactionTypeForActive('udhaar');
+                          },
+                        ),
+                      ),
+                    ],
+                  ),
+                  const SizedBox(height: 12),
+                  // Customer field with conditional behavior
                   Container(
                     key: _customerFieldKey,
                     child: TextField(
@@ -2131,9 +2216,18 @@ class _BillingHomeScreenState extends ConsumerState<BillingHomeScreen> {
                       focusNode: _customerFocusNode,
                       autofocus: true,
                       textInputAction: TextInputAction.next,
+                      readOnly: transactionType == 'udhaar',
                       decoration: InputDecoration(
-                        labelText: 'ગ્રાહકનું નામ',
+                        labelText: transactionType == 'udhaar'
+                            ? 'ગ્રાહક પસંદ કરો (જરૂરી)'
+                            : 'ગ્રાહકનું નામ (વૈકલ્પિક)',
                         prefixIcon: const Icon(Icons.person),
+                        suffix: transactionType == 'udhaar'
+                            ? const Text(
+                                '*',
+                                style: TextStyle(color: Colors.red, fontSize: 16),
+                              )
+                            : null,
                         suffixIcon: _customerController.text.isEmpty
                             ? null
                             : IconButton(
@@ -2339,6 +2433,48 @@ class _BillingHomeScreenState extends ConsumerState<BillingHomeScreen> {
     );
   }
 
+  Widget _buildTransactionTypeButton({
+    required String label,
+    required IconData icon,
+    required String value,
+    required bool selected,
+    required VoidCallback onPressed,
+  }) {
+    return GestureDetector(
+      onTap: onPressed,
+      child: Container(
+        padding: const EdgeInsets.symmetric(horizontal: 12, vertical: 10),
+        decoration: BoxDecoration(
+          color: selected ? AppColors.primary : Colors.transparent,
+          border: Border.all(
+            color: selected ? AppColors.primary : AppColors.primary.withValues(alpha: 0.3),
+            width: 2,
+          ),
+          borderRadius: BorderRadius.circular(8),
+        ),
+        child: Row(
+          mainAxisAlignment: MainAxisAlignment.center,
+          children: [
+            Icon(
+              icon,
+              color: selected ? Colors.white : AppColors.textSecondary,
+              size: 20,
+            ),
+            const SizedBox(width: 8),
+            Text(
+              label,
+              style: TextStyle(
+                color: selected ? Colors.white : AppColors.textSecondary,
+                fontWeight: selected ? FontWeight.bold : FontWeight.normal,
+                fontSize: 14,
+              ),
+            ),
+          ],
+        ),
+      ),
+    );
+  }
+
   bool _shouldShowCustomerDropdown() {
     final typed = _customerController.text.trim();
     if (typed.isEmpty) return false;
@@ -2351,6 +2487,8 @@ class _BillingHomeScreenState extends ConsumerState<BillingHomeScreen> {
   List<Widget> _customerDropdownChildren() {
     final typed = _customerController.text.trim();
     final hasExactMatch = _hasExactCustomerMatch(typed, _customerSuggestions);
+    final billingState = ref.read(billingTabsProvider);
+    final transactionType = billingState.activeDraft.transactionType;
 
     final rows = <Widget>[];
     for (final customer in _customerSuggestions) {
@@ -2393,36 +2531,55 @@ class _BillingHomeScreenState extends ConsumerState<BillingHomeScreen> {
       if (rows.isNotEmpty) {
         rows.add(const Divider(height: 1));
       }
-      rows.add(
-        InkWell(
-          onTap: _selectWalkInCustomer,
-          child: Padding(
-            padding: const EdgeInsets.symmetric(horizontal: 12, vertical: 12),
-            child: RichText(
-              text: TextSpan(
-                style: DefaultTextStyle.of(context).style,
-                children: [
-                  TextSpan(
-                    text: 'નવા ગ્રાહક તરીકે ઉમેરો',
-                    style: TextStyle(
-                      color: Colors.green.shade700,
-                      fontWeight: FontWeight.w700,
-                    ),
-                  ),
-                  if (typed.isNotEmpty)
+      
+      // Only show walk-in customer option for cash transactions
+      if (transactionType == 'cash') {
+        rows.add(
+          InkWell(
+            onTap: _selectWalkInCustomer,
+            child: Padding(
+              padding: const EdgeInsets.symmetric(horizontal: 12, vertical: 12),
+              child: RichText(
+                text: TextSpan(
+                  style: DefaultTextStyle.of(context).style,
+                  children: [
                     TextSpan(
-                      text: ' - $typed',
+                      text: 'નવા ગ્રાહક તરીકે ઉમેરો',
                       style: TextStyle(
-                        color: Colors.grey.shade700,
-                        fontWeight: FontWeight.w500,
+                        color: Colors.green.shade700,
+                        fontWeight: FontWeight.w700,
                       ),
                     ),
-                ],
+                    if (typed.isNotEmpty)
+                      TextSpan(
+                        text: ' - $typed',
+                        style: TextStyle(
+                          color: Colors.grey.shade700,
+                          fontWeight: FontWeight.w500,
+                        ),
+                      ),
+                  ],
+                ),
               ),
             ),
           ),
-        ),
-      );
+        );
+      } else if (transactionType == 'udhaar') {
+        // Show message for udhaar transactions
+        rows.add(
+          Padding(
+            padding: const EdgeInsets.symmetric(horizontal: 12, vertical: 12),
+            child: Text(
+              'માત્ર હાલના ગ્રાહકો પસંદ કરી શકાય છે',
+              style: TextStyle(
+                color: Colors.orange.shade700,
+                fontWeight: FontWeight.w500,
+                fontStyle: FontStyle.italic,
+              ),
+            ),
+          ),
+        );
+      }
     }
 
     return rows;

@@ -8,7 +8,7 @@ class CustomerRepository {
   final Database _db;
 
   Future<List<Customer>> getAll() async {
-    final maps = await _db.query('customers', orderBy: 'name_gujarati ASC');
+    final maps = await _db.query('customers', orderBy: 'name ASC');
     return maps.map((m) => Customer.fromMap(m)).toList();
   }
 
@@ -17,9 +17,9 @@ class CustomerRepository {
     final q = '%${query.trim()}%';
     final maps = await _db.query(
       'customers',
-      where: 'name_gujarati LIKE ? OR name_english LIKE ? OR phone LIKE ?',
-      whereArgs: [q, q, q],
-      orderBy: 'name_gujarati ASC',
+      where: 'name LIKE ? OR phone LIKE ?',
+      whereArgs: [q, q],
+      orderBy: 'name ASC',
     );
     return maps.map((m) => Customer.fromMap(m)).toList();
   }
@@ -32,15 +32,10 @@ class CustomerRepository {
 
   Future<int> insert(Customer c) async {
     return _db.insert('customers', {
-      'name_gujarati': c.name,
-      'name_english': null,
+      'name': c.name,
       'phone': c.phone,
       'address': c.address,
-      'account_type': 'regular',
-      'credit_limit': 2000.0,
-      'total_outstanding': 0.0,
-      'is_active': 1,
-      'created_at': DateTime.now().toIso8601String(),
+      'note': c.note,
     });
   }
 
@@ -49,9 +44,10 @@ class CustomerRepository {
     return _db.update(
       'customers',
       {
-        'name_gujarati': c.name,
+        'name': c.name,
         'phone': c.phone,
         'address': c.address,
+        'note': c.note,
       },
       where: 'id = ?',
       whereArgs: [c.id],

@@ -1,0 +1,9 @@
+1. Remove Superadmin, admin take only 1 User
+2. Shift save button to a viable place and make it larger
+3. Fix Return Replace Module
+4. Test Print with connected printer
+5. No session Limit 
+6. Remove Udhaar module completely
+7. Fix reports module
+8. Add Return Replace module on clicking the previous Bill.
+9. Show product details on bill history not item 1,2 etc.

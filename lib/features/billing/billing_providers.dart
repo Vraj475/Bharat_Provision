@@ -1,5 +1,7 @@
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 
+import 'package:flutter/foundation.dart' show debugPrint;
+
 import '../../core/errors/error_handler.dart';
 import '../../data/models/item.dart';
 import '../../data/providers.dart';
@@ -156,6 +158,14 @@ class BillingTabsNotifier extends StateNotifier<BillingTabsState> {
       customerName: customerName,
     );
     state = state.copyWith(drafts: drafts);
+  }
+
+  void setSelectedCustomer(int customerId, String customerName) {
+    debugPrint('CUSTOMER SET: id=$customerId name=$customerName');
+    setCustomerForActive(
+      customerId: customerId,
+      customerName: customerName,
+    );
   }
 
   void setTransactionTypeForActive(String type) {

@@ -12,16 +12,15 @@ import '../../core/constants/app_strings.dart' as strings;
 import '../../core/errors/error_handler.dart';
 import '../../core/errors/error_logger.dart';
 import '../../core/errors/error_types.dart';
-import '../../core/database/database_helper.dart';
 import '../../core/theme/app_colors.dart';
 import '../../core/widgets/numpad.dart';
 import '../../shared/widgets/errors/error_dialogue.dart';
 import '../../shared/widgets/errors/error_dialog.dart';
+import '../../shared/widgets/customer_search_field.dart';
 import '../../core/utils/currency_format.dart';
 import '../../core/utils/weight_calculator.dart';
 import '../../data/models/item.dart';
 import '../../core/auth/role_provider.dart';
-import '../../shared/models/customer_model.dart';
 import '../../routing/app_router.dart';
 import 'billing_providers.dart';
 import '../../core/services/notification_service.dart';
@@ -33,7 +32,6 @@ import '../../features/settings/settings_providers.dart';
 import '../../data/providers.dart';
 import '../../data/repositories/bill_repository.dart';
 import '../../data/services/bill_service_provider.dart';
-import '../../data/repositories/udhaar_repository.dart';
 import '../../features/reports/reports_providers.dart';
 
 /// Simplified single-screen billing - Create bills and print them.
@@ -46,7 +44,6 @@ class BillingHomeScreen extends ConsumerStatefulWidget {
 
 class _BillingHomeScreenState extends ConsumerState<BillingHomeScreen> {
   final _productPanelStackKey = GlobalKey();
-  final _customerFieldKey = GlobalKey();
   final _productFieldKey = GlobalKey();
   final _billBoundaryDesktopKey = GlobalKey();
   final _billBoundaryMobileKey = GlobalKey();
@@ -68,13 +65,7 @@ class _BillingHomeScreenState extends ConsumerState<BillingHomeScreen> {
   String? _customerName;
   String? _shopName;
   int? _customerId;
-  List<Customer> _customerSuggestions = const [];
-  _BillingDropdownType _activeDropdown = _BillingDropdownType.none;
-  bool _isDropdownClosing = false;
-  bool _isSearchingCustomers = false;
-  bool _isCustomerDropdownOpen = false;
-  Timer? _customerSearchDebounce;
-  int _customerSearchToken = 0;
+
   bool _lowStockPopupShown = false;
   String? _editingLineKey;
   _DraftEditableField? _editingField;
@@ -85,23 +76,12 @@ class _BillingHomeScreenState extends ConsumerState<BillingHomeScreen> {
   bool _isGrandTotalAdjusted = false;
   bool _isCommittingInlineEdit = false;
   bool _isDisposed = false;
-  late final VoidCallback _customerFocusListener;
+  _BillingDropdownType _activeDropdown = _BillingDropdownType.none;
 
   @override
   void initState() {
     super.initState();
-    _customerFocusListener = () {
-      if (!mounted) return;
-      if (!_customerFocusNode.hasFocus) {
-        setState(() {
-          _customerSuggestions = const [];
-          _isSearchingCustomers = false;
-          _activeDropdown = _BillingDropdownType.none;
-          _isCustomerDropdownOpen = false;
-        });
-      }
-    };
-    _customerFocusNode.addListener(_customerFocusListener);
+
     // Load all items when screen loads (from inventory items table)
     WidgetsBinding.instance.addPostFrameCallback((_) {
       if (!mounted) return;
@@ -124,11 +104,7 @@ class _BillingHomeScreenState extends ConsumerState<BillingHomeScreen> {
   @override
   void dispose() {
     _isDisposed = true;
-    // Order: overlays (none, Stack-owned) -> timers/subscriptions -> listeners -> controller/focus disposal -> super.
-    _activeDropdown = _BillingDropdownType.none;
-    _isDropdownClosing = false;
-    _customerSearchDebounce?.cancel();
-    _customerFocusNode.removeListener(_customerFocusListener);
+    _customerFocusNode.unfocus();
 
     for (final controller in _lineEditControllers.values) {
       controller.dispose();
@@ -154,35 +130,32 @@ class _BillingHomeScreenState extends ConsumerState<BillingHomeScreen> {
   }
 
   void _focusProductSearch() {
-    if (!mounted || _isDisposed) return;
+    if (!mounted || _isDisposed) {
+      return;
+    }
     FocusScope.of(context).requestFocus(_productSearchFocusNode);
   }
 
   void _openDropdown(_BillingDropdownType type) {
-    if (!mounted || _isDisposed) return;
+    if (!mounted || _isDisposed) {
+      return;
+    }
     setState(() {
-      _isDropdownClosing = false;
       _activeDropdown = type;
-      _isCustomerDropdownOpen = type == _BillingDropdownType.customer;
     });
   }
 
   void _closeAllDropdowns({bool markClosing = false}) {
-    if (!mounted || _isDisposed) return;
+    if (!mounted || _isDisposed) {
+      return;
+    }
     setState(() {
-      _isDropdownClosing = markClosing;
       _activeDropdown = _BillingDropdownType.none;
-      _isCustomerDropdownOpen = false;
     });
   }
 
   void _releaseDropdownClosingFlagNextFrame() {
-    WidgetsBinding.instance.addPostFrameCallback((_) {
-      if (!mounted || _isDisposed) return;
-      setState(() {
-        _isDropdownClosing = false;
-      });
-    });
+    // No longer needed
   }
 
   RelativeRect? _dropdownAnchorRect(GlobalKey anchorKey) {
@@ -213,164 +186,15 @@ class _BillingHomeScreenState extends ConsumerState<BillingHomeScreen> {
   }
 
   void _registerLineResources(String lineKey, {String? initialText}) {
-    _lineEditControllers[lineKey] = TextEditingController(text: initialText ?? '');
+    _lineEditControllers[lineKey] = TextEditingController(
+      text: initialText ?? '',
+    );
     _lineEditFocusNodes[lineKey] = FocusNode();
   }
 
   void _disposeLineResources(String lineKey) {
     _lineEditControllers.remove(lineKey)?.dispose();
     _lineEditFocusNodes.remove(lineKey)?.dispose();
-  }
-
-  void _clearCustomerSelection({bool clearText = true}) {
-    _customerSearchDebounce?.cancel();
-    setState(() {
-      _customerId = null;
-      _customerSuggestions = const [];
-      _isSearchingCustomers = false;
-      _activeDropdown = _BillingDropdownType.none;
-      _isCustomerDropdownOpen = false;
-      if (clearText) {
-        _customerName = null;
-      }
-    });
-    if (clearText && _customerController.text.isNotEmpty) {
-      _customerController.clear();
-    }
-  }
-
-  bool _hasExactCustomerMatch(String typedName, List<Customer> customers) {
-    final normalizedTyped = typedName.trim().toLowerCase();
-    if (normalizedTyped.isEmpty) return false;
-    return customers.any((customer) {
-      return customer.nameGujarati.trim().toLowerCase() == normalizedTyped ||
-          (customer.nameEnglish?.trim().toLowerCase() == normalizedTyped);
-    });
-  }
-
-  void _onCustomerChanged(String value) {
-    final typed = value.trim();
-    _customerSearchDebounce?.cancel();
-
-    if (typed.isEmpty) {
-      _clearCustomerSelection(clearText: false);
-      return;
-    }
-
-    setState(() {
-      _customerName = typed;
-      _customerId = null;
-      _isSearchingCustomers = true;
-      _activeDropdown = _BillingDropdownType.customer;
-      _isCustomerDropdownOpen = true;
-    });
-
-    final searchToken = ++_customerSearchToken;
-    _customerSearchDebounce = Timer(
-      const Duration(milliseconds: 300),
-      () async {
-        try {
-          final repo = UdhaarRepository(DatabaseHelper.instance);
-          final customers = await repo.findSimilarCustomers(typed);
-          if (!mounted || searchToken != _customerSearchToken) return;
-
-          final sortedCustomers = [...customers]
-            ..sort((a, b) => a.nameGujarati.compareTo(b.nameGujarati));
-
-          setState(() {
-            _customerSuggestions = sortedCustomers.take(5).toList();
-            _isSearchingCustomers = false;
-            _activeDropdown = _shouldShowCustomerDropdown()
-                ? _BillingDropdownType.customer
-                : _BillingDropdownType.none;
-            _isCustomerDropdownOpen = _shouldShowCustomerDropdown();
-          });
-        } catch (_) {
-          if (!mounted || searchToken != _customerSearchToken) return;
-          setState(() {
-            _customerSuggestions = const [];
-            _isSearchingCustomers = false;
-            _activeDropdown = _shouldShowCustomerDropdown()
-                ? _BillingDropdownType.customer
-                : _BillingDropdownType.none;
-            _isCustomerDropdownOpen = _shouldShowCustomerDropdown();
-          });
-        }
-      },
-    );
-  }
-
-  void _selectCustomer(Customer customer) {
-    if (_isDropdownClosing || !mounted || _isDisposed) return;
-    _customerSearchDebounce?.cancel();
-    setState(() {
-      _customerId = customer.id;
-      _customerName = customer.nameGujarati;
-      _customerSuggestions = const [];
-      _isSearchingCustomers = false;
-      _isDropdownClosing = true;
-      _activeDropdown = _BillingDropdownType.none;
-      _isCustomerDropdownOpen = false;
-    });
-    _customerController.value = TextEditingValue(
-      text: customer.nameGujarati,
-      selection: TextSelection.collapsed(offset: customer.nameGujarati.length),
-    );
-    _releaseDropdownClosingFlagNextFrame();
-    _focusProductSearch();
-  }
-
-  void _selectWalkInCustomer() {
-    if (_isDropdownClosing || !mounted || _isDisposed) return;
-    final typed = _customerController.text.trim();
-    _customerSearchDebounce?.cancel();
-    setState(() {
-      _customerId = null;
-      _customerName = typed.isEmpty ? null : typed;
-      _customerSuggestions = const [];
-      _isSearchingCustomers = false;
-      _isDropdownClosing = true;
-      _activeDropdown = _BillingDropdownType.none;
-      _isCustomerDropdownOpen = false;
-    });
-    _releaseDropdownClosingFlagNextFrame();
-    _focusProductSearch();
-  }
-
-  void _setCustomerName() async {
-    _customerNameDialogController.text = _customerName ?? '';
-    await showDialog<void>(
-      context: context,
-      builder: (ctx) => AlertDialog(
-        title: const Text('ગ્રાહક નું નામ દાખલ કરો'),
-        content: TextField(
-          controller: _customerNameDialogController,
-          autofocus: true,
-          decoration: const InputDecoration(
-            labelText: 'ગ્રાહક નું નામ',
-            hintText: 'નામ દાખલ કરો...',
-          ),
-        ),
-        actions: [
-          TextButton(
-            onPressed: () => Navigator.of(ctx).pop(),
-            child: const Text(strings.AppStrings.cancelButton),
-          ),
-          ElevatedButton(
-            onPressed: () {
-              if (!mounted || _isDisposed) return;
-              setState(
-                () => _customerName = _customerNameDialogController.text.trim().isEmpty
-                    ? null
-                    : _customerNameDialogController.text.trim(),
-              );
-              Navigator.of(ctx).pop();
-            },
-            child: const Text(strings.AppStrings.saveButton),
-          ),
-        ],
-      ),
-    );
   }
 
   void _setShopName() async {
@@ -398,7 +222,9 @@ class _BillingHomeScreenState extends ConsumerState<BillingHomeScreen> {
                   ? null
                   : _shopNameDialogController.text.trim();
 
-              if (!mounted || _isDisposed) return;
+              if (!mounted || _isDisposed) {
+                return;
+              }
               setState(() => _shopName = newShopName);
 
               // Save to settings
@@ -411,7 +237,9 @@ class _BillingHomeScreenState extends ConsumerState<BillingHomeScreen> {
                 ref.invalidate(settingsValuesProvider);
               }
 
-              if (!ctx.mounted) return;
+              if (!ctx.mounted) {
+                return;
+              }
               Navigator.of(ctx).pop();
             },
             child: const Text(strings.AppStrings.saveButton),
@@ -462,9 +290,7 @@ class _BillingHomeScreenState extends ConsumerState<BillingHomeScreen> {
       _isGrandTotalAdjusted = false;
       _customerName = null;
       _customerId = null;
-      _customerSuggestions = const [];
       _activeDropdown = _BillingDropdownType.none;
-      _isCustomerDropdownOpen = false;
       _customerController.clear();
     });
     ref.read(billingTabsProvider.notifier).clearActive();
@@ -475,13 +301,19 @@ class _BillingHomeScreenState extends ConsumerState<BillingHomeScreen> {
     required bool clearDraft,
   }) async {
     debugPrint('SAVE TRACE: entered _saveBillToDatabase');
-    
+
     // Get current transaction type from provider
     final billingState = ref.read(billingTabsProvider);
     final transactionType = billingState.activeDraft.transactionType;
-    
+    final selectedCustomerId =
+        billingState.activeDraft.customerId ?? _customerId;
+
     // Validate: Udhaar requires a customer with ID (not just name)
-    if (transactionType == 'udhaar' && _customerId == null) {
+    debugPrint(
+      'SAVE CHECK: transactionType=$transactionType selectedCustomerId=$selectedCustomerId',
+    );
+    debugPrint('SAVE CHECK: customerId=$selectedCustomerId');
+    if (transactionType == 'udhaar' && selectedCustomerId == null) {
       if (mounted) {
         ScaffoldMessenger.of(context).showSnackBar(
           const SnackBar(
@@ -492,10 +324,10 @@ class _BillingHomeScreenState extends ConsumerState<BillingHomeScreen> {
       }
       return null;
     }
-    
+
     final linesSnapshot = List<BillLineItem>.from(_billLines);
     final discountSnapshot = _discount;
-    final customerIdSnapshot = _customerId;
+    final customerIdSnapshot = selectedCustomerId;
     final customerNameSnapshot = _customerName?.trim();
     final productIds = linesSnapshot
         .map((l) => l.item.id)
@@ -728,7 +560,9 @@ class _BillingHomeScreenState extends ConsumerState<BillingHomeScreen> {
     required Item item,
     required double weightKg,
   }) async {
-    if (!mounted || _isDisposed) return false;
+    if (!mounted || _isDisposed) {
+      return false;
+    }
 
     if (item.currentStock <= 0) {
       ScaffoldMessenger.of(
@@ -774,7 +608,9 @@ class _BillingHomeScreenState extends ConsumerState<BillingHomeScreen> {
       if (!hasStock) {
         ScaffoldMessenger.of(context).showSnackBar(
           const SnackBar(
-            content: Text('સ્ટોક અવેલેબલ નથી કૃપા કરી ખરીદી ની યાદી માં એડ કરો'),
+            content: Text(
+              'સ્ટોક અવેલેબલ નથી કૃપા કરી ખરીદી ની યાદી માં એડ કરો',
+            ),
           ),
         );
         return false;
@@ -801,7 +637,9 @@ class _BillingHomeScreenState extends ConsumerState<BillingHomeScreen> {
   }
 
   Future<void> _openAndroidProductBottomSheet() async {
-    if (!mounted || _isDisposed) return;
+    if (!mounted || _isDisposed) {
+      return;
+    }
     Item? selectedItem;
     _weightEntryController.clear();
 
@@ -825,12 +663,7 @@ class _BillingHomeScreenState extends ConsumerState<BillingHomeScreen> {
                 return SizedBox(
                   height: maxHeight,
                   child: Padding(
-                    padding: const EdgeInsets.fromLTRB(
-                      12,
-                      12,
-                      12,
-                      12,
-                    ),
+                    padding: const EdgeInsets.fromLTRB(12, 12, 12, 12),
                     child: selectedItem == null
                         ? Column(
                             crossAxisAlignment: CrossAxisAlignment.stretch,
@@ -838,8 +671,11 @@ class _BillingHomeScreenState extends ConsumerState<BillingHomeScreen> {
                               // Transaction type selector for Android bottom sheet
                               Consumer(
                                 builder: (context, ref, _) {
-                                  final billingState = ref.watch(billingTabsProvider);
-                                  final transactionType = billingState.activeDraft.transactionType;
+                                  final billingState = ref.watch(
+                                    billingTabsProvider,
+                                  );
+                                  final transactionType =
+                                      billingState.activeDraft.transactionType;
                                   return Row(
                                     children: [
                                       Expanded(
@@ -849,7 +685,13 @@ class _BillingHomeScreenState extends ConsumerState<BillingHomeScreen> {
                                           value: 'cash',
                                           selected: transactionType == 'cash',
                                           onPressed: () {
-                                            ref.read(billingTabsProvider.notifier).setTransactionTypeForActive('cash');
+                                            ref
+                                                .read(
+                                                  billingTabsProvider.notifier,
+                                                )
+                                                .setTransactionTypeForActive(
+                                                  'cash',
+                                                );
                                           },
                                         ),
                                       ),
@@ -861,7 +703,13 @@ class _BillingHomeScreenState extends ConsumerState<BillingHomeScreen> {
                                           value: 'udhaar',
                                           selected: transactionType == 'udhaar',
                                           onPressed: () {
-                                            ref.read(billingTabsProvider.notifier).setTransactionTypeForActive('udhaar');
+                                            ref
+                                                .read(
+                                                  billingTabsProvider.notifier,
+                                                )
+                                                .setTransactionTypeForActive(
+                                                  'udhaar',
+                                                );
                                           },
                                         ),
                                       ),
@@ -874,11 +722,14 @@ class _BillingHomeScreenState extends ConsumerState<BillingHomeScreen> {
                                 controller: _searchController,
                                 decoration: const InputDecoration(
                                   prefixIcon: Icon(Icons.search),
-                                  hintText: 'નામ અથવા marchu chaval tel ટાઈપ કરો',
+                                  hintText:
+                                      'નામ અથવા marchu chaval tel ટાઈપ કરો',
                                   border: OutlineInputBorder(),
                                 ),
                                 onChanged: (value) {
-                                  ref.read(billingSearchProvider.notifier).state =
+                                  ref
+                                          .read(billingSearchProvider.notifier)
+                                          .state =
                                       value;
                                 },
                               ),
@@ -905,8 +756,7 @@ class _BillingHomeScreenState extends ConsumerState<BillingHomeScreen> {
                                               onTap: outOfStock
                                                   ? null
                                                   : () {
-                                                      if (_isDropdownClosing ||
-                                                          !mounted ||
+                                                      if (!mounted ||
                                                           _isDisposed) {
                                                         return;
                                                       }
@@ -915,20 +765,25 @@ class _BillingHomeScreenState extends ConsumerState<BillingHomeScreen> {
                                                       );
                                                       Navigator.of(ctx).pop();
                                                       WidgetsBinding.instance
-                                                          .addPostFrameCallback(
-                                                        (_) {
-                                                          if (!mounted ||
-                                                              _isDisposed) {
-                                                            return;
-                                                          }
-                                                          _addProductToBill(item);
-                                                          _releaseDropdownClosingFlagNextFrame();
-                                                        },
-                                                      );
+                                                          .addPostFrameCallback((
+                                                            _,
+                                                          ) {
+                                                            if (!mounted ||
+                                                                _isDisposed) {
+                                                              return;
+                                                            }
+                                                            _addProductToBill(
+                                                              item,
+                                                            );
+                                                            _releaseDropdownClosingFlagNextFrame();
+                                                          });
                                                     },
-                                              borderRadius: BorderRadius.circular(12),
+                                              borderRadius:
+                                                  BorderRadius.circular(12),
                                               child: Padding(
-                                                padding: const EdgeInsets.all(12),
+                                                padding: const EdgeInsets.all(
+                                                  12,
+                                                ),
                                                 child: Column(
                                                   crossAxisAlignment:
                                                       CrossAxisAlignment.start,
@@ -942,7 +797,9 @@ class _BillingHomeScreenState extends ConsumerState<BillingHomeScreen> {
                                                     Text(
                                                       'સ્ટોક: ${item.currentStock.toStringAsFixed(2)} ${item.unit}',
                                                       style: TextStyle(
-                                                        color: Colors.grey.shade700,
+                                                        color: Colors
+                                                            .grey
+                                                            .shade700,
                                                       ),
                                                     ),
                                                   ],
@@ -1005,7 +862,8 @@ class _BillingHomeScreenState extends ConsumerState<BillingHomeScreen> {
                               const SizedBox(height: 12),
                               ElevatedButton.icon(
                                 onPressed: () async {
-                                  final rawKg = _weightEntryController.text.trim();
+                                  final rawKg = _weightEntryController.text
+                                      .trim();
                                   final parsedKg = double.tryParse(rawKg);
                                   if (rawKg.isEmpty ||
                                       parsedKg == null ||
@@ -1018,11 +876,14 @@ class _BillingHomeScreenState extends ConsumerState<BillingHomeScreen> {
                                     return;
                                   }
 
-                                  final added = await _addProductWithWeightFromBottomSheet(
-                                    item: selectedItem!,
-                                    weightKg: parsedKg,
-                                  );
-                                  if (!mounted || !ctx.mounted) return;
+                                  final added =
+                                      await _addProductWithWeightFromBottomSheet(
+                                        item: selectedItem!,
+                                        weightKg: parsedKg,
+                                      );
+                                  if (!mounted || !ctx.mounted) {
+                                    return;
+                                  }
                                   if (added) {
                                     Navigator.of(ctx).pop();
                                   }
@@ -1041,14 +902,17 @@ class _BillingHomeScreenState extends ConsumerState<BillingHomeScreen> {
       },
     );
 
-    if (!mounted || _isDisposed) return;
+    if (!mounted || _isDisposed) {
+      return;
+    }
     _searchController.clear();
     ref.read(billingSearchProvider.notifier).state = '';
   }
 
   String _currentRoleGujaratiLabel() {
     final session = ref.read(authSessionProvider);
-    final String role = session?.role ?? ref.read(currentRoleProvider) ?? 'employee';
+    final String role =
+        session?.role ?? ref.read(currentRoleProvider) ?? 'employee';
     return RoleInfo.fromRole(role).displayNameGu;
   }
 
@@ -1068,322 +932,347 @@ class _BillingHomeScreenState extends ConsumerState<BillingHomeScreen> {
 
   void _addProductToBill(Item item) async {
     try {
-    if (item.currentStock <= 0) {
-      ScaffoldMessenger.of(context).showSnackBar(
-        const SnackBar(content: Text('સ્ટોક ઉપલબ્ધ નથી')), // Gujarati message
-      );
-      return;
-    }
+      if (item.currentStock <= 0) {
+        ScaffoldMessenger.of(context).showSnackBar(
+          const SnackBar(content: Text('સ્ટોક ઉપલબ્ધ નથી')), // Gujarati message
+        );
+        return;
+      }
 
-    if (item.isLowStock) {
-      final shouldContinue = await showDialog<bool>(
-        context: context,
-        builder: (ctx) => AlertDialog(
-          title: const Text('લો સ્ટોક ચેતવણી'),
-          content: Text(
-            '${item.nameGu} નો સ્ટોક ઓછો છે.\nહાલ સ્ટોક: ${item.currentStock.toStringAsFixed(2)} ${item.unit}',
+      if (item.isLowStock) {
+        final shouldContinue = await showDialog<bool>(
+          context: context,
+          builder: (ctx) => AlertDialog(
+            title: const Text('લો સ્ટોક ચેતવણી'),
+            content: Text(
+              '${item.nameGu} નો સ્ટોક ઓછો છે.\nહાલ સ્ટોક: ${item.currentStock.toStringAsFixed(2)} ${item.unit}',
+            ),
+            actions: [
+              TextButton(
+                onPressed: () => Navigator.of(ctx).pop(false),
+                child: const Text('રદ કરો'),
+              ),
+              ElevatedButton(
+                onPressed: () => Navigator.of(ctx).pop(true),
+                child: const Text('ઉમેરો'),
+              ),
+            ],
           ),
-          actions: [
-            TextButton(
-              onPressed: () => Navigator.of(ctx).pop(false),
-              child: const Text('રદ કરો'),
-            ),
-            ElevatedButton(
-              onPressed: () => Navigator.of(ctx).pop(true),
-              child: const Text('ઉમેરો'),
-            ),
-          ],
-        ),
-      );
+        );
 
-      if (shouldContinue != true) return;
-    }
+        if (shouldContinue != true) return;
+      }
 
-    double amountPaid = item.salePrice;
-    double weightGrams = 1000;
-    String mode = 'weight';
-    bool itemAdded = false;
-    bool focusScheduled = false;
-    _weightEntryController.clear();
+      double amountPaid = item.salePrice;
+      double weightGrams = 1000;
+      String mode = 'weight';
+      bool itemAdded = false;
+      bool focusScheduled = false;
+      _weightEntryController.clear();
 
-    if (!mounted) return;
-    await showDialog<void>(
-      context: context,
-      builder: (ctx) {
-        return StatefulBuilder(
-          builder: (ctx, setDialogState) {
-            double? calculatedWeight;
-            double? calculatedAmount;
+      if (!mounted) return;
+      await showDialog<void>(
+        context: context,
+        builder: (ctx) {
+          return StatefulBuilder(
+            builder: (ctx, setDialogState) {
+              double? calculatedWeight;
+              double? calculatedAmount;
 
-            Future<void> addCurrentItem() async {
-              try {
-              if (!mounted || _isDisposed || !ctx.mounted) return;
-              if (item.id == null) {
-                ScaffoldMessenger.of(context).showSnackBar(
-                  const SnackBar(content: Text('પ્રોડક્ટ પસંદ કરો')),
-                );
-                _focusProductSearch();
-                return;
+              Future<void> addCurrentItem() async {
+                try {
+                  if (!mounted || _isDisposed || !ctx.mounted) {
+                    return;
+                  }
+                  if (item.id == null) {
+                    ScaffoldMessenger.of(context).showSnackBar(
+                      const SnackBar(content: Text('પ્રોડક્ટ પસંદ કરો')),
+                    );
+                    _focusProductSearch();
+                    return;
+                  }
+
+                  double finalAmount;
+                  double finalQty;
+
+                  if (mode == 'amount') {
+                    finalQty = WeightCalculator.calculateWeightFromAmount(
+                      amountPaid: amountPaid,
+                      sellPricePerKg: item.salePrice,
+                    );
+                    finalAmount = amountPaid;
+                  } else {
+                    final rawKg = _weightEntryController.text.trim();
+                    final parsedKg = double.tryParse(rawKg);
+                    if (rawKg.isEmpty || parsedKg == null || parsedKg <= 0) {
+                      ScaffoldMessenger.of(context).showSnackBar(
+                        const SnackBar(content: Text('વજન દાખલ કરો')),
+                      );
+                      if (!mounted || !ctx.mounted) {
+                        return;
+                      }
+                      FocusScope.of(ctx).requestFocus(_weightEntryFocusNode);
+                      return;
+                    }
+                    final grams = parsedKg * 1000.0;
+                    finalAmount = WeightCalculator.calculateAmountFromWeight(
+                      weightGrams: grams,
+                      sellPricePerKg: item.salePrice,
+                    );
+                    finalQty = grams;
+                  }
+
+                  final itemId = item.id;
+                  if (itemId != null) {
+                    final hasStock = await _hasEnoughStockForDraft(
+                      itemId: itemId,
+                      newQtyGrams: finalQty,
+                    );
+                    if (!mounted || !ctx.mounted) {
+                      return;
+                    }
+                    if (!hasStock) {
+                      ScaffoldMessenger.of(ctx).showSnackBar(
+                        const SnackBar(
+                          content: Text(
+                            'સ્ટોક અવેલેબલ નથી કૃપા કરી ખરીદી ની યાદી માં એડ કરો',
+                          ),
+                        ),
+                      );
+                      FocusScope.of(ctx).requestFocus(_weightEntryFocusNode);
+                      return;
+                    }
+                  }
+
+                  _billLines.add(
+                    BillLineItem(
+                      draftKey: _nextDraftLineKey(item.id),
+                      item: item,
+                      qtyGrams: finalQty,
+                      amount: finalAmount,
+                    ),
+                  );
+                  final addedKey = _billLines.last.draftKey;
+                  _registerLineResources(addedKey);
+                  _weightEntryController.clear();
+                  itemAdded = true;
+                  Navigator.of(ctx).pop();
+                } catch (error, stack) {
+                  await ErrorLogger.log(
+                    AppError(
+                      code: 'BILLING_ADD_001',
+                      category: ErrorCategory.validation,
+                      technicalMessage: error.toString(),
+                      userMessage: 'આઇટમ ઉમેરવામાં ભૂલ આવી. ફરી પ્રયાસ કરો.',
+                      isCritical: false,
+                      timestamp: DateTime.now(),
+                      stackTrace: stack,
+                    ),
+                    currentScreen:
+                        'BillingHomeScreen._addProductToBill.addCurrentItem',
+                  );
+                  if (mounted && ctx.mounted) {
+                    ScaffoldMessenger.of(context).showSnackBar(
+                      const SnackBar(content: Text('આઇટમ ઉમેરવામાં ભૂલ આવી')),
+                    );
+                  }
+                }
               }
 
-              double finalAmount;
-              double finalQty;
-
               if (mode == 'amount') {
-                finalQty = WeightCalculator.calculateWeightFromAmount(
+                calculatedWeight = WeightCalculator.calculateWeightFromAmount(
                   amountPaid: amountPaid,
                   sellPricePerKg: item.salePrice,
                 );
-                finalAmount = amountPaid;
               } else {
-                final rawKg = _weightEntryController.text.trim();
-                final parsedKg = double.tryParse(rawKg);
-                if (rawKg.isEmpty || parsedKg == null || parsedKg <= 0) {
-                  ScaffoldMessenger.of(
-                    context,
-                  ).showSnackBar(const SnackBar(content: Text('વજન દાખલ કરો')));
-                  if (!mounted || !ctx.mounted) return;
-                  FocusScope.of(ctx).requestFocus(_weightEntryFocusNode);
-                  return;
+                final parsedKg = double.tryParse(
+                  _weightEntryController.text.trim(),
+                );
+                if (parsedKg != null && parsedKg > 0) {
+                  weightGrams = parsedKg * 1000.0;
                 }
-                final grams = parsedKg * 1000.0;
-                finalAmount = WeightCalculator.calculateAmountFromWeight(
-                  weightGrams: grams,
+                calculatedAmount = WeightCalculator.calculateAmountFromWeight(
+                  weightGrams: weightGrams,
                   sellPricePerKg: item.salePrice,
                 );
-                finalQty = grams;
               }
 
-              final itemId = item.id;
-              if (itemId != null) {
-                final hasStock = await _hasEnoughStockForDraft(
-                  itemId: itemId,
-                  newQtyGrams: finalQty,
-                );
-                if (!mounted || !ctx.mounted) return;
-                if (!hasStock) {
-                  ScaffoldMessenger.of(ctx).showSnackBar(
-                    const SnackBar(
-                      content: Text(
-                        'સ્ટોક અવેલેબલ નથી કૃપા કરી ખરીદી ની યાદી માં એડ કરો',
-                      ),
-                    ),
-                  );
-                  FocusScope.of(ctx).requestFocus(_weightEntryFocusNode);
-                  return;
-                }
+              if (mode == 'weight' && !focusScheduled) {
+                focusScheduled = true;
+                WidgetsBinding.instance.addPostFrameCallback((_) {
+                  if (!mounted || !ctx.mounted) return;
+                  _weightEntryFocusNode.requestFocus();
+                });
               }
 
-              _billLines.add(
-                BillLineItem(
-                  draftKey: _nextDraftLineKey(item.id),
-                  item: item,
-                  qtyGrams: finalQty,
-                  amount: finalAmount,
-                ),
-              );
-              final addedKey = _billLines.last.draftKey;
-              _registerLineResources(addedKey);
-              _weightEntryController.clear();
-              itemAdded = true;
-              Navigator.of(ctx).pop();
-              } catch (error, stack) {
-                await ErrorLogger.log(
-                  AppError(
-                    code: 'BILLING_ADD_001',
-                    category: ErrorCategory.validation,
-                    technicalMessage: error.toString(),
-                    userMessage: 'આઇટમ ઉમેરવામાં ભૂલ આવી. ફરી પ્રયાસ કરો.',
-                    isCritical: false,
-                    timestamp: DateTime.now(),
-                    stackTrace: stack,
+              return AlertDialog(
+                title: Text(item.nameGu),
+                content: ConstrainedBox(
+                  constraints: BoxConstraints(
+                    maxHeight: MediaQuery.of(ctx).size.height * 0.6,
                   ),
-                  currentScreen: 'BillingHomeScreen._addProductToBill.addCurrentItem',
-                );
-                if (mounted && ctx.mounted) {
-                  ScaffoldMessenger.of(context).showSnackBar(
-                    const SnackBar(content: Text('આઇટમ ઉમેરવામાં ભૂલ આવી')),
-                  );
-                }
-              }
-            }
-
-            if (mode == 'amount') {
-              calculatedWeight = WeightCalculator.calculateWeightFromAmount(
-                amountPaid: amountPaid,
-                sellPricePerKg: item.salePrice,
-              );
-            } else {
-              final parsedKg = double.tryParse(_weightEntryController.text.trim());
-              if (parsedKg != null && parsedKg > 0) {
-                weightGrams = parsedKg * 1000.0;
-              }
-              calculatedAmount = WeightCalculator.calculateAmountFromWeight(
-                weightGrams: weightGrams,
-                sellPricePerKg: item.salePrice,
-              );
-            }
-
-            if (mode == 'weight' && !focusScheduled) {
-              focusScheduled = true;
-              WidgetsBinding.instance.addPostFrameCallback((_) {
-                if (!mounted || !ctx.mounted) return;
-                _weightEntryFocusNode.requestFocus();
-              });
-            }
-
-            return AlertDialog(
-              title: Text(item.nameGu),
-              content: ConstrainedBox(
-                constraints: BoxConstraints(
-                  maxHeight: MediaQuery.of(ctx).size.height * 0.6,
-                ),
-                child: SingleChildScrollView(
-                  child: Column(
-                    mainAxisSize: MainAxisSize.min,
-                    crossAxisAlignment: CrossAxisAlignment.stretch,
-                    children: [
-                      Wrap(
-                        alignment: WrapAlignment.center,
-                        spacing: 8,
-                        children: [
-                          ChoiceChip(
-                            label: const Text('₹ રૂપિયાથી'),
-                            selected: mode == 'amount',
-                            onSelected: (_) =>
-                                setDialogState(() => mode = 'amount'),
-                          ),
-                          ChoiceChip(
-                            label: const Text('⚖ વજનથી'),
-                            selected: mode == 'weight',
-                            onSelected: (_) {
-                              setDialogState(() => mode = 'weight');
-                              WidgetsBinding.instance.addPostFrameCallback((_) {
-                                if (!mounted || !ctx.mounted) return;
-                                _weightEntryFocusNode.requestFocus();
-                              });
-                            },
-                          ),
-                        ],
-                      ),
-                      const SizedBox(height: 12),
-                      if (mode == 'amount') ...[
-                        TextField(
-                          autofocus: true,
-                          keyboardType: const TextInputType.numberWithOptions(
-                            decimal: true,
-                          ),
-                          textInputAction: TextInputAction.done,
-                          decoration: const InputDecoration(
-                            labelText: '₹ રકમ દાખલ કરો',
-                          ),
-                          onChanged: (v) {
-                            final parsed = double.tryParse(v);
-                            if (parsed != null) {
-                              setDialogState(() => amountPaid = parsed);
-                            }
-                          },
-                          onSubmitted: (_) async {
-                            await addCurrentItem();
-                          },
-                        ),
-                        const SizedBox(height: 8),
-                        if (calculatedWeight != null)
-                          Text(
-                            'આપો: ${WeightCalculator.formatWeight(calculatedWeight)}',
-                            style: const TextStyle(
-                              fontWeight: FontWeight.bold,
-                              color: Colors.green,
-                              fontSize: 16,
+                  child: SingleChildScrollView(
+                    child: Column(
+                      mainAxisSize: MainAxisSize.min,
+                      crossAxisAlignment: CrossAxisAlignment.stretch,
+                      children: [
+                        Wrap(
+                          alignment: WrapAlignment.center,
+                          spacing: 8,
+                          children: [
+                            ChoiceChip(
+                              label: const Text('₹ રૂપિયાથી'),
+                              selected: mode == 'amount',
+                              onSelected: (_) =>
+                                  setDialogState(() => mode = 'amount'),
                             ),
-                          ),
-                      ] else ...[
-                        Focus(
-                          onKeyEvent: (node, event) {
-                            if (event is KeyDownEvent &&
-                                _weightEntryFocusNode.hasFocus &&
-                                (event.logicalKey == LogicalKeyboardKey.enter ||
-                                    event.logicalKey ==
-                                        LogicalKeyboardKey.numpadEnter)) {
-                              _closeAllDropdowns(markClosing: true);
-                              WidgetsBinding.instance.addPostFrameCallback((_) {
-                                if (!mounted || _isDisposed || !ctx.mounted) return;
-                                addCurrentItem();
-                                _releaseDropdownClosingFlagNextFrame();
-                              });
-                              return KeyEventResult.handled;
-                            }
-                            return KeyEventResult.ignored;
-                          },
-                          child: TextField(
-                            controller: _weightEntryController,
-                            focusNode: _weightEntryFocusNode,
+                            ChoiceChip(
+                              label: const Text('⚖ વજનથી'),
+                              selected: mode == 'weight',
+                              onSelected: (_) {
+                                setDialogState(() => mode = 'weight');
+                                WidgetsBinding.instance.addPostFrameCallback((
+                                  _,
+                                ) {
+                                  if (!mounted || !ctx.mounted) {
+                                    return;
+                                  }
+                                  _weightEntryFocusNode.requestFocus();
+                                });
+                              },
+                            ),
+                          ],
+                        ),
+                        const SizedBox(height: 12),
+                        if (mode == 'amount') ...[
+                          TextField(
                             autofocus: true,
                             keyboardType: const TextInputType.numberWithOptions(
                               decimal: true,
                             ),
                             textInputAction: TextInputAction.done,
-                            inputFormatters: [
-                              FilteringTextInputFormatter.allow(
-                                RegExp(r'^\d*\.?\d{0,3}'),
-                              ),
-                            ],
                             decoration: const InputDecoration(
-                              labelText: 'વજન (કિલો)',
-                              hintText: 'કિલોમાં દાખલ કરો જેમ કે 1.500',
+                              labelText: '₹ રકમ દાખલ કરો',
                             ),
-                            onChanged: (_) {
-                              setDialogState(() {});
+                            onChanged: (v) {
+                              final parsed = double.tryParse(v);
+                              if (parsed != null) {
+                                setDialogState(() => amountPaid = parsed);
+                              }
                             },
-                            onSubmitted: (_) {
-                              if (!mounted || _isDisposed || !ctx.mounted) return;
-                              _closeAllDropdowns(markClosing: true);
-                              WidgetsBinding.instance.addPostFrameCallback((_) {
-                                if (!mounted || _isDisposed || !ctx.mounted) return;
-                                addCurrentItem();
-                                _releaseDropdownClosingFlagNextFrame();
-                              });
+                            onSubmitted: (_) async {
+                              await addCurrentItem();
                             },
                           ),
-                        ),
-                        const SizedBox(height: 8),
-                        if (calculatedAmount != null)
-                          Text(
-                            'રકમ: ${formatCurrency(calculatedAmount)}',
-                            style: const TextStyle(
-                              fontWeight: FontWeight.bold,
-                              color: Colors.green,
-                              fontSize: 16,
+                          const SizedBox(height: 8),
+                          if (calculatedWeight != null)
+                            Text(
+                              'આપો: ${WeightCalculator.formatWeight(calculatedWeight)}',
+                              style: const TextStyle(
+                                fontWeight: FontWeight.bold,
+                                color: Colors.green,
+                                fontSize: 16,
+                              ),
+                            ),
+                        ] else ...[
+                          Focus(
+                            onKeyEvent: (node, event) {
+                              if (event is KeyDownEvent &&
+                                  _weightEntryFocusNode.hasFocus &&
+                                  (event.logicalKey ==
+                                          LogicalKeyboardKey.enter ||
+                                      event.logicalKey ==
+                                          LogicalKeyboardKey.numpadEnter)) {
+                                _closeAllDropdowns(markClosing: true);
+                                WidgetsBinding.instance.addPostFrameCallback((
+                                  _,
+                                ) {
+                                  if (!mounted || _isDisposed || !ctx.mounted) {
+                                    return;
+                                  }
+                                  addCurrentItem();
+                                  _releaseDropdownClosingFlagNextFrame();
+                                });
+                                return KeyEventResult.handled;
+                              }
+                              return KeyEventResult.ignored;
+                            },
+                            child: TextField(
+                              controller: _weightEntryController,
+                              focusNode: _weightEntryFocusNode,
+                              autofocus: true,
+                              keyboardType:
+                                  const TextInputType.numberWithOptions(
+                                    decimal: true,
+                                  ),
+                              textInputAction: TextInputAction.done,
+                              inputFormatters: [
+                                FilteringTextInputFormatter.allow(
+                                  RegExp(r'^\d*\.?\d{0,3}'),
+                                ),
+                              ],
+                              decoration: const InputDecoration(
+                                labelText: 'વજન (કિલો)',
+                                hintText: 'કિલોમાં દાખલ કરો જેમ કે 1.500',
+                              ),
+                              onChanged: (_) {
+                                setDialogState(() {});
+                              },
+                              onSubmitted: (_) {
+                                if (!mounted || _isDisposed || !ctx.mounted) {
+                                  return;
+                                }
+                                _closeAllDropdowns(markClosing: true);
+                                WidgetsBinding.instance.addPostFrameCallback((
+                                  _,
+                                ) {
+                                  if (!mounted || _isDisposed || !ctx.mounted) {
+                                    return;
+                                  }
+                                  addCurrentItem();
+                                  _releaseDropdownClosingFlagNextFrame();
+                                });
+                              },
                             ),
                           ),
+                          const SizedBox(height: 8),
+                          if (calculatedAmount != null)
+                            Text(
+                              'રકમ: ${formatCurrency(calculatedAmount)}',
+                              style: const TextStyle(
+                                fontWeight: FontWeight.bold,
+                                color: Colors.green,
+                                fontSize: 16,
+                              ),
+                            ),
+                        ],
                       ],
-                    ],
+                    ),
                   ),
                 ),
-              ),
-              actions: [
-                TextButton(
-                  onPressed: () => Navigator.of(ctx).pop(),
-                  child: const Text(strings.AppStrings.cancelButton),
-                ),
-                ElevatedButton(
-                  onPressed: () {
-                    addCurrentItem();
-                  },
-                  child: const Text(strings.AppStrings.addButton),
-                ),
-              ],
-            );
-          },
-        );
-      },
-    );
+                actions: [
+                  TextButton(
+                    onPressed: () => Navigator.of(ctx).pop(),
+                    child: const Text(strings.AppStrings.cancelButton),
+                  ),
+                  ElevatedButton(
+                    onPressed: () {
+                      addCurrentItem();
+                    },
+                    child: const Text(strings.AppStrings.addButton),
+                  ),
+                ],
+              );
+            },
+          );
+        },
+      );
 
-    // Trigger parent widget rebuild after dialog closes
-    if (itemAdded && mounted) {
-      setState(() {});
-      _focusProductSearch();
-    }
+      // Trigger parent widget rebuild after dialog closes
+      if (itemAdded && mounted) {
+        setState(() {});
+        _focusProductSearch();
+      }
     } catch (error, stack) {
       await ErrorLogger.log(
         AppError(
@@ -1398,9 +1287,9 @@ class _BillingHomeScreenState extends ConsumerState<BillingHomeScreen> {
         currentScreen: 'BillingHomeScreen._addProductToBill',
       );
       if (mounted) {
-        ScaffoldMessenger.of(context).showSnackBar(
-          const SnackBar(content: Text('આઇટમ ઉમેરવામાં ભૂલ આવી')),
-        );
+        ScaffoldMessenger.of(
+          context,
+        ).showSnackBar(const SnackBar(content: Text('આઇટમ ઉમેરવામાં ભૂલ આવી')));
       }
     }
   }
@@ -1545,7 +1434,9 @@ class _BillingHomeScreenState extends ConsumerState<BillingHomeScreen> {
     });
 
     WidgetsBinding.instance.addPostFrameCallback((_) {
-      if (!mounted || _isDisposed) return;
+      if (!mounted || _isDisposed) {
+        return;
+      }
       lineFocusNode.requestFocus();
       lineController.selection = TextSelection(
         baseOffset: 0,
@@ -1566,7 +1457,9 @@ class _BillingHomeScreenState extends ConsumerState<BillingHomeScreen> {
         return;
       }
       final controller = _lineEditControllers[editingLineKey];
-      final editingIndex = _billLines.indexWhere((l) => l.draftKey == editingLineKey);
+      final editingIndex = _billLines.indexWhere(
+        (l) => l.draftKey == editingLineKey,
+      );
 
       if (editingField == null ||
           controller == null ||
@@ -1895,9 +1788,12 @@ class _BillingHomeScreenState extends ConsumerState<BillingHomeScreen> {
           ),
           ElevatedButton(
             onPressed: () {
-              if (!mounted || _isDisposed) return;
+              if (!mounted || _isDisposed) {
+                return;
+              }
               setState(
-                () => _discount = double.tryParse(_discountDialogController.text) ?? 0,
+                () => _discount =
+                    double.tryParse(_discountDialogController.text) ?? 0,
               );
               Navigator.of(ctx).pop();
             },
@@ -2190,7 +2086,9 @@ class _BillingHomeScreenState extends ConsumerState<BillingHomeScreen> {
                           value: 'cash',
                           selected: transactionType == 'cash',
                           onPressed: () {
-                            ref.read(billingTabsProvider.notifier).setTransactionTypeForActive('cash');
+                            ref
+                                .read(billingTabsProvider.notifier)
+                                .setTransactionTypeForActive('cash');
                           },
                         ),
                       ),
@@ -2201,55 +2099,45 @@ class _BillingHomeScreenState extends ConsumerState<BillingHomeScreen> {
                           value: 'udhaar',
                           selected: transactionType == 'udhaar',
                           onPressed: () {
-                            ref.read(billingTabsProvider.notifier).setTransactionTypeForActive('udhaar');
+                            ref
+                                .read(billingTabsProvider.notifier)
+                                .setTransactionTypeForActive('udhaar');
                           },
                         ),
                       ),
                     ],
                   ),
                   const SizedBox(height: 12),
-                  // Customer field with conditional behavior
                   Container(
-                    key: _customerFieldKey,
-                    child: TextField(
-                      controller: _customerController,
-                      focusNode: _customerFocusNode,
-                      autofocus: true,
-                      textInputAction: TextInputAction.next,
-                      readOnly: transactionType == 'udhaar',
-                      decoration: InputDecoration(
-                        labelText: transactionType == 'udhaar'
-                            ? 'ગ્રાહક પસંદ કરો (જરૂરી)'
-                            : 'ગ્રાહકનું નામ (વૈકલ્પિક)',
-                        prefixIcon: const Icon(Icons.person),
-                        suffix: transactionType == 'udhaar'
-                            ? const Text(
-                                '*',
-                                style: TextStyle(color: Colors.red, fontSize: 16),
-                              )
-                            : null,
-                        suffixIcon: _customerController.text.isEmpty
-                            ? null
-                            : IconButton(
-                                onPressed: () {
-                                  _clearCustomerSelection();
-                                  _focusProductSearch();
-                                },
-                                icon: const Icon(Icons.close),
-                              ),
-                        border: const OutlineInputBorder(),
-                      ),
-                      onTap: () {
-                        if (_customerController.text.trim().isNotEmpty) {
-                          _openDropdown(_BillingDropdownType.customer);
-                        }
-                      },
-                      onChanged: _onCustomerChanged,
+                    padding: const EdgeInsets.symmetric(
+                      horizontal: 12,
+                      vertical: 14,
+                    ),
+                    decoration: BoxDecoration(
+                      border: Border.all(color: Colors.grey),
+                      borderRadius: BorderRadius.circular(4),
+                      color: Colors.white,
+                    ),
+                    child: Row(
+                      children: [
+                        const Icon(Icons.person, size: 16),
+                        const SizedBox(width: 8),
+                        Expanded(
+                          child: Text(
+                            _customerName ?? 'ગ્રાહક પસંદ કરો (જરૂરી)',
+                            style: TextStyle(
+                              fontSize: 12,
+                              color: _customerName != null
+                                  ? Colors.black
+                                  : Colors.grey,
+                            ),
+                          ),
+                        ),
+                      ],
                     ),
                   ),
                   const SizedBox(height: 8),
                   IgnorePointer(
-                    ignoring: _isCustomerDropdownOpen,
                     child: Container(
                       key: _productFieldKey,
                       child: TextField(
@@ -2266,7 +2154,8 @@ class _BillingHomeScreenState extends ConsumerState<BillingHomeScreen> {
                           }
                         },
                         onChanged: (value) {
-                          ref.read(billingSearchProvider.notifier).state = value;
+                          ref.read(billingSearchProvider.notifier).state =
+                              value;
                           if (value.trim().isEmpty) {
                             _closeAllDropdowns();
                           } else {
@@ -2447,7 +2336,9 @@ class _BillingHomeScreenState extends ConsumerState<BillingHomeScreen> {
         decoration: BoxDecoration(
           color: selected ? AppColors.primary : Colors.transparent,
           border: Border.all(
-            color: selected ? AppColors.primary : AppColors.primary.withValues(alpha: 0.3),
+            color: selected
+                ? AppColors.primary
+                : AppColors.primary.withValues(alpha: 0.3),
             width: 2,
           ),
           borderRadius: BorderRadius.circular(8),
@@ -2475,186 +2366,59 @@ class _BillingHomeScreenState extends ConsumerState<BillingHomeScreen> {
     );
   }
 
-  bool _shouldShowCustomerDropdown() {
-    final typed = _customerController.text.trim();
-    if (typed.isEmpty) return false;
-    return (_customerFocusNode.hasFocus || _isSearchingCustomers) &&
-        (_isSearchingCustomers ||
-            _customerSuggestions.isNotEmpty ||
-            !_hasExactCustomerMatch(typed, _customerSuggestions));
-  }
+  Widget _buildActiveDropdown(List<Item> products) {
+    final isProduct = _activeDropdown == _BillingDropdownType.product;
+    if (!isProduct) {
+      return const SizedBox.shrink();
+    }
 
-  List<Widget> _customerDropdownChildren() {
-    final typed = _customerController.text.trim();
-    final hasExactMatch = _hasExactCustomerMatch(typed, _customerSuggestions);
-    final billingState = ref.read(billingTabsProvider);
-    final transactionType = billingState.activeDraft.transactionType;
+    final anchorRect = _dropdownAnchorRect(_productFieldKey);
+    if (anchorRect == null) return const SizedBox.shrink();
 
-    final rows = <Widget>[];
-    for (final customer in _customerSuggestions) {
-      rows.add(
-        InkWell(
-          onTap: () => _selectCustomer(customer),
+    final query = _searchController.text.trim();
+    if (query.isEmpty) return const SizedBox.shrink();
+
+    final productRows = products.take(8).toList();
+    final children = productRows.map((item) {
+      final outOfStock = _isOutOfStock(item);
+      return Opacity(
+        opacity: outOfStock ? 0.5 : 1,
+        child: InkWell(
+          onTap: outOfStock
+              ? null
+              : () {
+                  if (!mounted || _isDisposed) {
+                    return;
+                  }
+                  _closeAllDropdowns();
+                  WidgetsBinding.instance.addPostFrameCallback((_) {
+                    if (!mounted || _isDisposed) {
+                      return;
+                    }
+                    _addProductToBill(item);
+                  });
+                },
           child: Padding(
             padding: const EdgeInsets.symmetric(horizontal: 12, vertical: 10),
             child: Column(
               crossAxisAlignment: CrossAxisAlignment.start,
               children: [
+                _buildProductNameLine(item),
+                const SizedBox(height: 4),
                 Text(
-                  customer.nameGujarati,
-                  style: const TextStyle(fontWeight: FontWeight.w700),
+                  '₹${item.salePrice.toStringAsFixed(2)} | സ്ടോക്ക്: ${item.currentStock.toStringAsFixed(2)} ${item.unit}',
+                  maxLines: 1,
+                  overflow: TextOverflow.ellipsis,
+                  style: TextStyle(color: Colors.grey.shade700, fontSize: 12),
                 ),
-                if (customer.totalOutstanding > 0) ...[
-                  const SizedBox(height: 4),
-                  Text(
-                    'ઉધાર બાકી: ${formatCurrency(customer.totalOutstanding)}',
-                    style: TextStyle(
-                      color: Colors.orange.shade700,
-                      fontWeight: FontWeight.w600,
-                    ),
-                  ),
-                ] else if ((customer.nameEnglish ?? '').trim().isNotEmpty) ...[
-                  const SizedBox(height: 4),
-                  Text(
-                    customer.nameEnglish!,
-                    style: TextStyle(color: Colors.grey.shade700, fontSize: 12),
-                  ),
-                ],
               ],
             ),
           ),
         ),
       );
-    }
+    }).toList();
 
-    if (!hasExactMatch) {
-      if (rows.isNotEmpty) {
-        rows.add(const Divider(height: 1));
-      }
-      
-      // Only show walk-in customer option for cash transactions
-      if (transactionType == 'cash') {
-        rows.add(
-          InkWell(
-            onTap: _selectWalkInCustomer,
-            child: Padding(
-              padding: const EdgeInsets.symmetric(horizontal: 12, vertical: 12),
-              child: RichText(
-                text: TextSpan(
-                  style: DefaultTextStyle.of(context).style,
-                  children: [
-                    TextSpan(
-                      text: 'નવા ગ્રાહક તરીકે ઉમેરો',
-                      style: TextStyle(
-                        color: Colors.green.shade700,
-                        fontWeight: FontWeight.w700,
-                      ),
-                    ),
-                    if (typed.isNotEmpty)
-                      TextSpan(
-                        text: ' - $typed',
-                        style: TextStyle(
-                          color: Colors.grey.shade700,
-                          fontWeight: FontWeight.w500,
-                        ),
-                      ),
-                  ],
-                ),
-              ),
-            ),
-          ),
-        );
-      } else if (transactionType == 'udhaar') {
-        // Show message for udhaar transactions
-        rows.add(
-          Padding(
-            padding: const EdgeInsets.symmetric(horizontal: 12, vertical: 12),
-            child: Text(
-              'માત્ર હાલના ગ્રાહકો પસંદ કરી શકાય છે',
-              style: TextStyle(
-                color: Colors.orange.shade700,
-                fontWeight: FontWeight.w500,
-                fontStyle: FontStyle.italic,
-              ),
-            ),
-          ),
-        );
-      }
-    }
-
-    return rows;
-  }
-
-  List<Item> _productDropdownItems(List<Item> items) {
-    final query = _searchController.text.trim();
-    if (query.isEmpty) return const <Item>[];
-    return items.take(8).toList();
-  }
-
-  Widget _buildActiveDropdown(List<Item> products) {
-    final isCustomer = _activeDropdown == _BillingDropdownType.customer;
-    final isProduct = _activeDropdown == _BillingDropdownType.product;
-    if (!isCustomer && !isProduct) {
-      return const SizedBox.shrink();
-    }
-
-    final anchorRect = _dropdownAnchorRect(
-      isCustomer ? _customerFieldKey : _productFieldKey,
-    );
-    if (anchorRect == null) return const SizedBox.shrink();
-
-    final productRows = _productDropdownItems(products);
-    final children = isCustomer
-        ? _customerDropdownChildren()
-        : productRows
-              .map(
-                (item) {
-                  final outOfStock = _isOutOfStock(item);
-                  return Opacity(
-                    opacity: outOfStock ? 0.5 : 1,
-                    child: InkWell(
-                      onTap: outOfStock
-                          ? null
-                          : () {
-                              if (_isDropdownClosing || !mounted || _isDisposed) {
-                                return;
-                              }
-                              _closeAllDropdowns(markClosing: true);
-                              WidgetsBinding.instance.addPostFrameCallback((_) {
-                                if (!mounted || _isDisposed) return;
-                                _addProductToBill(item);
-                                _releaseDropdownClosingFlagNextFrame();
-                              });
-                            },
-                      child: Padding(
-                        padding: const EdgeInsets.symmetric(
-                          horizontal: 12,
-                          vertical: 10,
-                        ),
-                        child: Column(
-                          crossAxisAlignment: CrossAxisAlignment.start,
-                          children: [
-                            _buildProductNameLine(item),
-                            const SizedBox(height: 4),
-                            Text(
-                              '₹${item.salePrice.toStringAsFixed(2)} | સ્ટોક: ${item.currentStock.toStringAsFixed(2)} ${item.unit}',
-                              maxLines: 1,
-                              overflow: TextOverflow.ellipsis,
-                              style: TextStyle(
-                                color: Colors.grey.shade700,
-                                fontSize: 12,
-                              ),
-                            ),
-                          ],
-                        ),
-                      ),
-                    ),
-                  );
-                },
-              )
-              .toList();
-
-    if (!isCustomer && children.isEmpty) {
+    if (children.isEmpty) {
       return const SizedBox.shrink();
     }
 
@@ -2724,33 +2488,21 @@ class _BillingHomeScreenState extends ConsumerState<BillingHomeScreen> {
                     ),
                   ),
                   const SizedBox(width: 8),
-                  GestureDetector(
-                    onTap: _setCustomerName,
-                    child: Container(
-                      padding: const EdgeInsets.symmetric(
-                        horizontal: 8,
-                        vertical: 4,
-                      ),
-                      decoration: BoxDecoration(
-                        border: Border.all(color: Colors.grey),
-                        borderRadius: BorderRadius.circular(4),
-                      ),
-                      child: Row(
-                        mainAxisSize: MainAxisSize.min,
-                        children: [
-                          const Icon(Icons.person, size: 16),
-                          const SizedBox(width: 4),
-                          Text(
-                            _customerName ?? 'ગ્રાહક ઉમેરો',
-                            style: TextStyle(
-                              fontSize: 12,
-                              color: _customerName != null
-                                  ? Colors.black
-                                  : Colors.grey,
-                            ),
-                          ),
-                        ],
-                      ),
+                  SizedBox(
+                    width: 280,
+                    child: CustomerSearchField(
+                      controller: _customerController,
+                      hintText: 'ગ્રાહક ઉમેરો',
+                      onCustomerSelected: (customerId, customerName) {
+                        ref
+                            .read(billingTabsProvider.notifier)
+                            .setSelectedCustomer(customerId, customerName);
+                        setState(() {
+                          _customerId = customerId;
+                          _customerName = customerName;
+                        });
+                        _focusProductSearch();
+                      },
                     ),
                   ),
                 ],
@@ -3001,4 +2753,4 @@ class BillLineItem {
 
 enum _DraftEditableField { quantity, price, amount }
 
-enum _BillingDropdownType { none, customer, product }
+enum _BillingDropdownType { none, product }

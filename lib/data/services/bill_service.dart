@@ -1,6 +1,7 @@
 import 'package:sqflite_sqlcipher/sqflite.dart' hide DatabaseException;
 import '../models/bill.dart';
 import '../models/bill_item.dart';
+import '../models/bill_item_input.dart';
 import '../../core/database/transaction_helper.dart';
 import '../../core/errors/error_handler.dart';
 
@@ -256,19 +257,6 @@ class BillService {
       'value': (currentNumber + 1).toString(),
     }, where: "key = 'bill_counter'");
   }
-}
-
-/// Input model for bill items
-class BillItemInput {
-  final int itemId;
-  final double quantity;
-  final double unitPrice;
-
-  BillItemInput({
-    required this.itemId,
-    required this.quantity,
-    required this.unitPrice,
-  });
 }
 
 /// Combined bill with items

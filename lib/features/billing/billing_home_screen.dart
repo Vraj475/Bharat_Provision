@@ -19,6 +19,7 @@ import '../../shared/widgets/errors/error_dialog.dart';
 import '../../shared/widgets/customer_search_field.dart';
 import '../../core/utils/currency_format.dart';
 import '../../core/utils/weight_calculator.dart';
+import '../../data/models/bill_item_input.dart';
 import '../../data/models/item.dart';
 import '../../core/auth/role_provider.dart';
 import '../../routing/app_router.dart';
@@ -30,7 +31,6 @@ import '../../features/settings/providers/auth_provider.dart';
 import '../../features/settings/screens/role_selection_screen.dart';
 import '../../features/settings/settings_providers.dart';
 import '../../data/providers.dart';
-import '../../data/repositories/bill_repository.dart';
 import '../../data/services/bill_service_provider.dart';
 import '../../features/reports/reports_providers.dart';
 

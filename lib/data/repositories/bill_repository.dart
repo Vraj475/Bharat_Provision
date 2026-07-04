@@ -2,6 +2,7 @@ import 'package:sqflite_sqlcipher/sqflite.dart';
 
 import '../models/bill.dart';
 import '../models/bill_item.dart';
+import '../models/bill_item_input.dart';
 
 class BillRepository {
   BillRepository(this._db);
@@ -468,15 +469,4 @@ class BillRepository {
     );
     return result.first['cnt'] as int? ?? 0;
   }
-}
-
-class BillItemInput {
-  BillItemInput({
-    required this.itemId,
-    required this.quantity,
-    required this.unitPrice,
-  });
-  final int itemId;
-  final double quantity;
-  final double unitPrice;
 }

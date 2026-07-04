@@ -21,6 +21,7 @@ import '../../core/utils/currency_format.dart';
 import '../../core/utils/weight_calculator.dart';
 import '../../data/models/bill_item_input.dart';
 import '../../data/models/item.dart';
+import 'models/bill_line_item.dart';
 import '../../core/auth/role_provider.dart';
 import '../../routing/app_router.dart';
 import 'billing_providers.dart';
@@ -2722,34 +2723,7 @@ class _BillingHomeScreenState extends ConsumerState<BillingHomeScreen> {
   }
 }
 
-/// Simple bill line item model.
-class BillLineItem {
-  final String draftKey;
-  final Item item;
-  final double qtyGrams;
-  final double amount;
 
-  BillLineItem({
-    required this.draftKey,
-    required this.item,
-    required this.qtyGrams,
-    required this.amount,
-  });
-
-  BillLineItem copyWith({
-    String? draftKey,
-    Item? item,
-    double? qtyGrams,
-    double? amount,
-  }) {
-    return BillLineItem(
-      draftKey: draftKey ?? this.draftKey,
-      item: item ?? this.item,
-      qtyGrams: qtyGrams ?? this.qtyGrams,
-      amount: amount ?? this.amount,
-    );
-  }
-}
 
 enum _DraftEditableField { quantity, price, amount }
 

@@ -7,3 +7,13 @@
 7. Fix reports module
 8. Add Return Replace module on clicking the previous Bill.
 9. Show product details on bill history not item 1,2 etc.
+
+
+ -> above the search product search bar , add customer is not working and also not needed
+ ->in add customer , beside the shop name , it must use khata module's data which is not using
+ ->in bill history , name of item must show and also the item should be edited amount should be edited 
+ and price should also be edit 
+ -> in display bill no is not necessary to see , the most priority thing is customer name , then date 
+  ->Report module is getting some database error find that out and fix that
+  ->udhaar module is no more needede just delete that part of code
+  ->Everrytime any window is closed it should be refreshed when it is reopened. 

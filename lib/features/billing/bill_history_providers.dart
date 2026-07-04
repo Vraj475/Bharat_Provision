@@ -54,19 +54,14 @@ class BillsNotifier extends AsyncNotifier<List<Bill>> {
     int? limit,
   }) async {
     final repo = ref.read(returnRepositoryProvider);
-    return repo.getBillHistory(
-      query: query,
-      from: from,
-      to: to,
-      limit: limit,
-    );
+    return repo.getBillHistory(query: query, from: from, to: to, limit: limit);
   }
 
   /// Update bill date and invalidate provider so all watching screens refresh
   Future<void> updateBillDate(int billId, String newBillDate) async {
     final repo = ref.read(returnRepositoryProvider);
     await repo.updateBillDate(billId, newBillDate);
-    
+
     // Reload bills after update
     state = await AsyncValue.guard(() => _reloadBills());
   }

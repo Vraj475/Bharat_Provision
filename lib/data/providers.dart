@@ -15,40 +15,51 @@ final databaseProvider = FutureProvider<Database>((ref) async {
   return AppDatabase.instance;
 });
 
-final itemRepositoryFutureProvider = FutureProvider<ItemRepository>((ref) async {
+final itemRepositoryFutureProvider = FutureProvider<ItemRepository>((
+  ref,
+) async {
   final db = await DatabaseHelper.instance.database;
   return ItemRepository(db);
 });
 
-final billRepositoryFutureProvider = FutureProvider<BillRepository>((ref) async {
+final billRepositoryFutureProvider = FutureProvider<BillRepository>((
+  ref,
+) async {
   final db = await DatabaseHelper.instance.database;
   return BillRepository(db);
 });
 
-final customerRepositoryFutureProvider =
-    FutureProvider<CustomerRepository>((ref) async {
+final customerRepositoryFutureProvider = FutureProvider<CustomerRepository>((
+  ref,
+) async {
   final db = await ref.watch(databaseProvider.future);
   return CustomerRepository(db);
 });
 
-final khataRepositoryFutureProvider = FutureProvider<KhataRepository>((ref) async {
+final khataRepositoryFutureProvider = FutureProvider<KhataRepository>((
+  ref,
+) async {
   final db = await ref.watch(databaseProvider.future);
   return KhataRepository(db);
 });
 
-final reportRepositoryFutureProvider =
-    FutureProvider<ReportRepository>((ref) async {
+final reportRepositoryFutureProvider = FutureProvider<ReportRepository>((
+  ref,
+) async {
   final db = await ref.watch(databaseProvider.future);
   return ReportRepository(db);
 });
 
-final settingsRepositoryFutureProvider =
-    FutureProvider<SettingsRepository>((ref) async {
+final settingsRepositoryFutureProvider = FutureProvider<SettingsRepository>((
+  ref,
+) async {
   final db = await ref.watch(databaseProvider.future);
   return SettingsRepository(db);
 });
 
-final userRepositoryFutureProvider = FutureProvider<UserRepository>((ref) async {
+final userRepositoryFutureProvider = FutureProvider<UserRepository>((
+  ref,
+) async {
   final db = await ref.watch(databaseProvider.future);
   return UserRepository(db);
 });

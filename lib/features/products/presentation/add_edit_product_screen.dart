@@ -118,9 +118,7 @@ class _AddEditProductScreenState extends ConsumerState<AddEditProductScreen> {
                     children: [
                       Text(
                         AppStrings.unitType,
-                        style: Theme.of(context)
-                            .textTheme
-                            .titleMedium
+                        style: Theme.of(context).textTheme.titleMedium
                             ?.copyWith(fontWeight: FontWeight.w600),
                       ),
                       const SizedBox(height: 8),
@@ -252,9 +250,7 @@ class _AddEditProductScreenState extends ConsumerState<AddEditProductScreen> {
 
     if (sellPrice > 0 && buyPrice > 0 && sellPrice < buyPrice) {
       ScaffoldMessenger.of(context).showSnackBar(
-        const SnackBar(
-          content: Text(AppStrings.sellPriceLessThanBuyWarning),
-        ),
+        const SnackBar(content: Text(AppStrings.sellPriceLessThanBuyWarning)),
       );
     }
 
@@ -286,9 +282,7 @@ class _AddEditProductScreenState extends ConsumerState<AddEditProductScreen> {
 
     if (!mounted) return;
     ScaffoldMessenger.of(context).showSnackBar(
-      const SnackBar(
-        content: Text(AppStrings.successProductSaved),
-      ),
+      const SnackBar(content: Text(AppStrings.successProductSaved)),
     );
     Navigator.pop(context);
   }
@@ -301,4 +295,3 @@ class _AddEditProductScreenState extends ConsumerState<AddEditProductScreen> {
     return 'count';
   }
 }
-

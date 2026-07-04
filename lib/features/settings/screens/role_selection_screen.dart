@@ -102,7 +102,10 @@ class _RoleSelectionScreenState extends ConsumerState<RoleSelectionScreen> {
 
     if (trimmed.length == _pinLength && !_isVerifying) {
       Future.microtask(() {
-        if (mounted && _showPinEntry && !_isVerifying && _pin.length == _pinLength) {
+        if (mounted &&
+            _showPinEntry &&
+            !_isVerifying &&
+            _pin.length == _pinLength) {
           _submitPin();
         }
       });
@@ -152,7 +155,9 @@ class _RoleSelectionScreenState extends ConsumerState<RoleSelectionScreen> {
       final requirePinOnOpen =
           securitySettings['require_pin_on_open'] as bool? ?? false;
 
-      ref.read(authSessionProvider.notifier).setSession(
+      ref
+          .read(authSessionProvider.notifier)
+          .setSession(
             _selectedRole!,
             timeoutMinutes: sessionTimeoutMinutes,
             requirePinOnOpen: requirePinOnOpen,
@@ -407,7 +412,10 @@ class _RoleSelectionScreenState extends ConsumerState<RoleSelectionScreen> {
           Text(
             _errorMessage!,
             textAlign: TextAlign.center,
-            style: const TextStyle(color: Colors.red, fontWeight: FontWeight.w600),
+            style: const TextStyle(
+              color: Colors.red,
+              fontWeight: FontWeight.w600,
+            ),
           ),
           const SizedBox(height: 10),
         ],

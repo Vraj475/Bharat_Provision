@@ -19,9 +19,11 @@ class CustomerKhataDetailScreen extends ConsumerStatefulWidget {
       _CustomerKhataDetailScreenState();
 }
 
-class _CustomerKhataDetailScreenState extends ConsumerState<CustomerKhataDetailScreen> {
+class _CustomerKhataDetailScreenState
+    extends ConsumerState<CustomerKhataDetailScreen> {
   void _showAddUdhar() => _showEntryDialog('debit', AppStrings.addUdhar);
-  void _showRecordPayment() => _showEntryDialog('credit', AppStrings.recordPayment);
+  void _showRecordPayment() =>
+      _showEntryDialog('credit', AppStrings.recordPayment);
 
   void _showEntryDialog(String type, String title) async {
     final ctrl = TextEditingController();
@@ -39,7 +41,9 @@ class _CustomerKhataDetailScreenState extends ConsumerState<CustomerKhataDetailS
                   controller: ctrl,
                   allowDecimal: true,
                   decoration: InputDecoration(
-                    labelText: type == 'debit' ? AppStrings.udharAmount : AppStrings.paymentAmount,
+                    labelText: type == 'debit'
+                        ? AppStrings.udharAmount
+                        : AppStrings.paymentAmount,
                   ),
                 ),
                 const SizedBox(height: 16),
@@ -80,9 +84,9 @@ class _CustomerKhataDetailScreenState extends ConsumerState<CustomerKhataDetailS
       ref.invalidate(customerKhataEntriesProvider(widget.customerId));
       ref.invalidate(customerListProvider);
       if (mounted) {
-        ScaffoldMessenger.of(context).showSnackBar(
-          const SnackBar(content: Text('નોંધાવ્યું')),
-        );
+        ScaffoldMessenger.of(
+          context,
+        ).showSnackBar(const SnackBar(content: Text('નોંધાવ્યું')));
       }
     } catch (e) {
       if (mounted) {
@@ -95,8 +99,12 @@ class _CustomerKhataDetailScreenState extends ConsumerState<CustomerKhataDetailS
 
   @override
   Widget build(BuildContext context) {
-    final customerAsync = ref.watch(customerWithBalanceProvider(widget.customerId));
-    final entriesAsync = ref.watch(customerKhataEntriesProvider(widget.customerId));
+    final customerAsync = ref.watch(
+      customerWithBalanceProvider(widget.customerId),
+    );
+    final entriesAsync = ref.watch(
+      customerKhataEntriesProvider(widget.customerId),
+    );
 
     return Scaffold(
       appBar: AppBar(
@@ -112,7 +120,9 @@ class _CustomerKhataDetailScreenState extends ConsumerState<CustomerKhataDetailS
           customerAsync.when(
             data: (d) => Container(
               padding: const EdgeInsets.all(16),
-              color: d.balance > 0 ? AppColors.alert.withValues(alpha: 0.2) : AppColors.success.withValues(alpha: 0.2),
+              color: d.balance > 0
+                  ? AppColors.alert.withValues(alpha: 0.2)
+                  : AppColors.success.withValues(alpha: 0.2),
               child: Row(
                 mainAxisAlignment: MainAxisAlignment.spaceBetween,
                 children: [
@@ -123,9 +133,11 @@ class _CustomerKhataDetailScreenState extends ConsumerState<CustomerKhataDetailS
                   Text(
                     formatCurrency(d.balance),
                     style: Theme.of(context).textTheme.titleLarge!.copyWith(
-                          fontWeight: FontWeight.bold,
-                          color: d.balance > 0 ? AppColors.alert : AppColors.success,
-                        ),
+                      fontWeight: FontWeight.bold,
+                      color: d.balance > 0
+                          ? AppColors.alert
+                          : AppColors.success,
+                    ),
                   ),
                 ],
               ),
@@ -184,7 +196,9 @@ class _CustomerKhataDetailScreenState extends ConsumerState<CustomerKhataDetailS
                       title: Text(
                         e.isDebit ? 'ઉધાર' : 'ચુકવણી',
                         style: TextStyle(
-                          color: e.isDebit ? AppColors.alert : AppColors.success,
+                          color: e.isDebit
+                              ? AppColors.alert
+                              : AppColors.success,
                           fontWeight: FontWeight.w600,
                         ),
                       ),
@@ -210,7 +224,8 @@ class _CustomerKhataDetailScreenState extends ConsumerState<CustomerKhataDetailS
                 );
               },
               loading: () => const Center(child: CircularProgressIndicator()),
-              error: (e, _) => Center(child: Text('${AppStrings.errorGeneric} $e')),
+              error: (e, _) =>
+                  Center(child: Text('${AppStrings.errorGeneric} $e')),
             ),
           ),
         ],

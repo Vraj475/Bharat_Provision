@@ -76,10 +76,9 @@ class _FinalTotalScreenState extends ConsumerState<FinalTotalScreen> {
           color: AppColors.alert.withValues(alpha: 0.08),
           child: Text(
             data.customer.nameGujarati,
-            style: Theme.of(context)
-                .textTheme
-                .titleLarge
-                ?.copyWith(fontWeight: FontWeight.bold),
+            style: Theme.of(
+              context,
+            ).textTheme.titleLarge?.copyWith(fontWeight: FontWeight.bold),
           ),
         ),
         // ── Itemized toggle ──────────────────────────────────────────
@@ -103,18 +102,20 @@ class _FinalTotalScreenState extends ConsumerState<FinalTotalScreen> {
           child: ListView(
             padding: const EdgeInsets.symmetric(vertical: 8),
             children: [
-              ...data.months.map((month) => _MonthTile(
-                    group: month,
-                    isExpanded: _expandedMonths.contains(month.monthKey),
-                    showItemized: _showItemized,
-                    onToggle: () => setState(() {
-                      if (_expandedMonths.contains(month.monthKey)) {
-                        _expandedMonths.remove(month.monthKey);
-                      } else {
-                        _expandedMonths.add(month.monthKey);
-                      }
-                    }),
-                  )),
+              ...data.months.map(
+                (month) => _MonthTile(
+                  group: month,
+                  isExpanded: _expandedMonths.contains(month.monthKey),
+                  showItemized: _showItemized,
+                  onToggle: () => setState(() {
+                    if (_expandedMonths.contains(month.monthKey)) {
+                      _expandedMonths.remove(month.monthKey);
+                    } else {
+                      _expandedMonths.add(month.monthKey);
+                    }
+                  }),
+                ),
+              ),
               const SizedBox(height: 8),
               // ── Grand total ──────────────────────────────────────
               Container(
@@ -124,24 +125,24 @@ class _FinalTotalScreenState extends ConsumerState<FinalTotalScreen> {
                   color: AppColors.alert.withValues(alpha: 0.1),
                   borderRadius: BorderRadius.circular(12),
                   border: Border.all(
-                      color: AppColors.alert.withValues(alpha: 0.3)),
+                    color: AppColors.alert.withValues(alpha: 0.3),
+                  ),
                 ),
                 child: Row(
                   mainAxisAlignment: MainAxisAlignment.spaceBetween,
                   children: [
-                    Text('💰 કુલ બાકી',
-                        style: Theme.of(context)
-                            .textTheme
-                            .titleLarge
-                            ?.copyWith(fontWeight: FontWeight.bold)),
+                    Text(
+                      '💰 કુલ બાકી',
+                      style: Theme.of(context).textTheme.titleLarge?.copyWith(
+                        fontWeight: FontWeight.bold,
+                      ),
+                    ),
                     Text(
                       formatCurrency(data.grandTotal),
-                      style: Theme.of(context)
-                          .textTheme
-                          .titleLarge
-                          ?.copyWith(
-                              color: AppColors.alert,
-                              fontWeight: FontWeight.bold),
+                      style: Theme.of(context).textTheme.titleLarge?.copyWith(
+                        color: AppColors.alert,
+                        fontWeight: FontWeight.bold,
+                      ),
                     ),
                   ],
                 ),
@@ -157,25 +158,27 @@ class _FinalTotalScreenState extends ConsumerState<FinalTotalScreen> {
                         icon: Icons.chat,
                         label: 'WhatsApp મોકલો',
                         color: const Color(0xFF25D366),
-                        onPressed: () => _openReminder(
-                            context, data, 'whatsapp'),
+                        onPressed: () =>
+                            _openReminder(context, data, 'whatsapp'),
                       ),
                     if (smsEnabled)
                       _ActionButton(
                         icon: Icons.sms,
                         label: 'SMS',
                         color: AppColors.primary,
-                        onPressed: () => _openReminder(
-                            context, data, 'sms'),
+                        onPressed: () => _openReminder(context, data, 'sms'),
                       ),
                     if (pdfEnabled)
                       _ActionButton(
                         icon: Icons.picture_as_pdf,
                         label: 'PDF સ્ટેટમેન્ટ',
                         color: AppColors.alert,
-                        onPressed: () => ScaffoldMessenger.of(context)
-                            .showSnackBar(const SnackBar(
-                                content: Text('PDF ટૂંક સમયમાં ઉપલ્બ્ધ'))),
+                        onPressed: () =>
+                            ScaffoldMessenger.of(context).showSnackBar(
+                              const SnackBar(
+                                content: Text('PDF ટૂંક સમયમાં ઉપલ્બ્ધ'),
+                              ),
+                            ),
                       ),
                     _ActionButton(
                       icon: Icons.payments,
@@ -198,12 +201,16 @@ class _FinalTotalScreenState extends ConsumerState<FinalTotalScreen> {
   }
 
   void _openReminder(
-      BuildContext context, FinalTotalData data, String reminderType) {
+    BuildContext context,
+    FinalTotalData data,
+    String reminderType,
+  ) {
     showModalBottomSheet(
       context: context,
       isScrollControlled: true,
       shape: const RoundedRectangleBorder(
-          borderRadius: BorderRadius.vertical(top: Radius.circular(20))),
+        borderRadius: BorderRadius.vertical(top: Radius.circular(20)),
+      ),
       builder: (_) => ReminderBottomSheet(
         customer: data.customer,
         initialTab: reminderType,
@@ -234,8 +241,7 @@ class _MonthTile extends StatelessWidget {
         InkWell(
           onTap: onToggle,
           child: Padding(
-            padding:
-                const EdgeInsets.symmetric(horizontal: 16, vertical: 12),
+            padding: const EdgeInsets.symmetric(horizontal: 16, vertical: 12),
             child: Row(
               children: [
                 Icon(
@@ -248,10 +254,9 @@ class _MonthTile extends StatelessWidget {
                 Expanded(
                   child: Text(
                     group.monthLabel,
-                    style: Theme.of(context)
-                        .textTheme
-                        .titleMedium
-                        ?.copyWith(fontWeight: FontWeight.w600),
+                    style: Theme.of(context).textTheme.titleMedium?.copyWith(
+                      fontWeight: FontWeight.w600,
+                    ),
                   ),
                 ),
                 Column(
@@ -270,7 +275,9 @@ class _MonthTile extends StatelessWidget {
                       Text(
                         'ભર્યું: ${formatCurrency(group.paymentTotal)}',
                         style: const TextStyle(
-                            fontSize: 11, color: Colors.grey),
+                          fontSize: 11,
+                          color: Colors.grey,
+                        ),
                       ),
                   ],
                 ),
@@ -300,7 +307,9 @@ class _MonthTile extends StatelessWidget {
                           child: Text(
                             formatDateDDMMYYYY(date),
                             style: const TextStyle(
-                                fontSize: 12, color: Colors.grey),
+                              fontSize: 12,
+                              color: Colors.grey,
+                            ),
                           ),
                         ),
                       Expanded(
@@ -323,9 +332,7 @@ class _MonthTile extends StatelessWidget {
                         style: TextStyle(
                           fontWeight: FontWeight.bold,
                           fontSize: 13,
-                          color: isCredit
-                              ? AppColors.alert
-                              : AppColors.success,
+                          color: isCredit ? AppColors.alert : AppColors.success,
                         ),
                       ),
                     ],
@@ -361,13 +368,13 @@ class _ActionButton extends StatelessWidget {
       child: ElevatedButton.icon(
         onPressed: onPressed,
         icon: Icon(icon, color: Colors.white),
-        label: Text(label,
-            style: const TextStyle(color: Colors.white)),
+        label: Text(label, style: const TextStyle(color: Colors.white)),
         style: ElevatedButton.styleFrom(
           backgroundColor: color,
           minimumSize: const Size.fromHeight(48),
           shape: RoundedRectangleBorder(
-              borderRadius: BorderRadius.circular(12)),
+            borderRadius: BorderRadius.circular(12),
+          ),
         ),
       ),
     );

@@ -4,6 +4,7 @@ class Product {
   final String? nameEnglish;
   final String transliterationKeys;
   final int? categoryId;
+
   /// P02: 'weight_kg' | 'weight_gram' | 'count' | 'litre'
   final String unitType;
   final double buyPrice;
@@ -104,4 +105,3 @@ class Product {
     };
   }
 }
-

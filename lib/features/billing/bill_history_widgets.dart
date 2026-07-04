@@ -62,10 +62,7 @@ class BillHistoryCard extends ConsumerWidget {
                     const SizedBox(height: 4),
                     Text(
                       customerName,
-                      style: const TextStyle(
-                        fontSize: 13,
-                        color: Colors.grey,
-                      ),
+                      style: const TextStyle(fontSize: 13, color: Colors.grey),
                     ),
                     const SizedBox(height: 8),
                     BillHistoryStatusBadge(status: bill.paymentStatus),
@@ -123,9 +120,9 @@ class BillHistoryCard extends ConsumerWidget {
         }
       } catch (e) {
         if (context.mounted) {
-          ScaffoldMessenger.of(context).showSnackBar(
-            SnackBar(content: Text('ભૂલ: $e')),
-          );
+          ScaffoldMessenger.of(
+            context,
+          ).showSnackBar(SnackBar(content: Text('ભૂલ: $e')));
         }
       }
     }

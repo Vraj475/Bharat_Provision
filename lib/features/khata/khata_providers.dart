@@ -21,7 +21,7 @@ class CustomersNotifier extends AsyncNotifier<List<Customer>> {
     final customer = await repo.getById(customerId);
     if (customer != null) {
       await repo.update(customer.copyWith());
-      
+
       // Reload customers after update
       state = await AsyncValue.guard(() => _reloadCustomers());
     }
@@ -36,9 +36,10 @@ class CustomersNotifier extends AsyncNotifier<List<Customer>> {
 
 /// MASTER provider for all customers - single source of truth
 /// All screens showing customer data should watch this provider
-final customersProvider = AsyncNotifierProvider<CustomersNotifier, List<Customer>>(
-  () => CustomersNotifier(),
-);
+final customersProvider =
+    AsyncNotifierProvider<CustomersNotifier, List<Customer>>(
+      () => CustomersNotifier(),
+    );
 
 final customerListProvider = FutureProvider<List<Customer>>((ref) async {
   final repo = await ref.watch(customerRepositoryFutureProvider.future);
@@ -47,17 +48,22 @@ final customerListProvider = FutureProvider<List<Customer>>((ref) async {
 });
 
 final customerWithBalanceProvider =
-    FutureProvider.family<({Customer customer, double balance}), int>((ref, customerId) async {
-  final customerRepo = await ref.watch(customerRepositoryFutureProvider.future);
-  final khataRepo = await ref.watch(khataRepositoryFutureProvider.future);
-  final customer = await customerRepo.getById(customerId);
-  if (customer == null) throw StateError('Customer not found');
-  final balance = await khataRepo.getBalance(customerId);
-  return (customer: customer, balance: balance);
-});
+    FutureProvider.family<({Customer customer, double balance}), int>((
+      ref,
+      customerId,
+    ) async {
+      final customerRepo = await ref.watch(
+        customerRepositoryFutureProvider.future,
+      );
+      final khataRepo = await ref.watch(khataRepositoryFutureProvider.future);
+      final customer = await customerRepo.getById(customerId);
+      if (customer == null) throw StateError('Customer not found');
+      final balance = await khataRepo.getBalance(customerId);
+      return (customer: customer, balance: balance);
+    });
 
 final customerKhataEntriesProvider =
     FutureProvider.family<List<KhataEntry>, int>((ref, customerId) async {
-  final repo = await ref.watch(khataRepositoryFutureProvider.future);
-  return repo.getEntries(customerId);
-});
+      final repo = await ref.watch(khataRepositoryFutureProvider.future);
+      return repo.getEntries(customerId);
+    });

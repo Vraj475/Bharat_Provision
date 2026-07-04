@@ -13,6 +13,7 @@ import 'features/settings/settings_providers.dart';
 
 import 'routing/app_router.dart';
 import 'features/settings/screens/splash_screen.dart';
+
 final GlobalKey<NavigatorState> _navigatorKey = GlobalKey<NavigatorState>();
 
 void main() {

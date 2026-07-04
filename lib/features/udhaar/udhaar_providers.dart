@@ -24,9 +24,10 @@ class UdhaarNotifier extends AsyncNotifier<List<CustomerSummaryRow>> {
 
 /// MASTER provider for all udhaar/credit data - single source of truth
 /// All screens showing udhaar info should watch this provider
-final udhaarProvider = AsyncNotifierProvider<UdhaarNotifier, List<CustomerSummaryRow>>(
-  () => UdhaarNotifier(),
-);
+final udhaarProvider =
+    AsyncNotifierProvider<UdhaarNotifier, List<CustomerSummaryRow>>(
+      () => UdhaarNotifier(),
+    );
 
 // ─── Dashboard providers ──────────────────────────────────────────────────────
 

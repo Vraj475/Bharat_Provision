@@ -43,12 +43,7 @@ class CustomerRepository {
     if (c.id == null) return 0;
     return _db.update(
       'customers',
-      {
-        'name': c.name,
-        'phone': c.phone,
-        'address': c.address,
-        'note': c.note,
-      },
+      {'name': c.name, 'phone': c.phone, 'address': c.address, 'note': c.note},
       where: 'id = ?',
       whereArgs: [c.id],
     );

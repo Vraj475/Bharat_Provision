@@ -17,8 +17,7 @@ class CollectPaymentScreen extends ConsumerStatefulWidget {
       _CollectPaymentScreenState();
 }
 
-class _CollectPaymentScreenState
-    extends ConsumerState<CollectPaymentScreen>
+class _CollectPaymentScreenState extends ConsumerState<CollectPaymentScreen>
     with SingleTickerProviderStateMixin {
   late final TabController _tabController;
   final _amountCtrl = TextEditingController();
@@ -43,14 +42,17 @@ class _CollectPaymentScreenState
   Future<void> _saveGeneral() async {
     final amount = double.tryParse(_amountCtrl.text) ?? 0;
     if (amount <= 0) {
-      ScaffoldMessenger.of(context)
-          .showSnackBar(const SnackBar(content: Text('રકમ દાખલ કરો')));
+      ScaffoldMessenger.of(
+        context,
+      ).showSnackBar(const SnackBar(content: Text('રકમ દાખલ કરો')));
       return;
     }
 
     setState(() => _saving = true);
     try {
-      await ref.read(udhaarRepositoryProvider).collectGeneralPayment(
+      await ref
+          .read(udhaarRepositoryProvider)
+          .collectGeneralPayment(
             customerId: widget.customerId,
             amount: amount,
             paymentMode: _paymentMode,
@@ -59,13 +61,15 @@ class _CollectPaymentScreenState
       _invalidateProviders();
       if (mounted) {
         ScaffoldMessenger.of(context).showSnackBar(
-            const SnackBar(content: Text('ચૂકવણી સફળતાપૂર્વક નોંધાઈ')));
+          const SnackBar(content: Text('ચૂકવણી સફળતાપૂર્વક નોંધાઈ')),
+        );
         Navigator.of(context).pop();
       }
     } catch (e) {
       if (mounted) {
-        ScaffoldMessenger.of(context)
-            .showSnackBar(SnackBar(content: Text('ભૂલ: $e')));
+        ScaffoldMessenger.of(
+          context,
+        ).showSnackBar(SnackBar(content: Text('ભૂલ: $e')));
       }
     } finally {
       if (mounted) setState(() => _saving = false);
@@ -81,8 +85,7 @@ class _CollectPaymentScreenState
 
   @override
   Widget build(BuildContext context) {
-    final customerAsync =
-        ref.watch(udhaarCustomerProvider(widget.customerId));
+    final customerAsync = ref.watch(udhaarCustomerProvider(widget.customerId));
 
     return Scaffold(
       appBar: AppBar(
@@ -142,28 +145,26 @@ class _GeneralPaymentTab extends StatelessWidget {
         crossAxisAlignment: CrossAxisAlignment.stretch,
         children: [
           // Amount with numpad
-          Text('ચૂકવેલ રકમ',
-              style: Theme.of(context).textTheme.titleMedium),
+          Text('ચૂકવેલ રકમ', style: Theme.of(context).textTheme.titleMedium),
           const SizedBox(height: 8),
           NumpadTextField(
             controller: amountCtrl,
             allowDecimal: true,
             decoration: const InputDecoration(
-                labelText: 'રકમ (₹)',
-                prefixText: '₹ '),
+              labelText: 'રકમ (₹)',
+              prefixText: '₹ ',
+            ),
           ),
           const SizedBox(height: 12),
-          NumpadWidget(
-            controller: amountCtrl,
-            allowDecimal: true,
-          ),
+          NumpadWidget(controller: amountCtrl, allowDecimal: true),
           const SizedBox(height: 16),
           // Payment mode
-          Text('ચૂકવણી પ્રકાર',
-              style: Theme.of(context).textTheme.titleMedium),
+          Text('ચૂકવણી પ્રકાર', style: Theme.of(context).textTheme.titleMedium),
           const SizedBox(height: 8),
           _PaymentModeChips(
-              value: paymentMode, onChanged: onPaymentModeChanged),
+            value: paymentMode,
+            onChanged: onPaymentModeChanged,
+          ),
           const SizedBox(height: 16),
           // Note
           TextField(
@@ -179,8 +180,9 @@ class _GeneralPaymentTab extends StatelessWidget {
             icon: const Icon(Icons.check_circle_outline),
             label: const Text('ચૂકવણી સ્વીકારો'),
             style: ElevatedButton.styleFrom(
-                backgroundColor: AppColors.success,
-                foregroundColor: Colors.white),
+              backgroundColor: AppColors.success,
+              foregroundColor: Colors.white,
+            ),
           ),
         ],
       ),
@@ -203,8 +205,7 @@ class _BillSpecificTab extends ConsumerWidget {
           : ListView.separated(
               padding: const EdgeInsets.symmetric(vertical: 8),
               itemCount: bills.length,
-              separatorBuilder: (_, _) =>
-                  const Divider(height: 1, indent: 16),
+              separatorBuilder: (_, _) => const Divider(height: 1, indent: 16),
               itemBuilder: (ctx, i) => _UnpaidBillTile(
                 row: bills[i],
                 customerId: customerId,
@@ -242,8 +243,9 @@ class _UnpaidBillTileState extends ConsumerState<_UnpaidBillTile> {
   bool _paying = false;
 
   Future<void> _openPayDialog() async {
-    final amountCtrl =
-        TextEditingController(text: widget.row.remaining.toStringAsFixed(2));
+    final amountCtrl = TextEditingController(
+      text: widget.row.remaining.toStringAsFixed(2),
+    );
     String payMode = 'cash';
 
     final confirmed = await showDialog<bool>(
@@ -256,20 +258,24 @@ class _UnpaidBillTileState extends ConsumerState<_UnpaidBillTile> {
               mainAxisSize: MainAxisSize.min,
               children: [
                 _BillSummaryRow(
-                    label: 'બિલ રકમ',
-                    value: formatCurrency(widget.row.bill.totalAmount)),
+                  label: 'બિલ રકમ',
+                  value: formatCurrency(widget.row.bill.totalAmount),
+                ),
                 _BillSummaryRow(
-                    label: 'ચૂકવ્યુ',
-                    value: formatCurrency(widget.row.bill.paidAmount)),
+                  label: 'ચૂકવ્યુ',
+                  value: formatCurrency(widget.row.bill.paidAmount),
+                ),
                 _BillSummaryRow(
-                    label: 'બાકી',
-                    value: formatCurrency(widget.row.remaining),
-                    valueColor: AppColors.alert),
+                  label: 'બાકી',
+                  value: formatCurrency(widget.row.remaining),
+                  valueColor: AppColors.alert,
+                ),
                 const SizedBox(height: 12),
                 TextField(
                   controller: amountCtrl,
-                  keyboardType:
-                      const TextInputType.numberWithOptions(decimal: true),
+                  keyboardType: const TextInputType.numberWithOptions(
+                    decimal: true,
+                  ),
                   decoration: const InputDecoration(
                     labelText: 'ચૂકવવાની રકમ (₹)',
                     prefixText: '₹ ',
@@ -285,11 +291,13 @@ class _UnpaidBillTileState extends ConsumerState<_UnpaidBillTile> {
           ),
           actions: [
             TextButton(
-                onPressed: () => Navigator.pop(ctx, false),
-                child: const Text('રદ')),
+              onPressed: () => Navigator.pop(ctx, false),
+              child: const Text('રદ'),
+            ),
             ElevatedButton(
-                onPressed: () => Navigator.pop(ctx, true),
-                child: const Text('ચૂકવો')),
+              onPressed: () => Navigator.pop(ctx, true),
+              child: const Text('ચૂકવો'),
+            ),
           ],
         ),
       ),
@@ -301,7 +309,9 @@ class _UnpaidBillTileState extends ConsumerState<_UnpaidBillTile> {
 
     setState(() => _paying = true);
     try {
-      await ref.read(udhaarRepositoryProvider).collectBillSpecificPayment(
+      await ref
+          .read(udhaarRepositoryProvider)
+          .collectBillSpecificPayment(
             billId: widget.row.bill.id!,
             customerId: widget.customerId,
             amount: amount,
@@ -309,13 +319,15 @@ class _UnpaidBillTileState extends ConsumerState<_UnpaidBillTile> {
           );
       widget.onPaid();
       if (mounted) {
-        ScaffoldMessenger.of(context).showSnackBar(
-            const SnackBar(content: Text('ચૂકવણી સ્વીકારાઈ')));
+        ScaffoldMessenger.of(
+          context,
+        ).showSnackBar(const SnackBar(content: Text('ચૂકવણી સ્વીકારાઈ')));
       }
     } catch (e) {
       if (mounted) {
-        ScaffoldMessenger.of(context)
-            .showSnackBar(SnackBar(content: Text('ભૂલ: $e')));
+        ScaffoldMessenger.of(
+          context,
+        ).showSnackBar(SnackBar(content: Text('ભૂલ: $e')));
       }
     } finally {
       if (mounted) setState(() => _paying = false);
@@ -345,22 +357,26 @@ class _UnpaidBillTileState extends ConsumerState<_UnpaidBillTile> {
       ),
       title: Row(
         children: [
-          Text('#${bill.billNumber}',
-              style: const TextStyle(fontWeight: FontWeight.w600)),
+          Text(
+            '#${bill.billNumber}',
+            style: const TextStyle(fontWeight: FontWeight.w600),
+          ),
           const SizedBox(width: 8),
           if (isPaid)
             Container(
-              padding:
-                  const EdgeInsets.symmetric(horizontal: 6, vertical: 2),
+              padding: const EdgeInsets.symmetric(horizontal: 6, vertical: 2),
               decoration: BoxDecoration(
                 color: AppColors.success.withValues(alpha: 0.15),
                 borderRadius: BorderRadius.circular(6),
               ),
-              child: Text('✓ ભરાઈ ગ્યું',
-                  style: TextStyle(
-                      color: AppColors.success,
-                      fontSize: 11,
-                      fontWeight: FontWeight.bold)),
+              child: Text(
+                '✓ ભરાઈ ગ્યું',
+                style: TextStyle(
+                  color: AppColors.success,
+                  fontSize: 11,
+                  fontWeight: FontWeight.bold,
+                ),
+              ),
             ),
         ],
       ),
@@ -368,36 +384,42 @@ class _UnpaidBillTileState extends ConsumerState<_UnpaidBillTile> {
         crossAxisAlignment: CrossAxisAlignment.start,
         children: [
           if (billDate != null)
-            Text(formatDateDDMMYYYY(billDate),
-                style: const TextStyle(fontSize: 12)),
+            Text(
+              formatDateDDMMYYYY(billDate),
+              style: const TextStyle(fontSize: 12),
+            ),
           Text(
             'કુલ: ${formatCurrency(bill.totalAmount)}  '
             'ભર્યું: ${formatCurrency(bill.paidAmount)}  '
             'બાકી: ${formatCurrency(widget.row.remaining)}',
             style: TextStyle(
-                fontSize: 12,
-                color:
-                    isPaid ? AppColors.success : AppColors.alert),
+              fontSize: 12,
+              color: isPaid ? AppColors.success : AppColors.alert,
+            ),
           ),
         ],
       ),
       trailing: isPaid
           ? null
           : _paying
-              ? const SizedBox(
-                  width: 24,
-                  height: 24,
-                  child: CircularProgressIndicator(strokeWidth: 2))
-              : ElevatedButton(
-                  onPressed: _openPayDialog,
-                  style: ElevatedButton.styleFrom(
-                      backgroundColor: AppColors.success,
-                      foregroundColor: Colors.white,
-                      padding: const EdgeInsets.symmetric(
-                          horizontal: 12, vertical: 8),
-                      minimumSize: const Size(60, 36)),
-                  child: const Text('ભરો'),
+          ? const SizedBox(
+              width: 24,
+              height: 24,
+              child: CircularProgressIndicator(strokeWidth: 2),
+            )
+          : ElevatedButton(
+              onPressed: _openPayDialog,
+              style: ElevatedButton.styleFrom(
+                backgroundColor: AppColors.success,
+                foregroundColor: Colors.white,
+                padding: const EdgeInsets.symmetric(
+                  horizontal: 12,
+                  vertical: 8,
                 ),
+                minimumSize: const Size(60, 36),
+              ),
+              child: const Text('ભરો'),
+            ),
       isThreeLine: true,
     );
   }
@@ -420,25 +442,26 @@ class _PaymentModeChips extends StatelessWidget {
     return Wrap(
       spacing: 8,
       children: modes
-          .map((m) => ChoiceChip(
-                label: Row(
-                  mainAxisSize: MainAxisSize.min,
-                  children: [
-                    Icon(m.$3,
-                        size: 16,
-                        color: value == m.$1
-                            ? Colors.white
-                            : AppColors.primary),
-                    const SizedBox(width: 4),
-                    Text(m.$2),
-                  ],
-                ),
-                selected: value == m.$1,
-                selectedColor: AppColors.primary,
-                labelStyle: TextStyle(
-                    color: value == m.$1 ? Colors.white : null),
-                onSelected: (_) => onChanged(m.$1),
-              ))
+          .map(
+            (m) => ChoiceChip(
+              label: Row(
+                mainAxisSize: MainAxisSize.min,
+                children: [
+                  Icon(
+                    m.$3,
+                    size: 16,
+                    color: value == m.$1 ? Colors.white : AppColors.primary,
+                  ),
+                  const SizedBox(width: 4),
+                  Text(m.$2),
+                ],
+              ),
+              selected: value == m.$1,
+              selectedColor: AppColors.primary,
+              labelStyle: TextStyle(color: value == m.$1 ? Colors.white : null),
+              onSelected: (_) => onChanged(m.$1),
+            ),
+          )
           .toList(),
     );
   }
@@ -463,13 +486,11 @@ class _BillSummaryRow extends StatelessWidget {
       child: Row(
         mainAxisAlignment: MainAxisAlignment.spaceBetween,
         children: [
-          Text(label,
-              style: Theme.of(context).textTheme.bodyMedium),
-          Text(value,
-              style: TextStyle(
-                fontWeight: FontWeight.bold,
-                color: valueColor,
-              )),
+          Text(label, style: Theme.of(context).textTheme.bodyMedium),
+          Text(
+            value,
+            style: TextStyle(fontWeight: FontWeight.bold, color: valueColor),
+          ),
         ],
       ),
     );

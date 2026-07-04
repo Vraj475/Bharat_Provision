@@ -14,9 +14,7 @@ class CategoryListScreen extends ConsumerWidget {
     final categoriesAsync = ref.watch(categoryListProvider);
 
     return Scaffold(
-      appBar: AppBar(
-        title: const Text(AppStrings.categoriesTitle),
-      ),
+      appBar: AppBar(title: const Text(AppStrings.categoriesTitle)),
       body: categoriesAsync.when(
         data: (categories) {
           if (categories.isEmpty) {
@@ -87,9 +85,9 @@ class CategoryListScreen extends ConsumerWidget {
       await repo.insertCategory(Category(nameGu: nameCtrl.text.trim()));
       ref.invalidate(categoryListProvider);
       if (context.mounted) {
-        ScaffoldMessenger.of(context).showSnackBar(
-          const SnackBar(content: Text('કેટેગરી ઉમેરાયું')),
-        );
+        ScaffoldMessenger.of(
+          context,
+        ).showSnackBar(const SnackBar(content: Text('કેટેગરી ઉમેરાયું')));
       }
     } catch (e) {
       if (context.mounted) {
@@ -100,7 +98,11 @@ class CategoryListScreen extends ConsumerWidget {
     }
   }
 
-  void _showEditCategory(BuildContext context, WidgetRef ref, Category c) async {
+  void _showEditCategory(
+    BuildContext context,
+    WidgetRef ref,
+    Category c,
+  ) async {
     final nameCtrl = TextEditingController(text: c.nameGu);
     final ok = await showDialog<bool>(
       context: context,
@@ -129,9 +131,9 @@ class CategoryListScreen extends ConsumerWidget {
       await repo.updateCategory(c.copyWith(nameGu: nameCtrl.text.trim()));
       ref.invalidate(categoryListProvider);
       if (context.mounted) {
-        ScaffoldMessenger.of(context).showSnackBar(
-          const SnackBar(content: Text('કેટેગરી ઉપડેટ થયું')),
-        );
+        ScaffoldMessenger.of(
+          context,
+        ).showSnackBar(const SnackBar(content: Text('કેટેગરી ઉપડેટ થયું')));
       }
     } catch (e) {
       if (context.mounted) {

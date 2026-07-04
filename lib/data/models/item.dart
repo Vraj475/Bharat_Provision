@@ -30,12 +30,17 @@ class Item {
       categoryId: map['category_id'] as int?,
       barcode: map['barcode'] as String?,
       unit: (map['unit'] ?? map['unit_type']) as String? ?? 'નંગ',
-      salePrice: ((map['sale_price'] ?? map['sell_price']) as num?)?.toDouble() ?? 0,
+      salePrice:
+          ((map['sale_price'] ?? map['sell_price']) as num?)?.toDouble() ?? 0,
       purchasePrice:
-          ((map['purchase_price'] ?? map['buy_price']) as num?)?.toDouble() ?? 0,
-      currentStock: ((map['current_stock'] ?? map['stock_qty']) as num?)?.toDouble() ?? 0,
+          ((map['purchase_price'] ?? map['buy_price']) as num?)?.toDouble() ??
+          0,
+      currentStock:
+          ((map['current_stock'] ?? map['stock_qty']) as num?)?.toDouble() ?? 0,
       lowStockThreshold:
-          ((map['low_stock_threshold'] ?? map['min_stock_qty']) as num?)?.toDouble() ?? 0,
+          ((map['low_stock_threshold'] ?? map['min_stock_qty']) as num?)
+              ?.toDouble() ??
+          0,
       isActive: (map['is_active'] as int? ?? 1) == 1,
     );
   }

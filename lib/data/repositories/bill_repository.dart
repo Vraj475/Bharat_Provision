@@ -65,7 +65,11 @@ class BillRepository {
         'bills',
         'payment_status',
       );
-      final hasUdhaarAmount = await _columnExists(txn, 'bills', 'udhaar_amount');
+      final hasUdhaarAmount = await _columnExists(
+        txn,
+        'bills',
+        'udhaar_amount',
+      );
 
       final billValues = <String, Object?>{
         'bill_number': billNumber.toString(),
@@ -101,15 +105,17 @@ class BillRepository {
         billValues['created_at'] = nowIso;
       }
       if (hasPaymentStatus) {
-        billValues['payment_status'] =
-            udhaarAmount <= 0.0 ? 'paid' : (paidAmount <= 0.0 ? 'udhaar' : 'partial');
+        billValues['payment_status'] = udhaarAmount <= 0.0
+            ? 'paid'
+            : (paidAmount <= 0.0 ? 'udhaar' : 'partial');
       }
       if (hasUdhaarAmount) {
         billValues['udhaar_amount'] = udhaarAmount;
       }
       if (hasCustomerNameSnapshot) {
         billValues['customer_name_snapshot'] =
-            (customerNameSnapshot != null && customerNameSnapshot.trim().isNotEmpty)
+            (customerNameSnapshot != null &&
+                customerNameSnapshot.trim().isNotEmpty)
             ? customerNameSnapshot.trim()
             : null;
       }
@@ -123,14 +129,22 @@ class BillRepository {
         'bill_items',
         'product_id',
       );
-      final hasBillItemItemId = await _columnExists(txn, 'bill_items', 'item_id');
+      final hasBillItemItemId = await _columnExists(
+        txn,
+        'bill_items',
+        'item_id',
+      );
       final hasBillItemQty = await _columnExists(txn, 'bill_items', 'qty');
       final hasBillItemQuantity = await _columnExists(
         txn,
         'bill_items',
         'quantity',
       );
-      final hasBillItemAmount = await _columnExists(txn, 'bill_items', 'amount');
+      final hasBillItemAmount = await _columnExists(
+        txn,
+        'bill_items',
+        'amount',
+      );
       final hasBillItemLineTotal = await _columnExists(
         txn,
         'bill_items',
@@ -170,7 +184,8 @@ class BillRepository {
             where: 'id = ?',
             whereArgs: [i.itemId],
           );
-          qtyBefore = (stockRow.firstOrNull?[itemStockColumn] as num?)?.toDouble() ?? 0;
+          qtyBefore =
+              (stockRow.firstOrNull?[itemStockColumn] as num?)?.toDouble() ?? 0;
         }
 
         if (itemStockColumn != null) {
@@ -181,17 +196,37 @@ class BillRepository {
         }
 
         if (hasStockLog) {
-          final hasProductId = await _columnExists(txn, 'stock_log', 'product_id');
+          final hasProductId = await _columnExists(
+            txn,
+            'stock_log',
+            'product_id',
+          );
           final hasItemId = await _columnExists(txn, 'stock_log', 'item_id');
           final hasTransactionType = await _columnExists(
             txn,
             'stock_log',
             'transaction_type',
           );
-          final hasQtyChange = await _columnExists(txn, 'stock_log', 'qty_change');
-          final hasQtyBefore = await _columnExists(txn, 'stock_log', 'qty_before');
-          final hasQtyAfter = await _columnExists(txn, 'stock_log', 'qty_after');
-          final hasReferenceId = await _columnExists(txn, 'stock_log', 'reference_id');
+          final hasQtyChange = await _columnExists(
+            txn,
+            'stock_log',
+            'qty_change',
+          );
+          final hasQtyBefore = await _columnExists(
+            txn,
+            'stock_log',
+            'qty_before',
+          );
+          final hasQtyAfter = await _columnExists(
+            txn,
+            'stock_log',
+            'qty_after',
+          );
+          final hasReferenceId = await _columnExists(
+            txn,
+            'stock_log',
+            'reference_id',
+          );
           final hasReferenceType = await _columnExists(
             txn,
             'stock_log',
@@ -242,7 +277,9 @@ class BillRepository {
             whereArgs: [customerId],
           );
           final currentOutstanding =
-              (customerRows.firstOrNull?['total_outstanding'] as num?)?.toDouble() ?? 0.0;
+              (customerRows.firstOrNull?['total_outstanding'] as num?)
+                  ?.toDouble() ??
+              0.0;
           updatedOutstanding = currentOutstanding + udhaarAmount;
           await txn.update(
             'customers',
@@ -285,7 +322,9 @@ class BillRepository {
             [customerId],
           );
           final currentBalance =
-              (lastBalanceRows.firstOrNull?['balance_after'] as num?)?.toDouble() ?? 0.0;
+              (lastBalanceRows.firstOrNull?['balance_after'] as num?)
+                  ?.toDouble() ??
+              0.0;
           final balanceAfter = currentBalance + udhaarAmount;
 
           await txn.insert('khata_entries', {
@@ -340,11 +379,9 @@ class BillRepository {
   }
 
   Future<void> _setBillCounter(Transaction txn, int nextValue) async {
-    final updated = await txn.update(
-      'settings',
-      {'value': nextValue.toString()},
-      where: "key = 'bill_counter'",
-    );
+    final updated = await txn.update('settings', {
+      'value': nextValue.toString(),
+    }, where: "key = 'bill_counter'");
     if (updated == 0) {
       await txn.insert('settings', {
         'key': 'bill_counter',
@@ -375,7 +412,9 @@ class BillRepository {
     if (rawDateTime is num) return rawDateTime.toInt();
 
     final dateStr =
-        (map['bill_date'] ?? map['created_at'] ?? DateTime.now().toIso8601String())
+        (map['bill_date'] ??
+                map['created_at'] ??
+                DateTime.now().toIso8601String())
             .toString();
     final parsed = DateTime.tryParse(dateStr);
     return (parsed ?? DateTime.now()).millisecondsSinceEpoch;

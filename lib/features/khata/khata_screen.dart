@@ -256,9 +256,9 @@ class _KhataScreenState extends ConsumerState<KhataScreen>
         );
         return;
       default:
-        ScaffoldMessenger.of(context).showSnackBar(
-          SnackBar(content: Text('Open ${entry.reference}')),
-        );
+        ScaffoldMessenger.of(
+          context,
+        ).showSnackBar(SnackBar(content: Text('Open ${entry.reference}')));
     }
   }
 

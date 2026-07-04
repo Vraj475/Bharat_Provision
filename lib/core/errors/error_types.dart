@@ -1,4 +1,3 @@
-
 /// Represents the different categories of errors in the app
 enum ErrorCategory {
   database,

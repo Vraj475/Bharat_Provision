@@ -3,11 +3,7 @@ class Category {
   final String nameGu;
   final String? colorCode;
 
-  const Category({
-    this.id,
-    required this.nameGu,
-    this.colorCode,
-  });
+  const Category({this.id, required this.nameGu, this.colorCode});
 
   factory Category.fromMap(Map<String, dynamic> map) {
     return Category(

@@ -64,9 +64,9 @@ class _CustomerEditScreenState extends ConsumerState<CustomerEditScreen> {
   Future<void> _save() async {
     final name = _nameController.text.trim();
     if (name.isEmpty) {
-      ScaffoldMessenger.of(context).showSnackBar(
-        const SnackBar(content: Text(AppStrings.fieldRequired)),
-      );
+      ScaffoldMessenger.of(
+        context,
+      ).showSnackBar(const SnackBar(content: Text(AppStrings.fieldRequired)));
       return;
     }
 
@@ -74,19 +74,35 @@ class _CustomerEditScreenState extends ConsumerState<CustomerEditScreen> {
 
     try {
       if (_customer != null) {
-        await repo.update(_customer!.copyWith(
-          name: name,
-          phone: _phoneController.text.trim().isEmpty ? null : _phoneController.text.trim(),
-          address: _addressController.text.trim().isEmpty ? null : _addressController.text.trim(),
-          note: _noteController.text.trim().isEmpty ? null : _noteController.text.trim(),
-        ));
+        await repo.update(
+          _customer!.copyWith(
+            name: name,
+            phone: _phoneController.text.trim().isEmpty
+                ? null
+                : _phoneController.text.trim(),
+            address: _addressController.text.trim().isEmpty
+                ? null
+                : _addressController.text.trim(),
+            note: _noteController.text.trim().isEmpty
+                ? null
+                : _noteController.text.trim(),
+          ),
+        );
       } else {
-        await repo.insert(Customer(
-          name: name,
-          phone: _phoneController.text.trim().isEmpty ? null : _phoneController.text.trim(),
-          address: _addressController.text.trim().isEmpty ? null : _addressController.text.trim(),
-          note: _noteController.text.trim().isEmpty ? null : _noteController.text.trim(),
-        ));
+        await repo.insert(
+          Customer(
+            name: name,
+            phone: _phoneController.text.trim().isEmpty
+                ? null
+                : _phoneController.text.trim(),
+            address: _addressController.text.trim().isEmpty
+                ? null
+                : _addressController.text.trim(),
+            note: _noteController.text.trim().isEmpty
+                ? null
+                : _noteController.text.trim(),
+          ),
+        );
       }
       ref.invalidate(customerListProvider);
       if (mounted) {
@@ -107,15 +123,15 @@ class _CustomerEditScreenState extends ConsumerState<CustomerEditScreen> {
   @override
   Widget build(BuildContext context) {
     if (_loading) {
-      return const Scaffold(
-        body: Center(child: CircularProgressIndicator()),
-      );
+      return const Scaffold(body: Center(child: CircularProgressIndicator()));
     }
 
     return Scaffold(
       appBar: AppBar(
         title: Text(
-          widget.customerId != null ? AppStrings.editCustomer : AppStrings.addCustomer,
+          widget.customerId != null
+              ? AppStrings.editCustomer
+              : AppStrings.addCustomer,
         ),
       ),
       body: SingleChildScrollView(
@@ -132,25 +148,19 @@ class _CustomerEditScreenState extends ConsumerState<CustomerEditScreen> {
             const SizedBox(height: 16),
             TextField(
               controller: _phoneController,
-              decoration: const InputDecoration(
-                labelText: AppStrings.phone,
-              ),
+              decoration: const InputDecoration(labelText: AppStrings.phone),
               keyboardType: TextInputType.phone,
             ),
             const SizedBox(height: 16),
             TextField(
               controller: _addressController,
-              decoration: const InputDecoration(
-                labelText: AppStrings.address,
-              ),
+              decoration: const InputDecoration(labelText: AppStrings.address),
               maxLines: 2,
             ),
             const SizedBox(height: 16),
             TextField(
               controller: _noteController,
-              decoration: const InputDecoration(
-                labelText: AppStrings.note,
-              ),
+              decoration: const InputDecoration(labelText: AppStrings.note),
               maxLines: 2,
             ),
             const SizedBox(height: 24),

@@ -13,11 +13,7 @@ import 'package:bharat_provision/main.dart';
 
 void main() {
   testWidgets('App boots (smoke test)', (WidgetTester tester) async {
-    await tester.pumpWidget(
-      const ProviderScope(
-        child: KiranaApp(),
-      ),
-    );
+    await tester.pumpWidget(const ProviderScope(child: KiranaApp()));
 
     // Allow async providers / first frame work to settle.
     await tester.pumpAndSettle();

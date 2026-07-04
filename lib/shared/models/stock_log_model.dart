@@ -1,7 +1,8 @@
 class StockLogEntry {
   final int? id;
   final int productId;
-  final String transactionType; // purchase | sale | return | replace_in | replace_out | manual_adjust
+  final String
+  transactionType; // purchase | sale | return | replace_in | replace_out | manual_adjust
   final double qtyChange;
   final double qtyBefore;
   final double qtyAfter;
@@ -53,4 +54,3 @@ class StockLogEntry {
     };
   }
 }
-

@@ -36,7 +36,9 @@ class _ItemListScreenState extends ConsumerState<ItemListScreen> {
 
   Color _stockColor(Item item) {
     if (item.isLowStock) return AppColors.alert;
-    if (item.currentStock <= item.lowStockThreshold * 1.2) return AppColors.warning;
+    if (item.currentStock <= item.lowStockThreshold * 1.2) {
+      return AppColors.warning;
+    }
     return AppColors.success;
   }
 
@@ -68,7 +70,8 @@ class _ItemListScreenState extends ConsumerState<ItemListScreen> {
                 TextButton.icon(
                   icon: const Icon(Icons.category),
                   label: const Text('કેટેગરીઓ'),
-                  onPressed: () => Navigator.of(context).pushNamed(AppRouter.categories),
+                  onPressed: () =>
+                      Navigator.of(context).pushNamed(AppRouter.categories),
                 ),
                 FilterChip(
                   label: const Text(AppStrings.lowStockFilter),
@@ -95,7 +98,10 @@ class _ItemListScreenState extends ConsumerState<ItemListScreen> {
                       child: ListTile(
                         leading: CircleAvatar(
                           backgroundColor: _stockColor(item),
-                          child: const Icon(Icons.inventory_2, color: Colors.white),
+                          child: const Icon(
+                            Icons.inventory_2,
+                            color: Colors.white,
+                          ),
                         ),
                         title: Text(item.nameGu),
                         subtitle: Text(
@@ -135,17 +141,17 @@ class _ItemListScreenState extends ConsumerState<ItemListScreen> {
                             ),
                           ],
                         ),
-                        onTap: () => Navigator.of(context).pushNamed(
-                          AppRouter.itemEdit,
-                          arguments: item.id,
-                        ),
+                        onTap: () => Navigator.of(
+                          context,
+                        ).pushNamed(AppRouter.itemEdit, arguments: item.id),
                       ),
                     );
                   },
                 );
               },
               loading: () => const Center(child: CircularProgressIndicator()),
-              error: (e, _) => Center(child: Text('${AppStrings.errorGeneric} $e')),
+              error: (e, _) =>
+                  Center(child: Text('${AppStrings.errorGeneric} $e')),
             ),
           ),
         ],
@@ -176,6 +182,8 @@ class _ItemListScreenState extends ConsumerState<ItemListScreen> {
       message = '${AppStrings.errorGeneric} $e';
     }
     if (!mounted) return;
-    ScaffoldMessenger.of(context).showSnackBar(SnackBar(content: Text(message)));
+    ScaffoldMessenger.of(
+      context,
+    ).showSnackBar(SnackBar(content: Text(message)));
   }
 }

@@ -6,10 +6,7 @@ import '../../data/repositories/report_repository.dart';
 
 final reportDateRangeProvider = StateProvider<DateTimeRange>((ref) {
   final now = DateTime.now();
-  return DateTimeRange(
-    start: DateTime(now.year, now.month, now.day),
-    end: now,
-  );
+  return DateTimeRange(start: DateTime(now.year, now.month, now.day), end: now);
 });
 
 final salesReportProvider = FutureProvider<SalesSummary>((ref) async {
@@ -20,7 +17,9 @@ final salesReportProvider = FutureProvider<SalesSummary>((ref) async {
   return repo.getSalesSummary(start, end);
 });
 
-final outstandingKhataProvider = FutureProvider<List<OutstandingCustomer>>((ref) async {
+final outstandingKhataProvider = FutureProvider<List<OutstandingCustomer>>((
+  ref,
+) async {
   final repo = await ref.watch(reportRepositoryFutureProvider.future);
   return repo.getOutstandingKhata();
 });

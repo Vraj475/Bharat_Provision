@@ -82,8 +82,9 @@ class _AddStockScreenState extends ConsumerState<AddStockScreen> {
             _buildSectionHeader('મળેલો જથ્થો'),
             TextFormField(
               controller: _qtyCtrl,
-              keyboardType:
-                  const TextInputType.numberWithOptions(decimal: true),
+              keyboardType: const TextInputType.numberWithOptions(
+                decimal: true,
+              ),
               decoration: InputDecoration(
                 border: const OutlineInputBorder(),
                 hintText: 'જેટલો સ્ટોક આવ્યો',
@@ -101,11 +102,14 @@ class _AddStockScreenState extends ConsumerState<AddStockScreen> {
             const SizedBox(height: 16),
 
             // Buy price per unit
-            _buildSectionHeader('ખરીદ ભાવ (₹ / ${_selectedProduct != null ? _unitLabel(_selectedProduct!.unitType) : "એકમ"})'),
+            _buildSectionHeader(
+              'ખરીદ ભાવ (₹ / ${_selectedProduct != null ? _unitLabel(_selectedProduct!.unitType) : "એકમ"})',
+            ),
             TextFormField(
               controller: _buyPriceCtrl,
-              keyboardType:
-                  const TextInputType.numberWithOptions(decimal: true),
+              keyboardType: const TextInputType.numberWithOptions(
+                decimal: true,
+              ),
               decoration: const InputDecoration(
                 border: OutlineInputBorder(),
                 prefixText: '₹ ',
@@ -151,9 +155,8 @@ class _AddStockScreenState extends ConsumerState<AddStockScreen> {
                       )
                       .toList(),
                   onChanged: (a) => setState(() => _selectedExpenseAccount = a),
-                  validator: (_) => _selectedExpenseAccount == null
-                      ? 'ખાતું પસંદ કરો'
-                      : null,
+                  validator: (_) =>
+                      _selectedExpenseAccount == null ? 'ખાતું પસંદ કરો' : null,
                 );
               },
               loading: () => const LinearProgressIndicator(),
@@ -197,8 +200,10 @@ class _AddStockScreenState extends ConsumerState<AddStockScreen> {
             InkWell(
               onTap: _pickDate,
               child: Container(
-                padding:
-                    const EdgeInsets.symmetric(horizontal: 16, vertical: 14),
+                padding: const EdgeInsets.symmetric(
+                  horizontal: 16,
+                  vertical: 14,
+                ),
                 decoration: BoxDecoration(
                   border: Border.all(color: Colors.grey.shade400),
                   borderRadius: BorderRadius.circular(8),
@@ -251,12 +256,12 @@ class _AddStockScreenState extends ConsumerState<AddStockScreen> {
   }
 
   Widget _buildSectionHeader(String label) => Padding(
-        padding: const EdgeInsets.only(bottom: 6),
-        child: Text(
-          label,
-          style: const TextStyle(fontWeight: FontWeight.w600, fontSize: 13),
-        ),
-      );
+    padding: const EdgeInsets.only(bottom: 6),
+    child: Text(
+      label,
+      style: const TextStyle(fontWeight: FontWeight.w600, fontSize: 13),
+    ),
+  );
 
   Future<void> _pickDate() async {
     final picked = await showDatePicker(
@@ -271,9 +276,9 @@ class _AddStockScreenState extends ConsumerState<AddStockScreen> {
   Future<void> _save() async {
     if (!_formKey.currentState!.validate()) return;
     if (_selectedProduct == null) {
-      ScaffoldMessenger.of(context).showSnackBar(
-        const SnackBar(content: Text('ઉત્પાદ પસંદ કરો')),
-      );
+      ScaffoldMessenger.of(
+        context,
+      ).showSnackBar(const SnackBar(content: Text('ઉત્પાદ પસંદ કરો')));
       return;
     }
     if (_selectedExpenseAccount == null) return;
@@ -287,8 +292,9 @@ class _AddStockScreenState extends ConsumerState<AddStockScreen> {
         buyPrice: _buyPrice,
         expenseAccountId: _selectedExpenseAccount!.id!,
         expenseAccountName: _selectedExpenseAccount!.accountNameGujarati,
-        supplierName:
-            _supplierCtrl.text.trim().isEmpty ? null : _supplierCtrl.text.trim(),
+        supplierName: _supplierCtrl.text.trim().isEmpty
+            ? null
+            : _supplierCtrl.text.trim(),
         date: _selectedDate,
         notes: _notesCtrl.text.trim().isEmpty ? null : _notesCtrl.text.trim(),
       );
@@ -311,10 +317,7 @@ class _AddStockScreenState extends ConsumerState<AddStockScreen> {
     } catch (e) {
       if (mounted) {
         ScaffoldMessenger.of(context).showSnackBar(
-          SnackBar(
-            content: Text('ભૂલ: $e'),
-            backgroundColor: Colors.red,
-          ),
+          SnackBar(content: Text('ભૂલ: $e'), backgroundColor: Colors.red),
         );
       }
     } finally {

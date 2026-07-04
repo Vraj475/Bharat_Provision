@@ -11,8 +11,7 @@ class AppStrings {
 
   static const String productNameGujarati = 'ઉત્પાદનું નામ (ગુજરાતી)';
   static const String productNameEnglish = 'ઉત્પાદનું નામ (English)';
-  static const String productTransliterationHint =
-      'marchu, tuverdal ટાઈપ કરો';
+  static const String productTransliterationHint = 'marchu, tuverdal ટાઈપ કરો';
   static const String transliterationKeys = 'ટ્રાન્સલિટરેશન કીઝ';
   static const String category = 'કેટેગરી';
   static const String unitType = 'એકમ પ્રકાર';
@@ -66,4 +65,3 @@ class AppStrings {
   static const String addButton = 'ઉમેરો';
   static const String clearButton = 'ક્લિયર કરો';
 }
-

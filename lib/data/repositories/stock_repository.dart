@@ -24,7 +24,9 @@ extension StockHealthX on Product {
   StockHealth get stockHealth {
     if (stockQty <= 0) return StockHealth.outOfStock;
     if (stockQty <= minStockQty) return StockHealth.critical;
-    if (minStockQty > 0 && stockQty <= minStockQty * 1.2) return StockHealth.low;
+    if (minStockQty > 0 && stockQty <= minStockQty * 1.2) {
+      return StockHealth.low;
+    }
     return StockHealth.healthy;
   }
 }
@@ -45,11 +47,11 @@ class StockRepository {
         'products',
         where: 'is_active = 1',
         orderBy: 'name_gujarati COLLATE NOCASE',
-      ))
-          .cast<Map<String, dynamic>>();
+      )).cast<Map<String, dynamic>>();
     } else {
       final like = '%${query.trim()}%';
-      rows = (await db.rawQuery('''
+      rows = (await db.rawQuery(
+        '''
         SELECT DISTINCT p.*
         FROM products p
         LEFT JOIN transliteration_dictionary t
@@ -62,16 +64,20 @@ class StockRepository {
             t.phonetic_key LIKE ?
           )
         ORDER BY p.name_gujarati COLLATE NOCASE
-      ''', [like, like, like, like]))
-          .cast<Map<String, dynamic>>();
+      ''',
+        [like, like, like, like],
+      )).cast<Map<String, dynamic>>();
     }
     return rows.map(Product.fromMap).toList();
   }
 
   Future<Product?> getProductById(int id) async {
     final db = await _db.database;
-    final rows = (await db.query('products', where: 'id = ?', whereArgs: [id]))
-        .cast<Map<String, dynamic>>();
+    final rows = (await db.query(
+      'products',
+      where: 'id = ?',
+      whereArgs: [id],
+    )).cast<Map<String, dynamic>>();
     if (rows.isEmpty) return null;
     return Product.fromMap(rows.first);
   }
@@ -106,8 +112,7 @@ class StockRepository {
       'categories',
       where: 'is_active = 1',
       orderBy: 'name_gujarati',
-    ))
-        .cast<Map<String, dynamic>>();
+    )).cast<Map<String, dynamic>>();
     return rows
         .map(
           (m) => CategoryRow(
@@ -128,8 +133,7 @@ class StockRepository {
       'expense_accounts',
       where: 'is_active = 1',
       orderBy: 'account_name_gujarati',
-    ))
-        .cast<Map<String, dynamic>>();
+    )).cast<Map<String, dynamic>>();
     return rows.map(ExpenseAccount.fromMap).toList();
   }
 
@@ -165,8 +169,7 @@ class StockRepository {
       where: conditions.join(' AND '),
       whereArgs: args,
       orderBy: 'created_at DESC',
-    ))
-        .cast<Map<String, dynamic>>();
+    )).cast<Map<String, dynamic>>();
     return rows.map(StockLogEntry.fromMap).toList();
   }
 
@@ -197,20 +200,22 @@ class StockRepository {
         columns: ['stock_qty', 'name_gujarati'],
         where: 'id = ?',
         whereArgs: [productId],
-      ))
-          .cast<Map<String, dynamic>>();
+      )).cast<Map<String, dynamic>>();
       final qtyBefore = (rows.first['stock_qty'] as num?)?.toDouble() ?? 0;
       final productName = rows.first['name_gujarati'] as String;
       final qtyAfter = qtyBefore + qtyReceived;
 
       // Effect 1: update product stock + buy price
-      await txn.rawUpdate('''
+      await txn.rawUpdate(
+        '''
         UPDATE products
         SET stock_qty = ?,
             buy_price = ?,
             updated_at = ?
         WHERE id = ?
-      ''', [qtyAfter, buyPrice, now, productId]);
+      ''',
+        [qtyAfter, buyPrice, now, productId],
+      );
 
       // Effect 2: insert stock_log
       final stockLogId = await txn.insert('stock_log', {
@@ -221,7 +226,8 @@ class StockRepository {
         'qty_after': qtyAfter,
         'reference_id': null,
         'reference_type': 'purchase',
-        'note': notes ?? (supplierName != null ? 'સપ્લાયર: $supplierName' : null),
+        'note':
+            notes ?? (supplierName != null ? 'સપ્લાયર: $supplierName' : null),
         'created_at': now,
       });
 
@@ -230,7 +236,8 @@ class StockRepository {
         'expense_account_id': expenseAccountId,
         'account_name_snapshot': expenseAccountName,
         'amount': totalAmount,
-        'description': 'સ્ટોક ખરીદી: $productName'
+        'description':
+            'સ્ટોક ખરીદી: $productName'
             '${supplierName != null ? ' | $supplierName' : ''}',
         'expense_date': dateStr,
         'created_by': 'stock_purchase',
@@ -256,8 +263,7 @@ class StockRepository {
         'products',
         where: 'id = ?',
         whereArgs: [productId],
-      ))
-          .cast<Map<String, dynamic>>();
+      )).cast<Map<String, dynamic>>();
 
       result = AddStockResult(
         updatedProduct: Product.fromMap(updatedRows.first),
@@ -282,8 +288,7 @@ class StockRepository {
     final rows = (await db.rawQuery('''
       SELECT * FROM products
       WHERE id IN ($placeholders) AND is_active = 1
-    ''', productIds))
-        .cast<Map<String, dynamic>>();
+    ''', productIds)).cast<Map<String, dynamic>>();
 
     final products = rows.map(Product.fromMap).toList();
     final lowStock = <Product>[];
@@ -304,18 +309,26 @@ class StockRepository {
 
   Future<StockSummary> getSummary() async {
     final db = await _db.database;
-    final total = (await db.rawQuery(
-      'SELECT COUNT(*) as c FROM products WHERE is_active = 1',
-    ))
-        .first['c'] as int? ?? 0;
-    final lowRows = (await db.rawQuery('''
+    final total =
+        (await db.rawQuery(
+              'SELECT COUNT(*) as c FROM products WHERE is_active = 1',
+            )).first['c']
+            as int? ??
+        0;
+    final lowRows =
+        (await db.rawQuery('''
       SELECT COUNT(*) as c FROM products
       WHERE is_active = 1 AND stock_qty <= min_stock_qty AND stock_qty > 0
-    ''')).first['c'] as int? ?? 0;
-    final outRows = (await db.rawQuery('''
+    ''')).first['c']
+            as int? ??
+        0;
+    final outRows =
+        (await db.rawQuery('''
       SELECT COUNT(*) as c FROM products
       WHERE is_active = 1 AND stock_qty <= 0
-    ''')).first['c'] as int? ?? 0;
+    ''')).first['c']
+            as int? ??
+        0;
     return StockSummary(total: total, low: lowRows, outOfStock: outRows);
   }
 }

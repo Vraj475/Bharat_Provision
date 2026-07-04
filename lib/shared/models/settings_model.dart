@@ -15,4 +15,3 @@ class SettingEntry {
     return {'key': key, 'value': value};
   }
 }
-

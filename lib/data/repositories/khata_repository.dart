@@ -73,7 +73,11 @@ class KhataRepository {
     return (result.first['balance_after'] as num?)?.toDouble() ?? 0;
   }
 
-  Future<void> addUdharFromBill(int customerId, int billId, double amount) async {
+  Future<void> addUdharFromBill(
+    int customerId,
+    int billId,
+    double amount,
+  ) async {
     await addEntry(
       customerId: customerId,
       type: 'debit',

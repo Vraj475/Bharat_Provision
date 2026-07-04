@@ -77,46 +77,49 @@ class _AddExpenseScreenState extends ConsumerState<AddExpenseScreen> {
   }
 
   Widget _buildAccountDropdown() {
-    return ref.watch(expenseRepositoryProvider).when(
-      data: (repo) => FutureBuilder<List<ExpenseAccount>>(
-        future: repo.getExpenseAccounts(),
-        builder: (context, snapshot) {
-          if (!snapshot.hasData) return const CircularProgressIndicator();
-          final accounts = snapshot.data!;
-          if (_selectedAccount == null && widget.expense?.expenseAccountId != null) {
-            _selectedAccount = accounts
-                .where((a) => a.id == widget.expense!.expenseAccountId)
-                .firstOrNull;
-          }
-          return DropdownButtonFormField<ExpenseAccount>(
-            decoration: const InputDecoration(
-              labelText: 'Expense Account',
-              border: OutlineInputBorder(),
-            ),
-            initialValue: _selectedAccount,
-            items: accounts.map((account) {
-              return DropdownMenuItem(
-                value: account,
-                child: Text(account.accountNameGujarati),
+    return ref
+        .watch(expenseRepositoryProvider)
+        .when(
+          data: (repo) => FutureBuilder<List<ExpenseAccount>>(
+            future: repo.getExpenseAccounts(),
+            builder: (context, snapshot) {
+              if (!snapshot.hasData) return const CircularProgressIndicator();
+              final accounts = snapshot.data!;
+              if (_selectedAccount == null &&
+                  widget.expense?.expenseAccountId != null) {
+                _selectedAccount = accounts
+                    .where((a) => a.id == widget.expense!.expenseAccountId)
+                    .firstOrNull;
+              }
+              return DropdownButtonFormField<ExpenseAccount>(
+                decoration: const InputDecoration(
+                  labelText: 'Expense Account',
+                  border: OutlineInputBorder(),
+                ),
+                initialValue: _selectedAccount,
+                items: accounts.map((account) {
+                  return DropdownMenuItem(
+                    value: account,
+                    child: Text(account.accountNameGujarati),
+                  );
+                }).toList(),
+                onChanged: (value) {
+                  setState(() {
+                    _selectedAccount = value;
+                    if (!_amountEdited && value != null) {
+                      _amountController.text = value.typicalAmount.toString();
+                    }
+                  });
+                },
+                validator: (value) {
+                  return value == null ? 'Please select an account' : null;
+                },
               );
-            }).toList(),
-            onChanged: (value) {
-              setState(() {
-                _selectedAccount = value;
-                if (!_amountEdited && value != null) {
-                  _amountController.text = value.typicalAmount.toString();
-                }
-              });
             },
-            validator: (value) {
-              return value == null ? 'Please select an account' : null;
-            },
-          );
-        },
-      ),
-      error: (error, stack) => Text('Error: $error'),
-      loading: () => const CircularProgressIndicator(),
-    );
+          ),
+          error: (error, stack) => Text('Error: $error'),
+          loading: () => const CircularProgressIndicator(),
+        );
   }
 
   Widget _buildAmountField() {
@@ -132,7 +135,8 @@ class _AddExpenseScreenState extends ConsumerState<AddExpenseScreen> {
       ),
       keyboardType: TextInputType.number,
       onChanged: (value) {
-        if (!_amountEdited && value != _selectedAccount?.typicalAmount.toString()) {
+        if (!_amountEdited &&
+            value != _selectedAccount?.typicalAmount.toString()) {
           setState(() => _amountEdited = true);
         }
       },
@@ -217,7 +221,9 @@ class _AddExpenseScreenState extends ConsumerState<AddExpenseScreen> {
   }
 }
 
-final expenseRepositoryProvider = FutureProvider<ExpenseRepository>((ref) async {
+final expenseRepositoryProvider = FutureProvider<ExpenseRepository>((
+  ref,
+) async {
   final db = await ref.watch(databaseProvider.future);
   return ExpenseRepository(db);
 });

@@ -242,7 +242,7 @@ class _CustomerSearchFieldState extends ConsumerState<CustomerSearchField> {
                 child: ListView.separated(
                   shrinkWrap: true,
                   itemCount: _results.length,
-                    separatorBuilder: (context, separatorIndex) =>
+                  separatorBuilder: (context, separatorIndex) =>
                       const Divider(height: 1),
                   itemBuilder: (context, index) {
                     final customer = _results[index];

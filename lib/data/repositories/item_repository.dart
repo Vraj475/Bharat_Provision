@@ -22,7 +22,8 @@ class ItemRepository {
     final args = <Object?>[];
 
     if (query.trim().isNotEmpty) {
-      where += ' AND (name_gujarati LIKE ? OR name_english LIKE ? OR barcode LIKE ?)';
+      where +=
+          ' AND (name_gujarati LIKE ? OR name_english LIKE ? OR barcode LIKE ?)';
       final q = '%${query.trim()}%';
       args.addAll([q, q, q]);
     }
@@ -134,10 +135,7 @@ class ItemRepository {
     if (c.id == null) return 0;
     return _db.update(
       'categories',
-      {
-        'name_gujarati': c.nameGu,
-        'icon': c.colorCode,
-      },
+      {'name_gujarati': c.nameGu, 'icon': c.colorCode},
       where: 'id = ?',
       whereArgs: [c.id],
     );

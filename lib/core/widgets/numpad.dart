@@ -39,8 +39,9 @@ class NumpadWidget extends StatelessWidget {
     final text = controller.text;
     if (text.isEmpty) return;
     controller.text = text.substring(0, text.length - 1);
-    controller.selection =
-        TextSelection.collapsed(offset: controller.text.length);
+    controller.selection = TextSelection.collapsed(
+      offset: controller.text.length,
+    );
   }
 
   void _clear() {
@@ -56,10 +57,7 @@ class NumpadWidget extends StatelessWidget {
         if (label != null)
           Padding(
             padding: const EdgeInsets.only(bottom: 8),
-            child: Text(
-              label!,
-              style: Theme.of(context).textTheme.titleSmall,
-            ),
+            child: Text(label!, style: Theme.of(context).textTheme.titleSmall),
           ),
         Row(
           children: [
@@ -154,10 +152,7 @@ class _NumpadGrid extends StatelessWidget {
         SizedBox(
           width: double.infinity,
           height: 48,
-          child: OutlinedButton(
-            onPressed: onClear,
-            child: const Text('C'),
-          ),
+          child: OutlinedButton(onPressed: onClear, child: const Text('C')),
         ),
       ],
     );
@@ -252,9 +247,7 @@ class _NumpadTextFieldState extends State<NumpadTextField> {
         focusNode: _focusNode,
         readOnly: widget.readOnly,
         keyboardType: TextInputType.none,
-        inputFormatters: [
-          FilteringTextInputFormatter.allow(RegExp(r'[\d.]')),
-        ],
+        inputFormatters: [FilteringTextInputFormatter.allow(RegExp(r'[\d.]'))],
         decoration: widget.decoration,
         onSubmitted: (_) => widget.onSubmitted?.call(),
       ),

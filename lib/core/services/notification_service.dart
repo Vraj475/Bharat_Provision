@@ -15,19 +15,24 @@ class NotificationService {
   bool _initialised = false;
 
   bool get _supported =>
-      Platform.isAndroid || Platform.isIOS || Platform.isMacOS || Platform.isLinux;
+      Platform.isAndroid ||
+      Platform.isIOS ||
+      Platform.isMacOS ||
+      Platform.isLinux;
 
   Future<void> init() async {
     if (!_supported || _initialised) return;
-    const androidSettings =
-        AndroidInitializationSettings('@mipmap/ic_launcher');
+    const androidSettings = AndroidInitializationSettings(
+      '@mipmap/ic_launcher',
+    );
     const darwinSettings = DarwinInitializationSettings(
       requestAlertPermission: true,
       requestBadgePermission: true,
       requestSoundPermission: true,
     );
-    const linuxSettings =
-        LinuxInitializationSettings(defaultActionName: 'open');
+    const linuxSettings = LinuxInitializationSettings(
+      defaultActionName: 'open',
+    );
     const initSettings = InitializationSettings(
       android: androidSettings,
       iOS: darwinSettings,
@@ -35,12 +40,14 @@ class NotificationService {
       linux: linuxSettings,
     );
     await _plugin.initialize(initSettings);
-    
+
     // Request POST_NOTIFICATIONS permission on Android 13+
     if (Platform.isAndroid) {
       try {
-        final androidPlugin = _plugin.resolvePlatformSpecificImplementation<
-            AndroidFlutterLocalNotificationsPlugin>();
+        final androidPlugin = _plugin
+            .resolvePlatformSpecificImplementation<
+              AndroidFlutterLocalNotificationsPlugin
+            >();
         if (androidPlugin != null) {
           await androidPlugin.requestNotificationsPermission();
         }
@@ -49,7 +56,7 @@ class NotificationService {
         debugPrint('Notification permission request failed: $e');
       }
     }
-    
+
     _initialised = true;
   }
 

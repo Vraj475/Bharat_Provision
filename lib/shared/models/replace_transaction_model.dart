@@ -33,8 +33,8 @@ class ReplaceTransaction {
       returnedQty: (map['returned_qty'] as num).toDouble(),
       returnedValue: (map['returned_value'] as num).toDouble(),
       replacementProductId: map['replacement_product_id'] as int,
-      replacementQtyCalculated:
-          (map['replacement_qty_calculated'] as num).toDouble(),
+      replacementQtyCalculated: (map['replacement_qty_calculated'] as num)
+          .toDouble(),
       replacementQtyGiven: (map['replacement_qty_given'] as num).toDouble(),
       priceDifference: (map['price_difference'] as num?)?.toDouble() ?? 0,
       differenceMode: map['difference_mode'] as String?,
@@ -58,4 +58,3 @@ class ReplaceTransaction {
     };
   }
 }
-

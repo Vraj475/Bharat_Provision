@@ -28,8 +28,8 @@ class UnpaidBillRow {
 }
 
 class MonthGroup {
-  final String monthKey;    // YYYY-MM
-  final String monthLabel;  // Gujarati display
+  final String monthKey; // YYYY-MM
+  final String monthLabel; // Gujarati display
   final double creditTotal;
   final double paymentTotal;
   final double netAmount;
@@ -89,15 +89,19 @@ class UdhaarRepository {
       final customer = Customer.fromMap(r);
       final days = (r['days_since_oldest'] as num?)?.toInt() ?? 0;
       return CustomerSummaryRow(
-          customer: customer, daysSinceOldestUnpaid: days);
+        customer: customer,
+        daysSinceOldestUnpaid: days,
+      );
     }).toList();
   }
 
   // ── Customer CRUD ─────────────────────────────────────────────────────────
 
   Future<Customer?> getCustomerById(int id) async {
-    final rows = await _helper
-        .rawQuery('SELECT * FROM customers WHERE id = ?', [id]);
+    final rows = await _helper.rawQuery(
+      'SELECT * FROM customers WHERE id = ?',
+      [id],
+    );
     if (rows.isEmpty) return null;
     return Customer.fromMap(rows.first);
   }
@@ -122,13 +126,20 @@ class UdhaarRepository {
   }
 
   Future<void> convertToRegular(
-      int customerId, String phone, String? address) async {
+    int customerId,
+    String phone,
+    String? address,
+  ) async {
     final values = <String, Object?>{'account_type': 'regular', 'phone': phone};
     if (address != null && address.trim().isNotEmpty) {
       values['address'] = address;
     }
-    await _helper.update('customers', values,
-        where: 'id = ?', whereArgs: [customerId]);
+    await _helper.update(
+      'customers',
+      values,
+      where: 'id = ?',
+      whereArgs: [customerId],
+    );
   }
 
   Future<List<Customer>> findSimilarCustomers(String name) async {
@@ -155,11 +166,13 @@ class UdhaarRepository {
         'UPDATE bills SET customer_id = ? WHERE customer_id = ?',
         [toCustomerId, fromCustomerId],
       );
-      final balRows = await txn.rawQuery(
-        'SELECT running_balance FROM udhaar_ledger '
-        'WHERE customer_id = ? ORDER BY created_at DESC, id DESC LIMIT 1',
-        [toCustomerId],
-      ) as List;
+      final balRows =
+          await txn.rawQuery(
+                'SELECT running_balance FROM udhaar_ledger '
+                'WHERE customer_id = ? ORDER BY created_at DESC, id DESC LIMIT 1',
+                [toCustomerId],
+              )
+              as List;
       final newBalance = balRows.isNotEmpty
           ? (balRows.first['running_balance'] as num?)?.toDouble() ?? 0.0
           : 0.0;
@@ -167,15 +180,18 @@ class UdhaarRepository {
         'UPDATE customers SET total_outstanding = ? WHERE id = ?',
         [newBalance, toCustomerId],
       );
-      await txn.rawDelete(
-          'DELETE FROM customers WHERE id = ?', [fromCustomerId]);
+      await txn.rawDelete('DELETE FROM customers WHERE id = ?', [
+        fromCustomerId,
+      ]);
     });
   }
 
   // ── Ledger ────────────────────────────────────────────────────────────────
 
-  Future<List<LedgerRow>> getLedgerEntries(int customerId,
-      {String? monthYear}) async {
+  Future<List<LedgerRow>> getLedgerEntries(
+    int customerId, {
+    String? monthYear,
+  }) async {
     final args = <dynamic>[customerId];
     var monthFilter = '';
     if (monthYear != null && monthYear.isNotEmpty) {
@@ -190,41 +206,53 @@ class UdhaarRepository {
       ORDER BY ul.created_at DESC, ul.id DESC
     ''', args);
     return rows
-        .map((r) => LedgerRow(
-              entry: UdhaarLedgerEntry.fromMap(r),
-              billNumber: r['bill_number'] as String?,
-            ))
+        .map(
+          (r) => LedgerRow(
+            entry: UdhaarLedgerEntry.fromMap(r),
+            billNumber: r['bill_number'] as String?,
+          ),
+        )
         .toList();
   }
 
   Future<List<String>> getAvailableMonths(int customerId) async {
-    final rows = await _helper.rawQuery('''
+    final rows = await _helper.rawQuery(
+      '''
       SELECT DISTINCT strftime('%Y-%m', created_at) AS month
       FROM udhaar_ledger
       WHERE customer_id = ?
       ORDER BY month DESC
-    ''', [customerId]);
+    ''',
+      [customerId],
+    );
     return rows.map((r) => r['month'] as String).toList();
   }
 
   Future<List<BillItem>> getBillItems(int billId) async {
-    final rows = await _helper
-        .rawQuery('SELECT * FROM bill_items WHERE bill_id = ?', [billId]);
+    final rows = await _helper.rawQuery(
+      'SELECT * FROM bill_items WHERE bill_id = ?',
+      [billId],
+    );
     return rows.map((r) => BillItem.fromMap(r)).toList();
   }
 
   // ── Payments ──────────────────────────────────────────────────────────────
 
   Future<List<UnpaidBillRow>> getUnpaidBills(int customerId) async {
-    final rows = await _helper.rawQuery('''
+    final rows = await _helper.rawQuery(
+      '''
       SELECT * FROM bills
       WHERE customer_id = ? AND payment_status IN ('udhaar', 'partial')
       ORDER BY bill_date ASC, id ASC
-    ''', [customerId]);
+    ''',
+      [customerId],
+    );
     return rows.map((r) {
       final bill = Bill.fromMap(r);
-      final remaining =
-          (bill.totalAmount - bill.paidAmount).clamp(0.0, bill.totalAmount);
+      final remaining = (bill.totalAmount - bill.paidAmount).clamp(
+        0.0,
+        bill.totalAmount,
+      );
       return UnpaidBillRow(bill: bill, remaining: remaining);
     }).toList();
   }
@@ -241,22 +269,29 @@ class UdhaarRepository {
       final today = now.substring(0, 10);
 
       // FIFO: get oldest unpaid/partial bills
-      final billRows = await txn.rawQuery('''
+      final billRows =
+          await txn.rawQuery(
+                '''
         SELECT * FROM bills
         WHERE customer_id = ? AND payment_status IN ('udhaar', 'partial')
         ORDER BY bill_date ASC, id ASC
-      ''', [customerId]) as List;
+      ''',
+                [customerId],
+              )
+              as List;
 
       double remaining = amount;
       for (final billRow in billRows) {
         if (remaining <= 0.01) break;
-        final bill =
-            Bill.fromMap(Map<String, dynamic>.from(billRow as Map));
-        final billRemaining =
-            (bill.totalAmount - bill.paidAmount).clamp(0.0, bill.totalAmount);
+        final bill = Bill.fromMap(Map<String, dynamic>.from(billRow as Map));
+        final billRemaining = (bill.totalAmount - bill.paidAmount).clamp(
+          0.0,
+          bill.totalAmount,
+        );
         if (billRemaining <= 0.01) continue;
-        final payThisBill =
-            remaining < billRemaining ? remaining : billRemaining;
+        final payThisBill = remaining < billRemaining
+            ? remaining
+            : billRemaining;
         remaining -= payThisBill;
 
         await txn.rawInsert(
@@ -266,10 +301,13 @@ class UdhaarRepository {
           [bill.id, customerId, payThisBill, paymentMode, today, note],
         );
         final newPaid = bill.paidAmount + payThisBill;
-        final newUdhaar =
-            (bill.totalAmount - newPaid).clamp(0.0, bill.totalAmount);
-        final newStatus =
-            newPaid >= bill.totalAmount - 0.01 ? 'paid' : 'partial';
+        final newUdhaar = (bill.totalAmount - newPaid).clamp(
+          0.0,
+          bill.totalAmount,
+        );
+        final newStatus = newPaid >= bill.totalAmount - 0.01
+            ? 'paid'
+            : 'partial';
         await txn.rawUpdate(
           'UPDATE bills SET paid_amount = ?, udhaar_amount = ?, '
           'payment_status = ? WHERE id = ?',
@@ -278,11 +316,13 @@ class UdhaarRepository {
       }
 
       // Running balance
-      final balRows = await txn.rawQuery(
-        'SELECT running_balance FROM udhaar_ledger '
-        'WHERE customer_id = ? ORDER BY created_at DESC, id DESC LIMIT 1',
-        [customerId],
-      ) as List;
+      final balRows =
+          await txn.rawQuery(
+                'SELECT running_balance FROM udhaar_ledger '
+                'WHERE customer_id = ? ORDER BY created_at DESC, id DESC LIMIT 1',
+                [customerId],
+              )
+              as List;
       final currentBalance = balRows.isNotEmpty
           ? (balRows.first['running_balance'] as num?)?.toDouble() ?? 0.0
           : 0.0;
@@ -299,7 +339,7 @@ class UdhaarRepository {
           newBalance,
           paymentMode,
           note ?? 'એકંદર ચૂકવણી',
-          now
+          now,
         ],
       );
       await txn.rawUpdate(
@@ -321,7 +361,7 @@ class UdhaarRepository {
           'udhaar_payment',
           note ?? 'એકંદર ચૂકવણી',
           today,
-          now
+          now,
         ],
       );
     });
@@ -339,16 +379,18 @@ class UdhaarRepository {
       final now = DateTime.now().toIso8601String();
       final today = now.substring(0, 10);
 
-      final billRows = await txn.rawQuery(
-        'SELECT * FROM bills WHERE id = ?',
-        [billId],
-      ) as List;
+      final billRows =
+          await txn.rawQuery('SELECT * FROM bills WHERE id = ?', [billId])
+              as List;
       if (billRows.isEmpty) return;
-      final bill =
-          Bill.fromMap(Map<String, dynamic>.from(billRows.first as Map));
+      final bill = Bill.fromMap(
+        Map<String, dynamic>.from(billRows.first as Map),
+      );
 
-      final maxAmount =
-          (bill.totalAmount - bill.paidAmount).clamp(0.0, bill.totalAmount);
+      final maxAmount = (bill.totalAmount - bill.paidAmount).clamp(
+        0.0,
+        bill.totalAmount,
+      );
       final actualAmount = amount > maxAmount ? maxAmount : amount;
       if (actualAmount <= 0.01) return;
 
@@ -359,26 +401,31 @@ class UdhaarRepository {
         [billId, customerId, actualAmount, paymentMode, today, note],
       );
       final newPaid = bill.paidAmount + actualAmount;
-      final newUdhaar =
-          (bill.totalAmount - newPaid).clamp(0.0, bill.totalAmount);
-      final newStatus =
-          newPaid >= bill.totalAmount - 0.01 ? 'paid' : 'partial';
+      final newUdhaar = (bill.totalAmount - newPaid).clamp(
+        0.0,
+        bill.totalAmount,
+      );
+      final newStatus = newPaid >= bill.totalAmount - 0.01 ? 'paid' : 'partial';
       await txn.rawUpdate(
         'UPDATE bills SET paid_amount = ?, udhaar_amount = ?, '
         'payment_status = ? WHERE id = ?',
         [newPaid, newUdhaar, newStatus, billId],
       );
 
-      final balRows = await txn.rawQuery(
-        'SELECT running_balance FROM udhaar_ledger '
-        'WHERE customer_id = ? ORDER BY created_at DESC, id DESC LIMIT 1',
-        [customerId],
-      ) as List;
+      final balRows =
+          await txn.rawQuery(
+                'SELECT running_balance FROM udhaar_ledger '
+                'WHERE customer_id = ? ORDER BY created_at DESC, id DESC LIMIT 1',
+                [customerId],
+              )
+              as List;
       final currentBalance = balRows.isNotEmpty
           ? (balRows.first['running_balance'] as num?)?.toDouble() ?? 0.0
           : 0.0;
-      final newBalance =
-          (currentBalance - actualAmount).clamp(0.0, double.maxFinite);
+      final newBalance = (currentBalance - actualAmount).clamp(
+        0.0,
+        double.maxFinite,
+      );
 
       await txn.rawInsert(
         'INSERT INTO udhaar_ledger '
@@ -392,7 +439,7 @@ class UdhaarRepository {
           newBalance,
           paymentMode,
           note,
-          now
+          now,
         ],
       );
       await txn.rawUpdate(
@@ -415,7 +462,7 @@ class UdhaarRepository {
           billId,
           note ?? 'બિલ #${bill.billNumber}',
           today,
-          now
+          now,
         ],
       );
     });
@@ -427,19 +474,23 @@ class UdhaarRepository {
     final customer = await getCustomerById(customerId);
     if (customer == null) throw StateError('Customer $customerId not found');
 
-    final rows = await _helper.rawQuery('''
+    final rows = await _helper.rawQuery(
+      '''
       SELECT ul.*, b.bill_number
       FROM udhaar_ledger ul
       LEFT JOIN bills b ON ul.bill_id = b.id
       WHERE ul.customer_id = ?
       ORDER BY ul.created_at ASC, ul.id ASC
-    ''', [customerId]);
+    ''',
+      [customerId],
+    );
 
     final monthMap = <String, List<Map<String, dynamic>>>{};
     for (final row in rows) {
       final createdAt = row['created_at'] as String;
-      final month =
-          createdAt.length >= 7 ? createdAt.substring(0, 7) : createdAt;
+      final month = createdAt.length >= 7
+          ? createdAt.substring(0, 7)
+          : createdAt;
       monthMap.putIfAbsent(month, () => []).add(row);
     }
 
@@ -455,7 +506,8 @@ class UdhaarRepository {
           paymentTotal += entry.amount;
         }
         ledgerRows.add(
-            LedgerRow(entry: entry, billNumber: r['bill_number'] as String?));
+          LedgerRow(entry: entry, billNumber: r['bill_number'] as String?),
+        );
       }
       return MonthGroup(
         monthKey: e.key,
@@ -494,15 +546,17 @@ class UdhaarRepository {
     final parts = monthYear.split('-');
     if (parts.length < 2) return monthYear;
     final mn = int.tryParse(parts[1]) ?? 0;
-    final name =
-        mn >= 1 && mn <= 12 ? _gujaratiMonths[mn] : parts[1];
+    final name = mn >= 1 && mn <= 12 ? _gujaratiMonths[mn] : parts[1];
     return '$name ${parts[0]}';
   }
 
   // ── Reminders ─────────────────────────────────────────────────────────────
 
   Future<void> logReminder(
-      int customerId, String reminderType, double balance) async {
+    int customerId,
+    String reminderType,
+    double balance,
+  ) async {
     final today = DateTime.now().toIso8601String().substring(0, 10);
     await _helper.insert('reminder_log', {
       'customer_id': customerId,
@@ -513,8 +567,10 @@ class UdhaarRepository {
   }
 
   Future<String> getSetting(String key, [String defaultValue = '']) async {
-    final rows = await _helper
-        .rawQuery('SELECT value FROM settings WHERE key = ?', [key]);
+    final rows = await _helper.rawQuery(
+      'SELECT value FROM settings WHERE key = ?',
+      [key],
+    );
     if (rows.isEmpty) return defaultValue;
     return (rows.first['value'] as String?) ?? defaultValue;
   }
@@ -527,7 +583,7 @@ class UdhaarRepository {
       keys,
     );
     return {
-      for (final r in rows) r['key'] as String: (r['value'] as String?) ?? ''
+      for (final r in rows) r['key'] as String: (r['value'] as String?) ?? '',
     };
   }
 }

@@ -40,7 +40,7 @@ class KeyboardShortcutsHandler {
   bool handleKeyPress(KeyEvent event) {
     // No-op on non-Windows platforms
     if (!Platform.isWindows) return false;
-    
+
     if (event is! KeyDownEvent) return false;
 
     // Check for F1-F7

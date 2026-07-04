@@ -129,9 +129,8 @@ class _BillHistoryScreenState extends ConsumerState<BillHistoryScreen> {
                         onTap: () {
                           Navigator.of(context).push(
                             MaterialPageRoute(
-                              builder: (_) => BillDetailScreen(
-                                billId: bill.id!,
-                              ),
+                              builder: (_) =>
+                                  BillDetailScreen(billId: bill.id!),
                             ),
                           );
                         },

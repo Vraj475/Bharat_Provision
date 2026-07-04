@@ -162,10 +162,7 @@ class BillingTabsNotifier extends StateNotifier<BillingTabsState> {
 
   void setSelectedCustomer(int customerId, String customerName) {
     debugPrint('CUSTOMER SET: id=$customerId name=$customerName');
-    setCustomerForActive(
-      customerId: customerId,
-      customerName: customerName,
-    );
+    setCustomerForActive(customerId: customerId, customerName: customerName);
   }
 
   void setTransactionTypeForActive(String type) {

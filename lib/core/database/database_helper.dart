@@ -49,14 +49,14 @@ class DatabaseHelper {
       if (Platform.isAndroid || Platform.isIOS) {
         try {
           final dbPath = await sqlcipher.getDatabasesPath();
-          
+
           // Ensure the directory exists (create if needed)
           final dbDir = Directory(dbPath);
           if (!await dbDir.exists()) {
             await dbDir.create(recursive: true);
             debugPrint('DatabaseHelper: Created database directory at $dbPath');
           }
-          
+
           final path = p.join(dbPath, dbFileName);
           debugPrint('DatabaseHelper: Opening encrypted database at $path');
 
@@ -70,12 +70,16 @@ class DatabaseHelper {
               await db.execute('PRAGMA foreign_keys = ON');
             },
             onCreate: (db, version) async {
-              debugPrint('DatabaseHelper: Creating new schema (version $version)');
+              debugPrint(
+                'DatabaseHelper: Creating new schema (version $version)',
+              );
               await _createSchema(db);
               await _insertDefaultData(db);
             },
             onUpgrade: (db, oldVersion, newVersion) async {
-              debugPrint('DatabaseHelper: Upgrading schema from $oldVersion to $newVersion');
+              debugPrint(
+                'DatabaseHelper: Upgrading schema from $oldVersion to $newVersion',
+              );
               await _createSchema(db);
             },
           );
@@ -83,7 +87,7 @@ class DatabaseHelper {
           return db;
         } catch (e) {
           debugPrint('DatabaseHelper: Android database open error: $e');
-          
+
           // Try to recover by deleting corrupted database and recreating
           if (e.toString().contains('database is encrypted') ||
               e.toString().contains('file is encrypted') ||
@@ -95,11 +99,11 @@ class DatabaseHelper {
               final dbPath = await sqlcipher.getDatabasesPath();
               final path = p.join(dbPath, dbFileName);
               final file = File(path);
-              
+
               // Also try to delete -wal and -shm files
               final walFile = File('$path-wal');
               final shmFile = File('$path-shm');
-              
+
               if (await file.exists()) {
                 await file.delete();
                 debugPrint('DatabaseHelper: Deleted corrupted database file');
@@ -112,7 +116,7 @@ class DatabaseHelper {
                 await shmFile.delete();
                 debugPrint('DatabaseHelper: Deleted SHM file');
               }
-              
+
               // Retry opening with fresh database
               final password = PinHasher.sha256('1234');
               return sqlcipher.openDatabase(

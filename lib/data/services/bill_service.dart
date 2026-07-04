@@ -2,7 +2,7 @@ import 'package:sqflite_sqlcipher/sqflite.dart' hide DatabaseException;
 import '../models/bill.dart';
 import '../models/bill_item.dart';
 import '../../core/database/transaction_helper.dart';
-import '../../core/utils/error_handler.dart';
+import '../../core/errors/error_handler.dart';
 
 class BillService {
   final Database _db;
@@ -26,7 +26,11 @@ class BillService {
   }) async {
     try {
       if (items.isEmpty) {
-        throw BillException(message: 'બીલમાં કમ- એક આઇટમ હોવી જોઈએ.');
+        throw ErrorHandler.handle(
+          ArgumentError('બીલમાં કમ- એક આઇટમ હોવી જોઈએ.'),
+          StackTrace.current,
+          context: 'BillService.saveBill',
+        );
       }
 
       // Calculate totals
@@ -37,7 +41,11 @@ class BillService {
       final totalAmount = subtotal - discountAmount;
 
       if (totalAmount < 0) {
-        throw BillException(message: 'બીલ રકમ નકારાત્મક હોઈ શકતી નથી.');
+        throw ErrorHandler.handle(
+          ArgumentError('બીલ રકમ નકારાત્મક હોઈ શકતી નથી.'),
+          StackTrace.current,
+          context: 'BillService.saveBill',
+        );
       }
 
       // Execute transaction
@@ -95,11 +103,8 @@ class BillService {
 
         return billId;
       });
-    } catch (e) {
-      if (e is BillException) {
-        rethrow;
-      }
-      throw BillException(message: 'બીલ સેવ કરી શકાયું નથી: ${e.toString()}');
+    } catch (e, st) {
+      throw ErrorHandler.handle(e, st, context: 'BillService.saveBill');
     }
   }
 
@@ -124,11 +129,8 @@ class BillService {
         bill: Bill.fromMap(billMaps.first),
         items: itemMaps.map((item) => BillItem.fromMap(item)).toList(),
       );
-    } catch (e) {
-      throw DatabaseException(
-        message: 'બીલ માહિતી મેળવી શકાયું નથી',
-        originalError: e,
-      );
+    } catch (e, st) {
+      throw ErrorHandler.handle(e, st, context: 'BillService.getBillWithItems');
     }
   }
 
@@ -137,7 +139,11 @@ class BillService {
     try {
       final billData = await getBillWithItems(billId);
       if (billData == null) {
-        throw BillException(message: 'બીલ મળ્યું નથી.');
+        throw ErrorHandler.handle(
+          ArgumentError('બીલ મળ્યું નથી.'),
+          StackTrace.current,
+          context: 'BillService.reprintBill',
+        );
       }
 
       // Just mark as reprinted, don't create duplicate
@@ -147,11 +153,8 @@ class BillService {
         where: 'id = ?',
         whereArgs: [billId],
       );
-    } catch (e) {
-      throw BillException(
-        message: 'બીલ ફરી છાપી શકાયું નથી: ${e.toString()}',
-        billId: billId,
-      );
+    } catch (e, st) {
+      throw ErrorHandler.handle(e, st, context: 'BillService.reprintBill');
     }
   }
 
@@ -164,11 +167,8 @@ class BillService {
         where: 'id = ?',
         whereArgs: [billId],
       );
-    } catch (e) {
-      throw BillException(
-        message: 'બીલ સ્થિતિ અપડેટ કરી શકાયું નથી.',
-        billId: billId,
-      );
+    } catch (e, st) {
+      throw ErrorHandler.handle(e, st, context: 'BillService.updateBillStatus');
     }
   }
 
@@ -191,11 +191,8 @@ class BillService {
       );
 
       return maps.map((map) => Bill.fromMap(map)).toList();
-    } catch (e) {
-      throw DatabaseException(
-        message: 'આજનાં બીલો મેળવી શકાયાં નથી',
-        originalError: e,
-      );
+    } catch (e, st) {
+      throw ErrorHandler.handle(e, st, context: 'BillService.getTodaysBills');
     }
   }
 
@@ -240,11 +237,8 @@ class BillService {
         'cash_amount': result[0]['cash_amount'] ?? 0.0,
         'upi_amount': result[0]['upi_amount'] ?? 0.0,
       };
-    } catch (e) {
-      throw DatabaseException(
-        message: 'વેચાણ સારાંશ ગણતરી કરી શકાયું નથી',
-        originalError: e,
-      );
+    } catch (e, st) {
+      throw ErrorHandler.handle(e, st, context: 'BillService.getTodaysSalesSummary');
     }
   }
 

@@ -1,6 +1,6 @@
 import 'package:sqflite_sqlcipher/sqflite.dart' hide DatabaseException;
 import '../models/incomplete_transaction.dart';
-import '../../core/utils/error_handler.dart';
+import '../../core/errors/error_handler.dart';
 
 class TransactionRecoveryService {
   final Database _db;
@@ -19,10 +19,11 @@ class TransactionRecoveryService {
         'created_at': DateTime.now().millisecondsSinceEpoch,
         'recovered': 0,
       });
-    } catch (e) {
-      throw DatabaseException(
-        message: 'અધૂરી ક્રિયા લૉગ કરી શકાયું નથી',
-        originalError: e,
+    } catch (e, st) {
+      throw ErrorHandler.handle(
+        e,
+        st,
+        context: 'TransactionRecoveryService.logIncompleteTransaction',
       );
     }
   }
@@ -40,10 +41,11 @@ class TransactionRecoveryService {
         map['data'] = _deserializeData(map['data'] as String);
         return IncompleteTransaction.fromMap(map);
       }).toList();
-    } catch (e) {
-      throw DatabaseException(
-        message: 'અધૂરી ક્રિયાઓ મેળવી શકાયું નથી',
-        originalError: e,
+    } catch (e, st) {
+      throw ErrorHandler.handle(
+        e,
+        st,
+        context: 'TransactionRecoveryService.getIncompleteTransactions',
       );
     }
   }
@@ -103,10 +105,11 @@ class TransactionRecoveryService {
         where: 'id = ?',
         whereArgs: [transactionId],
       );
-    } catch (e) {
-      throw DatabaseException(
-        message: 'ક્રિયાને પુનઃપ્રાપ્ત તરીકે ચિહ્નિત કરી શકાયું નથી',
-        originalError: e,
+    } catch (e, st) {
+      throw ErrorHandler.handle(
+        e,
+        st,
+        context: 'TransactionRecoveryService.markAsRecovered',
       );
     }
   }
@@ -119,10 +122,11 @@ class TransactionRecoveryService {
         where: 'id = ? AND recovered = 1',
         whereArgs: [transactionId],
       );
-    } catch (e) {
-      throw DatabaseException(
-        message: 'પુનઃપ્રાપ્ત ક્રિયા કાઢી શકાયું નથી',
-        originalError: e,
+    } catch (e, st) {
+      throw ErrorHandler.handle(
+        e,
+        st,
+        context: 'TransactionRecoveryService.deleteRecoveredTransaction',
       );
     }
   }

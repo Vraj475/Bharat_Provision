@@ -11,9 +11,4 @@ class PinHasher {
   static String cryptoSha256(List<int> bytes) {
     return crypto.sha256.convert(bytes).toString();
   }
-
-  // Alias for sha256 - used for consistent naming
-  static String hashPin(String pin) {
-    return sha256(pin);
-  }
 }

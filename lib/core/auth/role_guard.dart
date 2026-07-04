@@ -25,18 +25,3 @@ class RoleGuard extends ConsumerWidget {
     return child;
   }
 }
-
-// Helper extensions for role checking
-extension RoleChecks on String {
-  bool isAdmin() => this == 'admin' || this == 'superadmin';
-  bool isEmployee() => this == 'employee';
-  bool isSuperAdmin() => this == 'superadmin';
-
-  bool canAccessUdhaar() => this == 'admin' || this == 'superadmin';
-  bool canAccessPL() => this == 'admin' || this == 'superadmin';
-  bool canAccessKhata() => this == 'admin' || this == 'superadmin';
-  bool canAccessSettings() => this == 'admin' || this == 'superadmin';
-  bool canAccessReturns() => this == 'admin' || this == 'superadmin';
-  bool canAccessExpenses() => this == 'admin' || this == 'superadmin';
-  bool canAccessEmployee() => this == 'superadmin';
-}

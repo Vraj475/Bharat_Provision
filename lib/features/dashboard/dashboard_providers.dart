@@ -19,11 +19,6 @@ final todaysExpensesProvider = FutureProvider<double>((ref) async {
   return repo.getTodaysExpenses();
 });
 
-final todaysUdhaarCollectedProvider = FutureProvider<double>((ref) async {
-  final repo = await ref.watch(reportRepositoryProvider.future);
-  return repo.getTodaysUdhaarCollected();
-});
-
 final lowStockProductsProvider = FutureProvider<List<Product>>((ref) async {
   final repo = await ref.watch(reportRepositoryProvider.future);
   return repo.getLowStockProducts();

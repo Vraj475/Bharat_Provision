@@ -2,10 +2,10 @@ import 'package:flutter/material.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 
 import '../../core/localization/app_strings.dart';
-import '../../core/widgets/primary_button.dart';
 import '../../data/models/item.dart';
 import '../../data/providers.dart';
 import 'inventory_providers.dart';
+import 'item_edit_form.dart';
 
 class ItemEditScreen extends ConsumerStatefulWidget {
   const ItemEditScreen({super.key, this.itemId});
@@ -29,8 +29,6 @@ class _ItemEditScreenState extends ConsumerState<ItemEditScreen> {
   bool _isActive = true;
   bool _loading = true;
   Item? _item;
-
-  static const List<String> _units = ['નંગ', 'કિલો', 'ગ્રામ', 'લીટર'];
 
   @override
   void initState() {
@@ -159,107 +157,21 @@ class _ItemEditScreenState extends ConsumerState<ItemEditScreen> {
           widget.itemId != null ? AppStrings.editItem : AppStrings.addItem,
         ),
       ),
-      body: SingleChildScrollView(
-        padding: const EdgeInsets.all(16),
-        child: Column(
-          crossAxisAlignment: CrossAxisAlignment.stretch,
-          children: [
-            TextField(
-              controller: _nameController,
-              decoration: const InputDecoration(labelText: AppStrings.itemName),
-            ),
-            const SizedBox(height: 16),
-            TextField(
-              controller: _barcodeController,
-              decoration: const InputDecoration(labelText: AppStrings.barcode),
-            ),
-            const SizedBox(height: 16),
-            DropdownButtonFormField<int?>(
-              initialValue: _categoryId,
-              decoration: const InputDecoration(labelText: AppStrings.category),
-              items: [
-                const DropdownMenuItem(value: null, child: Text('—')),
-                ...ref
-                    .watch(categoryListProvider)
-                    .when(
-                      data: (cats) => cats
-                          .map(
-                            (c) => DropdownMenuItem<int?>(
-                              value: c.id,
-                              child: Text(c.nameGu),
-                            ),
-                          )
-                          .toList(),
-                      loading: () => [],
-                      error: (e, st) => [],
-                    ),
-              ],
-              onChanged: (v) => setState(() => _categoryId = v),
-            ),
-            const SizedBox(height: 16),
-            DropdownButtonFormField<String>(
-              initialValue: _unit,
-              decoration: const InputDecoration(labelText: AppStrings.unit),
-              items: _units
-                  .map((u) => DropdownMenuItem(value: u, child: Text(u)))
-                  .toList(),
-              onChanged: (v) => setState(() => _unit = v ?? _unit),
-            ),
-            const SizedBox(height: 16),
-            TextField(
-              controller: _salePriceController,
-              keyboardType: const TextInputType.numberWithOptions(
-                decimal: true,
-              ),
-              decoration: const InputDecoration(
-                labelText: AppStrings.sellPrice,
-                prefixText: '₹ ',
-              ),
-            ),
-            const SizedBox(height: 16),
-            TextField(
-              controller: _purchasePriceController,
-              keyboardType: const TextInputType.numberWithOptions(
-                decimal: true,
-              ),
-              decoration: const InputDecoration(
-                labelText: AppStrings.buyPrice,
-                prefixText: '₹ ',
-              ),
-            ),
-            const SizedBox(height: 16),
-            TextField(
-              controller: _stockController,
-              keyboardType: const TextInputType.numberWithOptions(
-                decimal: true,
-              ),
-              decoration: const InputDecoration(
-                labelText: AppStrings.currentStock,
-              ),
-            ),
-            const SizedBox(height: 16),
-            TextField(
-              controller: _lowStockController,
-              keyboardType: const TextInputType.numberWithOptions(
-                decimal: true,
-              ),
-              decoration: const InputDecoration(
-                labelText: AppStrings.lowStockThreshold,
-              ),
-            ),
-            SwitchListTile(
-              title: const Text(AppStrings.activeToggle),
-              value: _isActive,
-              onChanged: (v) => setState(() => _isActive = v),
-            ),
-            const SizedBox(height: 24),
-            PrimaryButton(
-              label: AppStrings.saveButton,
-              icon: Icons.save,
-              onPressed: _save,
-            ),
-          ],
-        ),
+      body: ItemEditForm(
+        nameController: _nameController,
+        salePriceController: _salePriceController,
+        purchasePriceController: _purchasePriceController,
+        stockController: _stockController,
+        lowStockController: _lowStockController,
+        barcodeController: _barcodeController,
+        categoryId: _categoryId,
+        unit: _unit,
+        isActive: _isActive,
+        categoriesAsync: ref.watch(categoryListProvider),
+        onCategoryChanged: (value) => setState(() => _categoryId = value),
+        onUnitChanged: (value) => setState(() => _unit = value),
+        onActiveChanged: (value) => setState(() => _isActive = value),
+        onSave: _save,
       ),
     );
   }

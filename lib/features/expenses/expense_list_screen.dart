@@ -1,12 +1,11 @@
 import 'package:flutter/material.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 
-import '../../data/providers.dart';
-import '../../data/repositories/expense_repository.dart';
 import 'add_expense_screen.dart';
 import '../../shared/models/expense_account_model.dart';
 import '../../shared/models/expense_model.dart';
 import '../../core/utils/currency_format.dart';
+import 'expense_repository_provider.dart';
 
 class ExpenseListScreen extends ConsumerStatefulWidget {
   const ExpenseListScreen({super.key});
@@ -259,10 +258,3 @@ class _ExpenseListScreenState extends ConsumerState<ExpenseListScreen> {
     }
   }
 }
-
-final expenseRepositoryProvider = FutureProvider<ExpenseRepository>((
-  ref,
-) async {
-  final db = await ref.watch(databaseProvider.future);
-  return ExpenseRepository(db);
-});

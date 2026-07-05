@@ -5,6 +5,7 @@ import '../../core/utils/currency_format.dart';
 import '../../data/providers.dart';
 import '../billing/bill_detail_screen.dart';
 import '../expenses/add_expense_screen.dart';
+import '../expenses/expense_repository_provider.dart';
 import '../udhaar/customer_ledger_screen.dart';
 
 class KhataScreen extends ConsumerStatefulWidget {

@@ -3,7 +3,6 @@ import 'dart:async';
 import 'package:fl_chart/fl_chart.dart';
 import 'package:flutter/material.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
-import 'package:go_router/go_router.dart';
 import 'package:intl/intl.dart';
 
 import '../../core/auth/role_provider.dart';
@@ -101,7 +100,7 @@ class _DashboardBodyState extends ConsumerState<DashboardBody> {
             padding: const EdgeInsets.symmetric(horizontal: 48, vertical: 24),
             textStyle: const TextStyle(fontSize: 24),
           ),
-          onPressed: () => context.go(AppRouter.billing),
+          onPressed: () => Navigator.of(context).pushNamed(AppRouter.billing),
           child: const Text('નવું બિલ'),
         ),
       ),
@@ -248,7 +247,8 @@ class _DashboardBodyState extends ConsumerState<DashboardBody> {
                     ),
                   ),
                   TextButton(
-                    onPressed: () => context.go(AppRouter.inventory),
+                    onPressed: () =>
+                        Navigator.of(context).pushNamed(AppRouter.inventory),
                     child: const Text('View'),
                   ),
                 ],
@@ -354,22 +354,22 @@ class _DashboardBodyState extends ConsumerState<DashboardBody> {
                 _buildActionButton(
                   'નવું બિલ',
                   Icons.receipt,
-                  () => context.go(AppRouter.billing),
+                  () => Navigator.of(context).pushNamed(AppRouter.billing),
                 ),
                 _buildActionButton(
                   'સ્ટોક ઉમેરો',
                   Icons.inventory,
-                  () => context.go(AppRouter.stockAdd),
+                  () => Navigator.of(context).pushNamed(AppRouter.stockAdd),
                 ),
                 _buildActionButton(
                   'ખર્ચ ઉમેરો',
                   Icons.money_off,
-                  () => context.go('/expenses/add'),
+                  () => Navigator.of(context).pushNamed(AppRouter.addExpense),
                 ),
                 _buildActionButton(
                   'રિપોર્ટ્સ',
                   Icons.bar_chart,
-                  () => context.go(AppRouter.reports),
+                  () => Navigator.of(context).pushNamed(AppRouter.reports),
                 ),
               ],
             ),
@@ -403,7 +403,8 @@ class _DashboardBodyState extends ConsumerState<DashboardBody> {
                   ),
                 ),
                 TextButton(
-                  onPressed: () => context.go(AppRouter.billHistory),
+                  onPressed: () =>
+                      Navigator.of(context).pushNamed(AppRouter.billHistory),
                   child: const Text('જુઓ બધા'),
                 ),
               ],

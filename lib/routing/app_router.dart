@@ -1,6 +1,8 @@
 import 'package:flutter/material.dart';
+import 'package:flutter_riverpod/flutter_riverpod.dart';
 
 import '../core/widgets/app_scaffold.dart';
+import '../core/auth/role_provider.dart';
 import '../core/auth/role_guard.dart';
 import '../features/billing/billing_home_screen.dart';
 import '../features/billing/bill_history_screen.dart';
@@ -62,55 +64,59 @@ class AppRouter {
   static const String addExpense = '/expenses/add';
   static const String expenseList = '/expenses';
 
-  static const List<String> _mainRoutes = [
-    dashboard,
-    inventory,
-    customers,
-    reports,
-    settings,
-    udhaarDashboard,
-  ];
+  static List<String> _mainRoutesForRole(String role) {
+    final isAdmin = canAccessUdhaar(role);
+    return [
+      billing,
+      if (isAdmin) billHistory,
+      inventory,
+      customers,
+      reports,
+      settings,
+      if (isAdmin) udhaarDashboard,
+    ];
+  }
 
-  static int indexForRoute(String route) {
-    final i = _mainRoutes.indexOf(route);
+  static int indexForRoute(String route, {String role = 'admin'}) {
+    final i = _mainRoutesForRole(role).indexOf(route);
     return i >= 0 ? i : 0;
   }
 
   static Route<dynamic> onGenerateRoute(RouteSettings routeSettings) {
     switch (routeSettings.name) {
       case dashboard:
-        return _buildShell(0, const DashboardScreen());
+        return _buildShell(dashboard, const DashboardScreen());
       case billing:
-        return _build(const BillingHomeScreen());
+        return _buildShell(billing, const BillingHomeScreen());
       case billHistory:
         return _buildShellGuarded(
-          1,
+          billHistory,
           const BillHistoryScreen(),
           allowedRoles: const ['admin', 'superadmin'],
         );
       case inventory:
-        return _buildShell(1, const ItemListScreen());
+        return _buildShell(inventory, const ItemListScreen());
       case customers:
         return _buildShellGuarded(
-          2,
+          customers,
           const CustomerListScreen(),
           allowedRoles: const ['admin', 'superadmin'],
         );
       case khata:
         return _buildShellGuarded(
-          2,
+          customers,
           const KhataScreen(),
           allowedRoles: const ['admin', 'superadmin'],
         );
       case reports:
         return _buildShellGuarded(
-          3,
+          reports,
           const ReportsHomeScreen(),
           allowedRoles: const ['admin', 'superadmin'],
         );
       case settings:
         return _buildShellGuarded(
-          4,
+          settings,
           const SettingsScreen(),
           allowedRoles: const ['admin', 'superadmin'],
         );
@@ -130,7 +136,7 @@ class AppRouter {
         final id = routeSettings.arguments as int;
         return _build(CustomerKhataDetailScreen(customerId: id));
       case stockDashboard:
-        return _buildShell(1, const StockDashboardScreen());
+        return _buildShell(inventory, const StockDashboardScreen());
       case stockAdd:
         final product = routeSettings.arguments as Product?;
         return _build(AddStockScreen(prefilledProduct: product));
@@ -165,7 +171,7 @@ class AppRouter {
         );
       case udhaarDashboard:
         return _buildShellGuarded(
-          5,
+          udhaarDashboard,
           const UdhaarDashboardScreen(),
           allowedRoles: const ['admin', 'superadmin'],
         );
@@ -216,33 +222,25 @@ class AppRouter {
     }
   }
 
-  static MaterialPageRoute<dynamic> _buildShell(int index, Widget child) {
+  static MaterialPageRoute<dynamic> _buildShell(
+    String currentRoute,
+    Widget child,
+  ) {
     return MaterialPageRoute(
-      builder: (context) => AppScaffold(
-        currentIndex: index,
-        onDestinationSelected: (i) {
-          Navigator.of(context).pushReplacementNamed(_mainRoutes[i]);
-        },
-        child: child,
-      ),
+      builder: (context) =>
+          _ShellRoute(currentRoute: currentRoute, child: child),
     );
   }
 
   static MaterialPageRoute<dynamic> _buildShellGuarded(
-    int index,
+    String currentRoute,
     Widget child, {
     required List<String> allowedRoles,
   }) {
     return MaterialPageRoute(
       builder: (context) => RoleGuard(
         allowedRoles: allowedRoles,
-        child: AppScaffold(
-          currentIndex: index,
-          onDestinationSelected: (i) {
-            Navigator.of(context).pushReplacementNamed(_mainRoutes[i]);
-          },
-          child: child,
-        ),
+        child: _ShellRoute(currentRoute: currentRoute, child: child),
       ),
     );
   }
@@ -257,6 +255,29 @@ class AppRouter {
   }) {
     return MaterialPageRoute(
       builder: (context) => RoleGuard(allowedRoles: allowedRoles, child: page),
+    );
+  }
+}
+
+class _ShellRoute extends ConsumerWidget {
+  const _ShellRoute({required this.currentRoute, required this.child});
+
+  final String currentRoute;
+  final Widget child;
+
+  @override
+  Widget build(BuildContext context, WidgetRef ref) {
+    final role = ref.watch(currentRoleProvider);
+    final routes = AppRouter._mainRoutesForRole(role);
+    final currentIndex = AppRouter.indexForRoute(currentRoute, role: role);
+
+    return AppScaffold(
+      currentIndex: currentIndex,
+      onDestinationSelected: (i) {
+        if (i < 0 || i >= routes.length) return;
+        Navigator.of(context).pushReplacementNamed(routes[i]);
+      },
+      child: child,
     );
   }
 }

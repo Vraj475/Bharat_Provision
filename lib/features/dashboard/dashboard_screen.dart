@@ -1,6 +1,5 @@
 import 'package:flutter/material.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
-import 'package:go_router/go_router.dart';
 
 import '../../core/utils/app_data.dart';
 import '../../routing/app_router.dart';
@@ -27,7 +26,8 @@ class _DashboardScreenState extends ConsumerState<DashboardScreen> {
         actions: [
           IconButton(
             icon: const Icon(Icons.settings),
-            onPressed: () => context.go(AppRouter.settings),
+            onPressed: () =>
+                Navigator.of(context).pushNamed(AppRouter.settings),
           ),
         ],
       ),

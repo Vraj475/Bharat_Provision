@@ -10,7 +10,7 @@ import 'package:shared_preferences/shared_preferences.dart';
 import '../../core/localization/app_strings.dart';
 import '../../core/widgets/confirm_dialog.dart';
 import '../../core/widgets/primary_button.dart';
-import '../../data/db/app_database.dart';
+import '../../core/database/database_helper.dart';
 import '../../data/providers.dart';
 import '../inventory/inventory_providers.dart';
 import '../khata/khata_providers.dart';
@@ -83,7 +83,7 @@ class _SettingsScreenState extends ConsumerState<SettingsScreen> {
 
   Future<void> _exportData() async {
     try {
-      final json = await AppDatabase.exportToJson();
+      final json = await DatabaseHelper.instance.exportToJson();
       String path;
       if (Platform.isAndroid || Platform.isIOS) {
         final dir = await getApplicationDocumentsDirectory();
@@ -136,7 +136,7 @@ class _SettingsScreenState extends ConsumerState<SettingsScreen> {
 
       final file = File(path);
       final json = await file.readAsString();
-      await AppDatabase.importFromJson(json);
+      await DatabaseHelper.instance.importFromJson(json);
 
       ref.invalidate(itemListProvider);
       ref.invalidate(customerListProvider);

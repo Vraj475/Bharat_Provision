@@ -2,7 +2,6 @@ import 'package:flutter_riverpod/flutter_riverpod.dart';
 import 'package:sqflite_sqlcipher/sqflite.dart';
 
 import '../core/database/database_helper.dart';
-import 'db/app_database.dart';
 import 'repositories/bill_repository.dart';
 import 'repositories/customer_repository.dart';
 import 'repositories/item_repository.dart';
@@ -12,7 +11,7 @@ import 'repositories/settings_repository.dart';
 import 'repositories/user_repository.dart';
 
 final databaseProvider = FutureProvider<Database>((ref) async {
-  return AppDatabase.instance;
+  return DatabaseHelper.instance.database;
 });
 
 final itemRepositoryFutureProvider = FutureProvider<ItemRepository>((

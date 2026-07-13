@@ -975,6 +975,47 @@ class DatabaseHelper {
     }, 'DatabaseHelper.exportToJson');
   }
 
+  Future<void> importFromJson(String jsonStr) async {
+    return _withErrorHandling(() async {
+      final db = await database;
+      final data = jsonDecode(jsonStr) as Map<String, dynamic>;
+      await db.transaction((txn) async {
+        const tables = [
+          'settings',
+          'users',
+          'categories',
+          'products',
+          'transliteration_dictionary',
+          'customers',
+          'bills',
+          'bill_items',
+          'stock_log',
+          'udhaar_ledger',
+          'bill_payments',
+          'expense_accounts',
+          'expenses',
+          'khata_ledger',
+          'returns',
+          'return_items',
+          'replace_transactions',
+          'reminder_log',
+        ];
+        for (final t in tables.reversed) {
+          final rows = data[t] as List<dynamic>?;
+          if (rows == null || rows.isEmpty) continue;
+          for (final row in rows) {
+            final map = Map<String, Object?>.from(row as Map);
+            await txn.insert(
+              t,
+              map,
+              conflictAlgorithm: ConflictAlgorithm.replace,
+            );
+          }
+        }
+      });
+    }, 'DatabaseHelper.importFromJson');
+  }
+
   Future<void> close() async {
     return _withErrorHandling(() async {
       final db = _db;

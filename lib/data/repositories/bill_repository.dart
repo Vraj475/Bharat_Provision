@@ -346,12 +346,27 @@ class BillRepository {
     });
   }
 
+  bool _schemaIntrospected = false;
+  final Set<String> _existingTables = {};
+  final Map<String, Set<String>> _tableColumns = {};
+
+  Future<void> _ensureSchemaIntrospected(Transaction txn) async {
+    if (_schemaIntrospected) return;
+
+    final tables = await txn.rawQuery("SELECT name FROM sqlite_master WHERE type = 'table'");
+    for (final row in tables) {
+      final tableName = row['name']?.toString() ?? '';
+      _existingTables.add(tableName);
+      
+      final columns = await txn.rawQuery('PRAGMA table_info($tableName)');
+      _tableColumns[tableName] = columns.map((c) => c['name']?.toString() ?? '').toSet();
+    }
+    _schemaIntrospected = true;
+  }
+
   Future<bool> _tableExists(Transaction txn, String tableName) async {
-    final rows = await txn.rawQuery(
-      "SELECT name FROM sqlite_master WHERE type = 'table' AND name = ?",
-      [tableName],
-    );
-    return rows.isNotEmpty;
+    await _ensureSchemaIntrospected(txn);
+    return _existingTables.contains(tableName);
   }
 
   Future<bool> _columnExists(
@@ -359,8 +374,8 @@ class BillRepository {
     String tableName,
     String columnName,
   ) async {
-    final rows = await txn.rawQuery('PRAGMA table_info($tableName)');
-    return rows.any((row) => row['name'] == columnName);
+    await _ensureSchemaIntrospected(txn);
+    return _tableColumns[tableName]?.contains(columnName) ?? false;
   }
 
   Future<int> _nextBillNumberInTransaction(Transaction txn) async {

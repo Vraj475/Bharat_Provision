@@ -7,7 +7,7 @@ import 'package:blue_thermal_printer/blue_thermal_printer.dart';
 import '../../../core/errors/error_logger.dart';
 import '../../../core/errors/error_types.dart';
 import '../../../shared/widgets/errors/error_dialogue.dart';
-import '../../../data/services/bill_service_provider.dart';
+import '../../../data/providers.dart';
 
 class BillingPrintService {
   final BlueThermalPrinter _bluePrinter = BlueThermalPrinter.instance;
@@ -23,6 +23,7 @@ class BillingPrintService {
   }) async {
     try {
       final billRepo = await ref.read(billRepositoryFutureProvider.future);
+
       final savedBill = await billRepo.getById(billId);
       final savedBillItems = await billRepo.getBillItems(billId);
       if (savedBill == null || savedBillItems.isEmpty) {

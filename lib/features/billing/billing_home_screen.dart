@@ -34,7 +34,10 @@ import '../../features/settings/settings_providers.dart';
 import '../../data/providers.dart';
 import '../../data/services/bill_service_provider.dart';
 import '../../features/reports/reports_providers.dart';
-
+import 'views/dialogs/product_addition_dialog.dart';
+import 'views/bill_summary_panel.dart';
+import 'views/bill_lines_panel.dart';
+import 'controllers/billing_controller.dart';
 /// Simplified single-screen billing - Create bills and print them.
 class BillingHomeScreen extends ConsumerStatefulWidget {
   const BillingHomeScreen({super.key});
@@ -57,25 +60,19 @@ class _BillingHomeScreenState extends ConsumerState<BillingHomeScreen> {
   final _discountDialogController = TextEditingController();
   final _customerFocusNode = FocusNode();
   final _productSearchFocusNode = FocusNode();
-  final List<BillLineItem> _billLines = [];
-  final Map<String, TextEditingController> _lineEditControllers = {};
-  final Map<String, FocusNode> _lineEditFocusNodes = {};
   int _draftLineCounter = 0;
-  double _discount = 0;
+  // double _discount = 0;
   String? _bannerMessage;
   String? _customerName;
   String? _shopName;
   int? _customerId;
 
   bool _lowStockPopupShown = false;
-  String? _editingLineKey;
-  _DraftEditableField? _editingField;
   final _weightEntryFocusNode = FocusNode();
   final _grandTotalEditController = TextEditingController();
   final _grandTotalEditFocusNode = FocusNode();
-  bool _isEditingGrandTotal = false;
-  bool _isGrandTotalAdjusted = false;
-  bool _isCommittingInlineEdit = false;
+  // bool _isEditingGrandTotal = false;
+  // bool _isGrandTotalAdjusted = false;
   bool _isDisposed = false;
   _BillingDropdownType _activeDropdown = _BillingDropdownType.none;
 
@@ -107,14 +104,10 @@ class _BillingHomeScreenState extends ConsumerState<BillingHomeScreen> {
     _isDisposed = true;
     _customerFocusNode.unfocus();
 
-    for (final controller in _lineEditControllers.values) {
       controller.dispose();
     }
-    _lineEditControllers.clear();
-    for (final node in _lineEditFocusNodes.values) {
       node.dispose();
     }
-    _lineEditFocusNodes.clear();
 
     _weightEntryController.dispose();
     _customerNameDialogController.dispose();
@@ -186,17 +179,7 @@ class _BillingHomeScreenState extends ConsumerState<BillingHomeScreen> {
     return '${itemId ?? 0}_$_draftLineCounter';
   }
 
-  void _registerLineResources(String lineKey, {String? initialText}) {
-    _lineEditControllers[lineKey] = TextEditingController(
-      text: initialText ?? '',
-    );
-    _lineEditFocusNodes[lineKey] = FocusNode();
-  }
 
-  void _disposeLineResources(String lineKey) {
-    _lineEditControllers.remove(lineKey)?.dispose();
-    _lineEditFocusNodes.remove(lineKey)?.dispose();
-  }
 
   void _setShopName() async {
     _shopNameDialogController.text = _shopName ?? '';
@@ -250,11 +233,9 @@ class _BillingHomeScreenState extends ConsumerState<BillingHomeScreen> {
     );
   }
 
-  double get _subtotal => _billLines.fold(0, (sum, line) => sum + line.amount);
-  double get _total => _subtotal - _discount;
 
   Future<void> _saveBill() async {
-    if (_billLines.isEmpty) {
+    if (ref.read(billingControllerProvider).billLines.isEmpty) {
       if (!mounted) return;
       ScaffoldMessenger.of(context).showSnackBar(
         const SnackBar(content: Text('બિલ ખાલી છે. કૃપયા આઇટમ ઉમેરો.')),
@@ -280,21 +261,17 @@ class _BillingHomeScreenState extends ConsumerState<BillingHomeScreen> {
   }
 
   void _clearCurrentBillDraft() {
-    _clearInlineEditState();
-    for (final key in _lineEditControllers.keys.toList()) {
-      _disposeLineResources(key);
-    }
+
     setState(() {
-      _billLines.clear();
-      _discount = 0;
-      _isEditingGrandTotal = false;
-      _isGrandTotalAdjusted = false;
+      
       _customerName = null;
       _customerId = null;
       _activeDropdown = _BillingDropdownType.none;
       _customerController.clear();
     });
     ref.read(billingTabsProvider.notifier).clearActive();
+    ref.read(billingControllerProvider.notifier).clearBill();
+    ref.read(billingControllerProvider.notifier).syncLines([]);
   }
 
   Future<int?> _saveBillToDatabase({
@@ -326,8 +303,8 @@ class _BillingHomeScreenState extends ConsumerState<BillingHomeScreen> {
       return null;
     }
 
-    final linesSnapshot = List<BillLineItem>.from(_billLines);
-    final discountSnapshot = _discount;
+    final linesSnapshot = ref.read(billingControllerProvider).billLines;
+    final discountSnapshot = ref.read(billingControllerProvider).discount;
     final customerIdSnapshot = selectedCustomerId;
     final customerNameSnapshot = _customerName?.trim();
     final productIds = linesSnapshot
@@ -466,8 +443,8 @@ class _BillingHomeScreenState extends ConsumerState<BillingHomeScreen> {
     final latestStockKg = await _getLatestStockKg(itemId);
     var existingQtyKg = 0.0;
 
-    for (var i = 0; i < _billLines.length; i++) {
-      final line = _billLines[i];
+    for (var i = 0; i < ref.read(billingControllerProvider).billLines.length; i++) {
+      final line = ref.read(billingControllerProvider).billLines[i];
       if (line.item.id != itemId) continue;
       if (excludeLineIndex != null && i == excludeLineIndex) continue;
       existingQtyKg += line.qtyGrams / 1000.0;
@@ -624,7 +601,7 @@ class _BillingHomeScreenState extends ConsumerState<BillingHomeScreen> {
     );
 
     setState(() {
-      _billLines.add(
+      ref.read(billingControllerProvider.notifier).addLine(
         BillLineItem(
           draftKey: _nextDraftLineKey(item.id),
           item: item,
@@ -632,7 +609,6 @@ class _BillingHomeScreenState extends ConsumerState<BillingHomeScreen> {
           amount: amount,
         ),
       );
-      _registerLineResources(_billLines.last.draftKey);
     });
     return true;
   }
@@ -964,315 +940,32 @@ class _BillingHomeScreenState extends ConsumerState<BillingHomeScreen> {
         if (shouldContinue != true) return;
       }
 
-      double amountPaid = item.salePrice;
-      double weightGrams = 1000;
-      String mode = 'weight';
-      bool itemAdded = false;
-      bool focusScheduled = false;
-      _weightEntryController.clear();
-
       if (!mounted) return;
-      await showDialog<void>(
-        context: context,
-        builder: (ctx) {
-          return StatefulBuilder(
-            builder: (ctx, setDialogState) {
-              double? calculatedWeight;
-              double? calculatedAmount;
-
-              Future<void> addCurrentItem() async {
-                try {
-                  if (!mounted || _isDisposed || !ctx.mounted) {
-                    return;
-                  }
-                  if (item.id == null) {
-                    ScaffoldMessenger.of(context).showSnackBar(
-                      const SnackBar(content: Text('પ્રોડક્ટ પસંદ કરો')),
-                    );
-                    _focusProductSearch();
-                    return;
-                  }
-
-                  double finalAmount;
-                  double finalQty;
-
-                  if (mode == 'amount') {
-                    finalQty = WeightCalculator.calculateWeightFromAmount(
-                      amountPaid: amountPaid,
-                      sellPricePerKg: item.salePrice,
-                    );
-                    finalAmount = amountPaid;
-                  } else {
-                    final rawKg = _weightEntryController.text.trim();
-                    final parsedKg = double.tryParse(rawKg);
-                    if (rawKg.isEmpty || parsedKg == null || parsedKg <= 0) {
-                      ScaffoldMessenger.of(context).showSnackBar(
-                        const SnackBar(content: Text('વજન દાખલ કરો')),
-                      );
-                      if (!mounted || !ctx.mounted) {
-                        return;
-                      }
-                      FocusScope.of(ctx).requestFocus(_weightEntryFocusNode);
-                      return;
-                    }
-                    final grams = parsedKg * 1000.0;
-                    finalAmount = WeightCalculator.calculateAmountFromWeight(
-                      weightGrams: grams,
-                      sellPricePerKg: item.salePrice,
-                    );
-                    finalQty = grams;
-                  }
-
-                  final itemId = item.id;
-                  if (itemId != null) {
-                    final hasStock = await _hasEnoughStockForDraft(
-                      itemId: itemId,
-                      newQtyGrams: finalQty,
-                    );
-                    if (!mounted || !ctx.mounted) {
-                      return;
-                    }
-                    if (!hasStock) {
-                      ScaffoldMessenger.of(ctx).showSnackBar(
-                        const SnackBar(
-                          content: Text(
-                            'સ્ટોક અવેલેબલ નથી કૃપા કરી ખરીદી ની યાદી માં એડ કરો',
-                          ),
-                        ),
-                      );
-                      FocusScope.of(ctx).requestFocus(_weightEntryFocusNode);
-                      return;
-                    }
-                  }
-
-                  _billLines.add(
-                    BillLineItem(
-                      draftKey: _nextDraftLineKey(item.id),
-                      item: item,
-                      qtyGrams: finalQty,
-                      amount: finalAmount,
-                    ),
-                  );
-                  final addedKey = _billLines.last.draftKey;
-                  _registerLineResources(addedKey);
-                  _weightEntryController.clear();
-                  itemAdded = true;
-                  Navigator.of(ctx).pop();
-                } catch (error, stack) {
-                  await ErrorLogger.log(
-                    AppError(
-                      code: 'BILLING_ADD_001',
-                      category: ErrorCategory.validation,
-                      technicalMessage: error.toString(),
-                      userMessage: 'આઇટમ ઉમેરવામાં ભૂલ આવી. ફરી પ્રયાસ કરો.',
-                      isCritical: false,
-                      timestamp: DateTime.now(),
-                      stackTrace: stack,
-                    ),
-                    currentScreen:
-                        'BillingHomeScreen._addProductToBill.addCurrentItem',
-                  );
-                  if (mounted && ctx.mounted) {
-                    ScaffoldMessenger.of(context).showSnackBar(
-                      const SnackBar(content: Text('આઇટમ ઉમેરવામાં ભૂલ આવી')),
-                    );
-                  }
-                }
-              }
-
-              if (mode == 'amount') {
-                calculatedWeight = WeightCalculator.calculateWeightFromAmount(
-                  amountPaid: amountPaid,
-                  sellPricePerKg: item.salePrice,
-                );
-              } else {
-                final parsedKg = double.tryParse(
-                  _weightEntryController.text.trim(),
-                );
-                if (parsedKg != null && parsedKg > 0) {
-                  weightGrams = parsedKg * 1000.0;
-                }
-                calculatedAmount = WeightCalculator.calculateAmountFromWeight(
-                  weightGrams: weightGrams,
-                  sellPricePerKg: item.salePrice,
-                );
-              }
-
-              if (mode == 'weight' && !focusScheduled) {
-                focusScheduled = true;
-                WidgetsBinding.instance.addPostFrameCallback((_) {
-                  if (!mounted || !ctx.mounted) return;
-                  _weightEntryFocusNode.requestFocus();
-                });
-              }
-
-              return AlertDialog(
-                title: Text(item.nameGu),
-                content: ConstrainedBox(
-                  constraints: BoxConstraints(
-                    maxHeight: MediaQuery.of(ctx).size.height * 0.6,
-                  ),
-                  child: SingleChildScrollView(
-                    child: Column(
-                      mainAxisSize: MainAxisSize.min,
-                      crossAxisAlignment: CrossAxisAlignment.stretch,
-                      children: [
-                        Wrap(
-                          alignment: WrapAlignment.center,
-                          spacing: 8,
-                          children: [
-                            ChoiceChip(
-                              label: const Text('₹ રૂપિયાથી'),
-                              selected: mode == 'amount',
-                              onSelected: (_) =>
-                                  setDialogState(() => mode = 'amount'),
-                            ),
-                            ChoiceChip(
-                              label: const Text('⚖ વજનથી'),
-                              selected: mode == 'weight',
-                              onSelected: (_) {
-                                setDialogState(() => mode = 'weight');
-                                WidgetsBinding.instance.addPostFrameCallback((
-                                  _,
-                                ) {
-                                  if (!mounted || !ctx.mounted) {
-                                    return;
-                                  }
-                                  _weightEntryFocusNode.requestFocus();
-                                });
-                              },
-                            ),
-                          ],
-                        ),
-                        const SizedBox(height: 12),
-                        if (mode == 'amount') ...[
-                          TextField(
-                            autofocus: true,
-                            keyboardType: const TextInputType.numberWithOptions(
-                              decimal: true,
-                            ),
-                            textInputAction: TextInputAction.done,
-                            decoration: const InputDecoration(
-                              labelText: '₹ રકમ દાખલ કરો',
-                            ),
-                            onChanged: (v) {
-                              final parsed = double.tryParse(v);
-                              if (parsed != null) {
-                                setDialogState(() => amountPaid = parsed);
-                              }
-                            },
-                            onSubmitted: (_) async {
-                              await addCurrentItem();
-                            },
-                          ),
-                          const SizedBox(height: 8),
-                          if (calculatedWeight != null)
-                            Text(
-                              'આપો: ${WeightCalculator.formatWeight(calculatedWeight)}',
-                              style: const TextStyle(
-                                fontWeight: FontWeight.bold,
-                                color: Colors.green,
-                                fontSize: 16,
-                              ),
-                            ),
-                        ] else ...[
-                          Focus(
-                            onKeyEvent: (node, event) {
-                              if (event is KeyDownEvent &&
-                                  _weightEntryFocusNode.hasFocus &&
-                                  (event.logicalKey ==
-                                          LogicalKeyboardKey.enter ||
-                                      event.logicalKey ==
-                                          LogicalKeyboardKey.numpadEnter)) {
-                                _closeAllDropdowns(markClosing: true);
-                                WidgetsBinding.instance.addPostFrameCallback((
-                                  _,
-                                ) {
-                                  if (!mounted || _isDisposed || !ctx.mounted) {
-                                    return;
-                                  }
-                                  addCurrentItem();
-                                  _releaseDropdownClosingFlagNextFrame();
-                                });
-                                return KeyEventResult.handled;
-                              }
-                              return KeyEventResult.ignored;
-                            },
-                            child: TextField(
-                              controller: _weightEntryController,
-                              focusNode: _weightEntryFocusNode,
-                              autofocus: true,
-                              keyboardType:
-                                  const TextInputType.numberWithOptions(
-                                    decimal: true,
-                                  ),
-                              textInputAction: TextInputAction.done,
-                              inputFormatters: [
-                                FilteringTextInputFormatter.allow(
-                                  RegExp(r'^\d*\.?\d{0,3}'),
-                                ),
-                              ],
-                              decoration: const InputDecoration(
-                                labelText: 'વજન (કિલો)',
-                                hintText: 'કિલોમાં દાખલ કરો જેમ કે 1.500',
-                              ),
-                              onChanged: (_) {
-                                setDialogState(() {});
-                              },
-                              onSubmitted: (_) {
-                                if (!mounted || _isDisposed || !ctx.mounted) {
-                                  return;
-                                }
-                                _closeAllDropdowns(markClosing: true);
-                                WidgetsBinding.instance.addPostFrameCallback((
-                                  _,
-                                ) {
-                                  if (!mounted || _isDisposed || !ctx.mounted) {
-                                    return;
-                                  }
-                                  addCurrentItem();
-                                  _releaseDropdownClosingFlagNextFrame();
-                                });
-                              },
-                            ),
-                          ),
-                          const SizedBox(height: 8),
-                          if (calculatedAmount != null)
-                            Text(
-                              'રકમ: ${formatCurrency(calculatedAmount)}',
-                              style: const TextStyle(
-                                fontWeight: FontWeight.bold,
-                                color: Colors.green,
-                                fontSize: 16,
-                              ),
-                            ),
-                        ],
-                      ],
-                    ),
-                  ),
-                ),
-                actions: [
-                  TextButton(
-                    onPressed: () => Navigator.of(ctx).pop(),
-                    child: const Text(strings.AppStrings.cancelButton),
-                  ),
-                  ElevatedButton(
-                    onPressed: () {
-                      addCurrentItem();
-                    },
-                    child: const Text(strings.AppStrings.addButton),
-                  ),
-                ],
-              );
-            },
-          );
-        },
+      final result = await ProductAdditionDialog.show(
+        context,
+        item: item,
+        checkStock: (id, qty) => _hasEnoughStockForDraft(itemId: id, newQtyGrams: qty),
       );
 
-      // Trigger parent widget rebuild after dialog closes
-      if (itemAdded && mounted) {
-        setState(() {});
-        _focusProductSearch();
+      if (result != null) {
+        final qtyGrams = result.$1;
+        final amount = result.$2;
+        ref.read(billingControllerProvider.notifier).addLine(
+          BillLineItem(
+            draftKey: _nextDraftLineKey(item.id),
+            item: item,
+            qtyGrams: qtyGrams,
+            amount: amount,
+          ),
+        );
+        final addedKey = ref.read(billingControllerProvider).billLines.last.draftKey;
+        
+        if (mounted) {
+          setState(() {});
+          _focusProductSearch();
+        }
+        // Wire up the new controller even if it's not strictly driving the UI yet
+        ref.read(billingControllerProvider.notifier).addLine(ref.read(billingControllerProvider).billLines.last);
       }
     } catch (error, stack) {
       await ErrorLogger.log(
@@ -1295,518 +988,19 @@ class _BillingHomeScreenState extends ConsumerState<BillingHomeScreen> {
     }
   }
 
-  void _clearInlineEditState() {
-    final key = _editingLineKey;
-    if (key != null) {
-      _lineEditFocusNodes[key]?.unfocus();
-    }
-    _editingLineKey = null;
-    _editingField = null;
-  }
 
-  void _startGrandTotalEdit() {
-    if (_billLines.isEmpty) {
-      ScaffoldMessenger.of(
-        context,
-      ).showSnackBar(const SnackBar(content: Text('પ્રથમ આઇટમ ઉમેરો')));
-      return;
-    }
 
-    _commitInlineEdit();
-    setState(() {
-      _isEditingGrandTotal = true;
-      _grandTotalEditController.text = _total.toStringAsFixed(2);
-    });
 
-    WidgetsBinding.instance.addPostFrameCallback((_) {
-      if (!mounted) return;
-      _grandTotalEditFocusNode.requestFocus();
-      _grandTotalEditController.selection = TextSelection(
-        baseOffset: 0,
-        extentOffset: _grandTotalEditController.text.length,
-      );
-    });
-  }
 
-  void _commitGrandTotalEdit() {
-    if (!_isEditingGrandTotal) return;
 
-    final raw = _grandTotalEditController.text.trim();
-    final parsed = double.tryParse(raw);
-    if (raw.isEmpty || parsed == null || parsed <= 0) {
-      ScaffoldMessenger.of(
-        context,
-      ).showSnackBar(const SnackBar(content: Text('કુલ રકમ સાચી નથી')));
-      setState(() {
-        _isEditingGrandTotal = false;
-      });
-      return;
-    }
 
-    if (_billLines.isEmpty) {
-      ScaffoldMessenger.of(
-        context,
-      ).showSnackBar(const SnackBar(content: Text('પ્રથમ આઇટમ ઉમેરો')));
-      setState(() {
-        _isEditingGrandTotal = false;
-      });
-      return;
-    }
 
-    final oldSubtotal = _subtotal;
-    final targetSubtotal = parsed + _discount;
 
-    if (oldSubtotal <= 0 || targetSubtotal <= 0) {
-      ScaffoldMessenger.of(
-        context,
-      ).showSnackBar(const SnackBar(content: Text('કુલ રકમ સાચી નથી')));
-      setState(() {
-        _isEditingGrandTotal = false;
-      });
-      return;
-    }
 
-    final updated = <BillLineItem>[];
-    for (final line in _billLines) {
-      final proportion = line.amount / oldSubtotal;
-      final redistributedAmount = targetSubtotal * proportion;
-      final sellPrice = _lineSellPricePerKg(line);
-      if (sellPrice <= 0) {
-        updated.add(line);
-        continue;
-      }
-      final redistributedQty = (redistributedAmount / sellPrice) * 1000.0;
-      updated.add(
-        line.copyWith(amount: redistributedAmount, qtyGrams: redistributedQty),
-      );
-    }
 
-    setState(() {
-      _billLines
-        ..clear()
-        ..addAll(updated);
-      _isEditingGrandTotal = false;
-      _isGrandTotalAdjusted = true;
-    });
-  }
-
-  double _lineSellPricePerKg(BillLineItem line) {
-    if (line.qtyGrams <= 0) return line.item.salePrice;
-    return (line.amount * 1000.0) / line.qtyGrams;
-  }
-
-  String _kgEditableText(double qtyGrams) {
-    return (qtyGrams / 1000.0).toStringAsFixed(3);
-  }
-
-  void _startInlineEdit(int index, _DraftEditableField field) {
-    if (index < 0 || index >= _billLines.length) return;
-
-    if (_isEditingGrandTotal) {
-      _commitGrandTotalEdit();
-    }
-
-    if (_editingLineKey != null) {
-      _commitInlineEdit();
-    }
-
-    final line = _billLines[index];
-    final lineKey = line.draftKey;
-    if (!_lineEditControllers.containsKey(lineKey) ||
-        !_lineEditFocusNodes.containsKey(lineKey)) {
-      _registerLineResources(lineKey);
-    }
-    final lineController = _lineEditControllers[lineKey]!;
-    final lineFocusNode = _lineEditFocusNodes[lineKey]!;
-
-    final initialValue = switch (field) {
-      _DraftEditableField.quantity => _kgEditableText(line.qtyGrams),
-      _DraftEditableField.price => _lineSellPricePerKg(line).toStringAsFixed(2),
-      _DraftEditableField.amount => line.amount.toStringAsFixed(2),
-    };
-
-    setState(() {
-      _editingLineKey = lineKey;
-      _editingField = field;
-      lineController.value = TextEditingValue(
-        text: initialValue,
-        selection: TextSelection.collapsed(offset: initialValue.length),
-      );
-    });
-
-    WidgetsBinding.instance.addPostFrameCallback((_) {
-      if (!mounted || _isDisposed) {
-        return;
-      }
-      lineFocusNode.requestFocus();
-      lineController.selection = TextSelection(
-        baseOffset: 0,
-        extentOffset: lineController.text.length,
-      );
-    });
-  }
-
-  Future<void> _commitInlineEdit() async {
-    if (_isCommittingInlineEdit) return;
-    _isCommittingInlineEdit = true;
-
-    try {
-      final editingLineKey = _editingLineKey;
-      final editingField = _editingField;
-      if (editingLineKey == null) {
-        _clearInlineEditState();
-        return;
-      }
-      final controller = _lineEditControllers[editingLineKey];
-      final editingIndex = _billLines.indexWhere(
-        (l) => l.draftKey == editingLineKey,
-      );
-
-      if (editingField == null ||
-          controller == null ||
-          editingIndex < 0 ||
-          editingIndex >= _billLines.length) {
-        _clearInlineEditState();
-        return;
-      }
-
-      final line = _billLines[editingIndex];
-      final raw = controller.text.trim();
-      final parsed = double.tryParse(raw);
-
-      BillLineItem updatedLine = line;
-      if (editingField == _DraftEditableField.quantity) {
-        if (raw.isEmpty || parsed == null || parsed <= 0) {
-          ScaffoldMessenger.of(
-            context,
-          ).showSnackBar(const SnackBar(content: Text('વજન શૂન્ય ન હોઈ શકે')));
-          setState(_clearInlineEditState);
-          return;
-        }
-
-        final newQtyGrams = parsed * 1000.0;
-        final itemId = line.item.id;
-        if (itemId != null) {
-          final hasStock = await _hasEnoughStockForDraft(
-            itemId: itemId,
-            newQtyGrams: newQtyGrams,
-            excludeLineIndex: editingIndex,
-          );
-          if (!mounted) return;
-          if (!hasStock) {
-            ScaffoldMessenger.of(context).showSnackBar(
-              const SnackBar(
-                content: Text(
-                  'સ્ટોક અવેલેબલ નથી કૃપા કરી ખરીદી ની યાદી માં એડ કરો',
-                ),
-              ),
-            );
-            setState(_clearInlineEditState);
-            return;
-          }
-        }
-
-        final existingSellPrice = _lineSellPricePerKg(line);
-        final newAmount = (newQtyGrams / 1000.0) * existingSellPrice;
-        updatedLine = line.copyWith(qtyGrams: newQtyGrams, amount: newAmount);
-      } else if (editingField == _DraftEditableField.price) {
-        if (raw.isEmpty || parsed == null || parsed <= 0) {
-          ScaffoldMessenger.of(context).showSnackBar(
-            const SnackBar(content: Text('કિંમત શૂન્ય ન હોઈ શકે')),
-          );
-          setState(_clearInlineEditState);
-          return;
-        }
-
-        final newAmount = (line.qtyGrams / 1000.0) * parsed;
-        updatedLine = line.copyWith(amount: newAmount);
-      } else {
-        if (raw.isEmpty || parsed == null || parsed <= 0) {
-          ScaffoldMessenger.of(
-            context,
-          ).showSnackBar(const SnackBar(content: Text('રકમ શૂન્ય ન હોઈ શકે')));
-          setState(_clearInlineEditState);
-          return;
-        }
-
-        final sellPrice = _lineSellPricePerKg(line);
-        if (sellPrice <= 0) {
-          ScaffoldMessenger.of(context).showSnackBar(
-            const SnackBar(content: Text('કિંમત શૂન્ય ન હોઈ શકે')),
-          );
-          setState(_clearInlineEditState);
-          return;
-        }
-
-        final newQtyGrams = (parsed / sellPrice) * 1000.0;
-        updatedLine = line.copyWith(qtyGrams: newQtyGrams, amount: parsed);
-      }
-
-      setState(() {
-        _billLines[editingIndex] = updatedLine;
-        _clearInlineEditState();
-      });
-    } finally {
-      _isCommittingInlineEdit = false;
-    }
-  }
-
-  Future<void> _deleteLineWithUndo(int index) async {
-    if (index < 0 || index >= _billLines.length) return;
-
-    await _commitInlineEdit();
-    if (!mounted || index < 0 || index >= _billLines.length) return;
-    final removedLine = _billLines[index];
-    final removedKey = removedLine.draftKey;
-
-    setState(() {
-      _billLines.removeAt(index);
-      if (_editingLineKey != null) {
-        if (_editingLineKey == removedKey) {
-          _clearInlineEditState();
-        }
-      }
-    });
-    _disposeLineResources(removedKey);
-
-    final messenger = ScaffoldMessenger.of(context);
-    messenger.hideCurrentSnackBar();
-    messenger.showSnackBar(
-      SnackBar(
-        content: const Text('આઇટમ કાઢી નાખવી?'),
-        duration: const Duration(seconds: 3),
-        action: SnackBarAction(
-          label: 'Undo',
-          onPressed: () {
-            if (!mounted) return;
-            setState(() {
-              final insertIndex = index.clamp(0, _billLines.length);
-              _billLines.insert(insertIndex, removedLine);
-            });
-            if (!_lineEditControllers.containsKey(removedKey) ||
-                !_lineEditFocusNodes.containsKey(removedKey)) {
-              _registerLineResources(removedKey);
-            }
-          },
-        ),
-      ),
-    );
-  }
-
-  Widget _buildEditableValueChip({
-    required bool isEditing,
-    required TextEditingController controller,
-    required FocusNode focusNode,
-    required String value,
-    required VoidCallback onTap,
-    required ValueChanged<String> onSubmitted,
-    required TextInputType keyboardType,
-    String? prefixText,
-  }) {
-    if (isEditing) {
-      return SizedBox(
-        width: 106,
-        child: TextField(
-          controller: controller,
-          focusNode: focusNode,
-          keyboardType: keyboardType,
-          textInputAction: TextInputAction.done,
-          inputFormatters: [
-            FilteringTextInputFormatter.allow(RegExp(r'^\d*\.?\d*')),
-          ],
-          onSubmitted: onSubmitted,
-          onTapOutside: (_) => _commitInlineEdit(),
-          decoration: InputDecoration(
-            isDense: true,
-            prefixText: prefixText,
-            contentPadding: const EdgeInsets.symmetric(
-              horizontal: 10,
-              vertical: 8,
-            ),
-          ),
-        ),
-      );
-    }
-
-    return InkWell(
-      onTap: onTap,
-      borderRadius: BorderRadius.circular(14),
-      child: Container(
-        constraints: const BoxConstraints(maxWidth: 110),
-        padding: const EdgeInsets.symmetric(horizontal: 10, vertical: 6),
-        decoration: BoxDecoration(
-          color: Colors.grey.shade100,
-          borderRadius: BorderRadius.circular(14),
-        ),
-        child: Text(
-          value,
-          style: TextStyle(
-            fontWeight: FontWeight.w600,
-            decoration: TextDecoration.underline,
-            decorationColor: Colors.grey.shade500,
-            color: Colors.black87,
-          ),
-          maxLines: 1,
-          overflow: TextOverflow.ellipsis,
-        ),
-      ),
-    );
-  }
-
-  Widget _buildBillLineTile(BillLineItem line, int index) {
-    final lineController = _lineEditControllers[line.draftKey];
-    final lineFocusNode = _lineEditFocusNodes[line.draftKey];
-    if (lineController == null || lineFocusNode == null) {
-      return const SizedBox.shrink();
-    }
-
-    final isEditingRow = _editingLineKey == line.draftKey;
-    final isEditingQty =
-        isEditingRow && _editingField == _DraftEditableField.quantity;
-    final isEditingPrice =
-        isEditingRow && _editingField == _DraftEditableField.price;
-    final isEditingAmount =
-        isEditingRow && _editingField == _DraftEditableField.amount;
-    final qtyDisplay = '${_kgEditableText(line.qtyGrams)} કિલો';
-    final priceDisplay = '₹${_lineSellPricePerKg(line).toStringAsFixed(2)}';
-
-    return Container(
-      margin: const EdgeInsets.symmetric(horizontal: 8, vertical: 4),
-      padding: const EdgeInsets.symmetric(horizontal: 10, vertical: 8),
-      decoration: BoxDecoration(
-        color: isEditingRow ? AppColors.surface : Colors.transparent,
-        borderRadius: BorderRadius.circular(10),
-      ),
-      child: Row(
-        children: [
-          Expanded(
-            child: Column(
-              crossAxisAlignment: CrossAxisAlignment.start,
-              children: [
-                Text(
-                  line.item.nameGu,
-                  maxLines: 1,
-                  overflow: TextOverflow.ellipsis,
-                  style: const TextStyle(fontWeight: FontWeight.w700),
-                ),
-                const SizedBox(height: 6),
-                Wrap(
-                  spacing: 8,
-                  runSpacing: 6,
-                  children: [
-                    _buildEditableValueChip(
-                      isEditing: isEditingQty,
-                      controller: lineController,
-                      focusNode: lineFocusNode,
-                      value: qtyDisplay,
-                      onTap: () =>
-                          _startInlineEdit(index, _DraftEditableField.quantity),
-                      onSubmitted: (_) => _commitInlineEdit(),
-                      keyboardType: const TextInputType.numberWithOptions(
-                        decimal: true,
-                      ),
-                    ),
-                    _buildEditableValueChip(
-                      isEditing: isEditingPrice,
-                      controller: lineController,
-                      focusNode: lineFocusNode,
-                      value: priceDisplay,
-                      onTap: () =>
-                          _startInlineEdit(index, _DraftEditableField.price),
-                      onSubmitted: (_) => _commitInlineEdit(),
-                      keyboardType: const TextInputType.numberWithOptions(
-                        decimal: true,
-                      ),
-                      prefixText: isEditingPrice ? '₹' : null,
-                    ),
-                    _buildEditableValueChip(
-                      isEditing: isEditingAmount,
-                      controller: lineController,
-                      focusNode: lineFocusNode,
-                      value: formatCurrency(line.amount),
-                      onTap: () =>
-                          _startInlineEdit(index, _DraftEditableField.amount),
-                      onSubmitted: (_) => _commitInlineEdit(),
-                      keyboardType: const TextInputType.numberWithOptions(
-                        decimal: true,
-                      ),
-                    ),
-                  ],
-                ),
-              ],
-            ),
-          ),
-          if (isEditingRow)
-            SizedBox(
-              width: 36,
-              child: IconButton(
-                padding: EdgeInsets.zero,
-                constraints: const BoxConstraints.tightFor(
-                  width: 36,
-                  height: 36,
-                ),
-                icon: const Icon(
-                  Icons.check_circle,
-                  color: Colors.green,
-                  size: 20,
-                ),
-                onPressed: () {
-                  _commitInlineEdit();
-                },
-              ),
-            ),
-          SizedBox(
-            width: 36,
-            child: IconButton(
-              padding: EdgeInsets.zero,
-              constraints: const BoxConstraints.tightFor(width: 36, height: 36),
-              icon: const Icon(Icons.delete, color: Colors.red, size: 20),
-              onPressed: () async {
-                await _deleteLineWithUndo(index);
-              },
-            ),
-          ),
-        ],
-      ),
-    );
-  }
-
-  void _setDiscount() async {
-    _discountDialogController.text = _discount.toStringAsFixed(2);
-    await showDialog<void>(
-      context: context,
-      builder: (ctx) => AlertDialog(
-        title: const Text('ડિસ્કાઉન્ટ સેટ કરો'),
-        content: TextField(
-          controller: _discountDialogController,
-          keyboardType: const TextInputType.numberWithOptions(decimal: true),
-          decoration: const InputDecoration(labelText: '₹ રકમ'),
-        ),
-        actions: [
-          TextButton(
-            onPressed: () => Navigator.of(ctx).pop(),
-            child: const Text(strings.AppStrings.cancelButton),
-          ),
-          ElevatedButton(
-            onPressed: () {
-              if (!mounted || _isDisposed) {
-                return;
-              }
-              setState(
-                () => _discount =
-                    double.tryParse(_discountDialogController.text) ?? 0,
-              );
-              Navigator.of(ctx).pop();
-            },
-            child: const Text(strings.AppStrings.saveButton),
-          ),
-        ],
-      ),
-    );
-  }
 
   Future<void> _printBill() async {
-    if (_billLines.isEmpty) {
+    if (ref.read(billingControllerProvider).billLines.isEmpty) {
       ScaffoldMessenger.of(context).showSnackBar(
         const SnackBar(content: Text('બિલ ખાલી છે. કૃપया આઇટમ ઉમેરો.')),
       );
@@ -2540,7 +1734,7 @@ class _BillingHomeScreenState extends ConsumerState<BillingHomeScreen> {
               ),
             ),
           ),
-        if (_billLines.isEmpty)
+        if (ref.read(billingControllerProvider).billLines.isEmpty)
           Expanded(
             child: Center(
               child: Column(
@@ -2569,154 +1763,15 @@ class _BillingHomeScreenState extends ConsumerState<BillingHomeScreen> {
           )
         else
           Expanded(
-            child: ListView.builder(
-              itemCount: _billLines.length,
-              itemBuilder: (ctx, i) {
-                final line = _billLines[i];
-                return _buildBillLineTile(line, i);
-              },
+            child: BillLinesPanel(
+              checkStock: _hasEnoughStockForDraft,
             ),
           ),
         const Divider(height: 1),
-        Padding(
-          padding: const EdgeInsets.all(12),
-          child: Column(
-            crossAxisAlignment: CrossAxisAlignment.stretch,
-            mainAxisSize: MainAxisSize.min,
-            children: [
-              Row(
-                mainAxisAlignment: MainAxisAlignment.spaceBetween,
-                children: [
-                  const Text('કુલ:'),
-                  Text(
-                    formatCurrency(_subtotal),
-                    style: const TextStyle(fontWeight: FontWeight.bold),
-                  ),
-                ],
-              ),
-              const SizedBox(height: 8),
-              Row(
-                mainAxisAlignment: MainAxisAlignment.spaceBetween,
-                children: [
-                  GestureDetector(
-                    onTap: _setDiscount,
-                    child: const Text(
-                      'ડિસ્કાઉન્ટ:',
-                      style: TextStyle(decoration: TextDecoration.underline),
-                    ),
-                  ),
-                  Text(
-                    '-${formatCurrency(_discount)}',
-                    style: const TextStyle(fontWeight: FontWeight.bold),
-                  ),
-                ],
-              ),
-              const Divider(height: 16),
-              Row(
-                mainAxisAlignment: MainAxisAlignment.spaceBetween,
-                children: [
-                  const Text(
-                    'દેય:',
-                    style: TextStyle(fontWeight: FontWeight.bold, fontSize: 18),
-                  ),
-                  Row(
-                    mainAxisSize: MainAxisSize.min,
-                    children: [
-                      if (_isGrandTotalAdjusted)
-                        Padding(
-                          padding: const EdgeInsets.only(right: 6),
-                          child: Text(
-                            'સુધારેલ કુલ',
-                            style: TextStyle(
-                              fontSize: 11,
-                              color: Colors.green.shade700,
-                              fontWeight: FontWeight.w600,
-                            ),
-                          ),
-                        ),
-                      if (_isEditingGrandTotal)
-                        SizedBox(
-                          width: 130,
-                          child: TextField(
-                            controller: _grandTotalEditController,
-                            focusNode: _grandTotalEditFocusNode,
-                            keyboardType: const TextInputType.numberWithOptions(
-                              decimal: true,
-                            ),
-                            textInputAction: TextInputAction.done,
-                            inputFormatters: [
-                              FilteringTextInputFormatter.allow(
-                                RegExp(r'^\d*\.?\d*'),
-                              ),
-                            ],
-                            onSubmitted: (_) => _commitGrandTotalEdit(),
-                            onTapOutside: (_) => _commitGrandTotalEdit(),
-                            decoration: const InputDecoration(
-                              isDense: true,
-                              prefixText: '₹',
-                              contentPadding: EdgeInsets.symmetric(
-                                horizontal: 10,
-                                vertical: 8,
-                              ),
-                            ),
-                          ),
-                        )
-                      else
-                        InkWell(
-                          onTap: _startGrandTotalEdit,
-                          borderRadius: BorderRadius.circular(10),
-                          child: Container(
-                            padding: const EdgeInsets.symmetric(
-                              horizontal: 8,
-                              vertical: 4,
-                            ),
-                            decoration: BoxDecoration(
-                              color: Colors.grey.shade100,
-                              borderRadius: BorderRadius.circular(10),
-                            ),
-                            child: Text(
-                              formatCurrency(_total),
-                              style: TextStyle(
-                                fontWeight: FontWeight.bold,
-                                fontSize: 20,
-                                color: Colors.green.shade700,
-                                decoration: TextDecoration.underline,
-                                decorationColor: Colors.grey.shade500,
-                              ),
-                            ),
-                          ),
-                        ),
-                      if (_isEditingGrandTotal)
-                        IconButton(
-                          icon: const Icon(
-                            Icons.check_circle,
-                            color: Colors.green,
-                          ),
-                          onPressed: _commitGrandTotalEdit,
-                        ),
-                    ],
-                  ),
-                ],
-              ),
-              const SizedBox(height: 12),
-              ElevatedButton.icon(
-                icon: const Icon(Icons.clear),
-                label: const Text('બિલ ક્લીયર કરો'),
-                onPressed: _billLines.isEmpty
-                    ? null
-                    : () {
-                        _commitInlineEdit();
-                        setState(() {
-                          _billLines.clear();
-                          _discount = 0;
-                          _isEditingGrandTotal = false;
-                          _isGrandTotalAdjusted = false;
-                          _customerName = null;
-                        });
-                      },
-              ),
-            ],
-          ),
+        BillSummaryPanel(
+          onClearBill: () {
+            _clearCurrentBillDraft();
+          },
         ),
       ],
     );
@@ -2725,6 +1780,5 @@ class _BillingHomeScreenState extends ConsumerState<BillingHomeScreen> {
 
 
 
-enum _DraftEditableField { quantity, price, amount }
 
 enum _BillingDropdownType { none, product }

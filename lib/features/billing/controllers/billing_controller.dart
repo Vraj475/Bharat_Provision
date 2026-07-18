@@ -1,7 +1,5 @@
-import 'package:flutter/material.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 import '../models/bill_line_item.dart';
-import '../../../data/models/item.dart';
 
 class BillingState {
   final List<BillLineItem> billLines;
@@ -93,6 +91,10 @@ class BillingController extends StateNotifier<BillingState> {
     final newLines = List<BillLineItem>.from(state.billLines);
     newLines[index] = updatedLine;
     state = state.copyWith(billLines: newLines);
+  }
+
+  void syncLines(List<BillLineItem> lines) {
+    state = state.copyWith(billLines: lines);
   }
 }
 

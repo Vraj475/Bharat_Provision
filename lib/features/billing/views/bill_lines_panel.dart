@@ -264,8 +264,8 @@ class _BillLinesPanelState extends ConsumerState<BillLinesPanel> {
 
   Widget _buildEditableValueChip({
     required bool isEditing,
-    required TextEditingController controller,
-    required FocusNode focusNode,
+    TextEditingController? controller,
+    FocusNode? focusNode,
     required String value,
     required VoidCallback onTap,
     required ValueChanged<String> onSubmitted,
@@ -325,9 +325,6 @@ class _BillLinesPanelState extends ConsumerState<BillLinesPanel> {
   Widget _buildBillLineTile(BillLineItem line, int index) {
     final lineController = _lineEditControllers[line.draftKey];
     final lineFocusNode = _lineEditFocusNodes[line.draftKey];
-    if (lineController == null || lineFocusNode == null) {
-      return const SizedBox.shrink();
-    }
 
     final isEditingRow = _editingLineKey == line.draftKey;
     final isEditingQty =

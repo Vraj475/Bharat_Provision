@@ -5,7 +5,7 @@ import '../../core/localization/app_strings.dart';
 import '../../core/theme/app_colors.dart';
 import '../../core/utils/currency_format.dart';
 import '../../core/widgets/confirm_dialog.dart';
-import '../../data/models/item.dart';
+import '../../shared/models/product_model.dart';
 import '../../data/providers.dart';
 import '../../routing/app_router.dart';
 import 'inventory_providers.dart';
@@ -34,9 +34,9 @@ class _ItemListScreenState extends ConsumerState<ItemListScreen> {
     super.dispose();
   }
 
-  Color _stockColor(Item item) {
+  Color _stockColor(Product item) {
     if (item.isLowStock) return AppColors.alert;
-    if (item.currentStock <= item.lowStockThreshold * 1.2) {
+    if (item.stockQty <= item.minStockQty * 1.2) {
       return AppColors.warning;
     }
     return AppColors.success;
@@ -103,9 +103,9 @@ class _ItemListScreenState extends ConsumerState<ItemListScreen> {
                             color: Colors.white,
                           ),
                         ),
-                        title: Text(item.nameGu),
+                        title: Text(item.nameGujarati),
                         subtitle: Text(
-                          '${formatCurrency(item.salePrice)} • ${item.currentStock} ${item.unit}',
+                          '${formatCurrency(item.sellPrice)} • ${item.stockQty} ${item.unitType}',
                         ),
                         trailing: PopupMenuButton<String>(
                           onSelected: (v) {
@@ -164,7 +164,7 @@ class _ItemListScreenState extends ConsumerState<ItemListScreen> {
     );
   }
 
-  Future<void> _confirmDelete(Item item) async {
+  Future<void> _confirmDelete(Product item) async {
     final ok = await ConfirmDialog.show(
       context,
       title: AppStrings.deleteItemTitle,

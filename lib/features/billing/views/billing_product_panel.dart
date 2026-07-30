@@ -6,7 +6,7 @@ import '../../../core/errors/error_handler.dart';
 import '../../../core/errors/error_logger.dart';
 import '../../../core/errors/error_types.dart';
 import '../../../core/theme/app_colors.dart';
-import '../../../data/models/item.dart';
+import '../../../shared/models/product_model.dart';
 import '../../../shared/widgets/errors/error_dialogue.dart';
 import '../billing_providers.dart';
 import '../controllers/billing_controller.dart';
@@ -81,12 +81,12 @@ class _BillingProductPanelState extends ConsumerState<BillingProductPanel> {
     return '${itemId ?? 0}_$_draftLineCounter';
   }
 
-  bool _isOutOfStock(Item item) => item.currentStock <= 0;
+  bool _isOutOfStock(Product item) => item.stockQty <= 0;
 
-  bool _isLowStock(Item item) =>
-      item.currentStock > 0 && item.currentStock <= item.lowStockThreshold;
+  bool _isLowStock(Product item) =>
+      item.stockQty > 0 && item.isLowStock;
 
-  Widget _buildStockBadge(Item item) {
+  Widget _buildStockBadge(Product item) {
     if (_isOutOfStock(item)) {
       return Container(
         margin: const EdgeInsets.only(left: 8),
@@ -144,13 +144,13 @@ class _BillingProductPanelState extends ConsumerState<BillingProductPanel> {
     return const SizedBox.shrink();
   }
 
-  Widget _buildProductNameLine(Item item) {
+  Widget _buildProductNameLine(Product item) {
     final hasBadge = _isOutOfStock(item) || _isLowStock(item);
     return Row(
       children: [
         Expanded(
           child: Text(
-            item.nameGu,
+            item.nameGujarati,
             maxLines: 1,
             overflow: TextOverflow.ellipsis,
             style: const TextStyle(fontWeight: FontWeight.w700),
@@ -161,9 +161,9 @@ class _BillingProductPanelState extends ConsumerState<BillingProductPanel> {
     );
   }
 
-  void _addProductToBill(Item item) async {
+  void _addProductToBill(Product item) async {
     try {
-      if (item.currentStock <= 0) {
+      if (item.stockQty <= 0) {
         ScaffoldMessenger.of(context).showSnackBar(
           const SnackBar(content: Text('સ્ટોક ઉપલબ્ધ નથી')),
         );
@@ -176,7 +176,7 @@ class _BillingProductPanelState extends ConsumerState<BillingProductPanel> {
           builder: (ctx) => AlertDialog(
             title: const Text('લો સ્ટોક ચેતવણી'),
             content: Text(
-              '${item.nameGu} નો સ્ટોક ઓછો છે.\nહાલ સ્ટોક: ${item.currentStock.toStringAsFixed(2)} ${item.unit}',
+              '${item.nameGujarati} નો સ્ટોક ઓછો છે.\nહાલ સ્ટોક: ${item.stockQty.toStringAsFixed(2)} ${item.unitType}',
             ),
             actions: [
               TextButton(
@@ -282,7 +282,7 @@ class _BillingProductPanelState extends ConsumerState<BillingProductPanel> {
     );
   }
 
-  Widget _buildActiveDropdown(List<Item> products) {
+  Widget _buildActiveDropdown(List<Product> products) {
     final isProduct = _activeDropdown == BillingDropdownType.product;
     if (!isProduct) {
       return const SizedBox.shrink();
@@ -318,7 +318,7 @@ class _BillingProductPanelState extends ConsumerState<BillingProductPanel> {
                 _buildProductNameLine(item),
                 const SizedBox(height: 4),
                 Text(
-                  '₹${item.salePrice.toStringAsFixed(2)} | સ്ടોક: ${item.currentStock.toStringAsFixed(2)} ${item.unit}',
+                  '₹${item.sellPrice.toStringAsFixed(2)} | સ്ടોક: ${item.stockQty.toStringAsFixed(2)} ${item.unitType}',
                   maxLines: 1,
                   overflow: TextOverflow.ellipsis,
                   style: TextStyle(color: Colors.grey.shade700, fontSize: 12),
@@ -359,7 +359,7 @@ class _BillingProductPanelState extends ConsumerState<BillingProductPanel> {
     final state = ref.watch(billingItemsProvider);
     final billingState = ref.watch(billingTabsProvider);
     final transactionType = billingState.activeDraft.transactionType;
-    final productsForDropdown = state.valueOrNull ?? const <Item>[];
+    final productsForDropdown = state.valueOrNull ?? const <Product>[];
     
     return Stack(
       key: _productPanelStackKey,
@@ -514,7 +514,7 @@ class _BillingProductPanelState extends ConsumerState<BillingProductPanel> {
                       final item = items[i];
                       if (!_lowStockPopupShown) {
                         final lowStockItems = items
-                            .where((p) => p.currentStock > 0 && p.isLowStock)
+                            .where((p) => p.stockQty > 0 && p.isLowStock)
                             .toList();
                         if (lowStockItems.isNotEmpty) {
                           _lowStockPopupShown = true;
@@ -537,7 +537,7 @@ class _BillingProductPanelState extends ConsumerState<BillingProductPanel> {
                                               bottom: 6,
                                             ),
                                             child: Text(
-                                              '• ${p.nameGu}: ${p.currentStock.toStringAsFixed(2)} ${p.unit}',
+                                              '• ${p.nameGujarati}: ${p.stockQty.toStringAsFixed(2)} ${p.unitType}',
                                             ),
                                           ),
                                         )
@@ -563,9 +563,9 @@ class _BillingProductPanelState extends ConsumerState<BillingProductPanel> {
                           subtitle: Column(
                             crossAxisAlignment: CrossAxisAlignment.start,
                             children: [
-                              Text('₹${item.salePrice.toStringAsFixed(2)}'),
+                              Text('₹${item.sellPrice.toStringAsFixed(2)}'),
                               Text(
-                                'સ્ટોક: ${item.currentStock.toStringAsFixed(2)} ${item.unit}',
+                                'સ્ટોક: ${item.stockQty.toStringAsFixed(2)} ${item.unitType}',
                                 style: TextStyle(
                                   color: item.isLowStock
                                       ? Colors.red

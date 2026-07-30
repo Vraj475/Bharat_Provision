@@ -5,7 +5,7 @@ import '../../core/localization/app_strings.dart';
 import '../../core/theme/app_colors.dart';
 import '../../core/utils/currency_format.dart';
 import '../../core/widgets/confirm_dialog.dart';
-import '../../data/models/customer.dart';
+import '../../shared/models/customer_model.dart';
 import '../../data/providers.dart';
 import '../../routing/app_router.dart';
 import 'khata_providers.dart';
@@ -143,7 +143,7 @@ class _CustomerListWithBalances extends ConsumerWidget {
                   backgroundColor: balanceColor(balance),
                   child: const Icon(Icons.person, color: Colors.white),
                 ),
-                title: Text(c.name),
+                title: Text(c.nameGujarati),
                 subtitle: Text(c.phone ?? ''),
                 trailing: Row(
                   mainAxisSize: MainAxisSize.min,

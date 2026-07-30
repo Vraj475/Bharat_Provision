@@ -2,7 +2,7 @@ import 'package:flutter_test/flutter_test.dart';
 import 'package:mocktail/mocktail.dart';
 import 'package:sqflite_sqlcipher/sqflite.dart';
 import 'package:bharat_provision/data/repositories/bill_repository.dart';
-import 'package:bharat_provision/data/models/bill_item_input.dart';
+import 'package:bharat_provision/shared/models/bill_item_model.dart';
 
 class MockDatabase extends Mock implements Database {}
 class MockTransaction extends Mock implements Transaction {}
@@ -59,10 +59,13 @@ void main() {
     await repo.createBill(
       customerId: 1,
       items: [
-        BillItemInput(
-          itemId: 101,
-          quantity: 1,
-          unitPrice: 100,
+        BillItem(
+          billId: 0,
+          productId: 101,
+          qty: 1,
+          amount: 100,
+          sellPriceSnapshot: 100,
+          isReturned: false,
         )
       ],
       discountAmount: 0,
@@ -81,10 +84,13 @@ void main() {
     await repo.createBill(
       customerId: 2,
       items: [
-        BillItemInput(
-          itemId: 102,
-          quantity: 2,
-          unitPrice: 50,
+        BillItem(
+          billId: 0,
+          productId: 102,
+          qty: 2,
+          amount: 100,
+          sellPriceSnapshot: 50,
+          isReturned: false,
         )
       ],
       discountAmount: 0,

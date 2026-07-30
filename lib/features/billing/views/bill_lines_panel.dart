@@ -60,7 +60,7 @@ class _BillLinesPanelState extends ConsumerState<BillLinesPanel> {
   }
 
   double _lineSellPricePerKg(BillLineItem line) {
-    if (line.qtyGrams <= 0) return line.item.salePrice;
+    if (line.qtyGrams <= 0) return line.item.sellPrice;
     return (line.amount * 1000.0) / line.qtyGrams;
   }
 
@@ -350,7 +350,7 @@ class _BillLinesPanelState extends ConsumerState<BillLinesPanel> {
               crossAxisAlignment: CrossAxisAlignment.start,
               children: [
                 Text(
-                  line.item.nameGu,
+                  line.item.nameGujarati,
                   maxLines: 1,
                   overflow: TextOverflow.ellipsis,
                   style: const TextStyle(fontWeight: FontWeight.w700),

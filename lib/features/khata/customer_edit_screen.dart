@@ -3,7 +3,7 @@ import 'package:flutter_riverpod/flutter_riverpod.dart';
 
 import '../../core/localization/app_strings.dart';
 import '../../core/widgets/primary_button.dart';
-import '../../data/models/customer.dart';
+import '../../shared/models/customer_model.dart';
 import '../../data/providers.dart';
 import 'khata_providers.dart';
 
@@ -20,7 +20,7 @@ class _CustomerEditScreenState extends ConsumerState<CustomerEditScreen> {
   final _nameController = TextEditingController();
   final _phoneController = TextEditingController();
   final _addressController = TextEditingController();
-  final _noteController = TextEditingController();
+
 
   bool _loading = true;
   Customer? _customer;
@@ -41,10 +41,9 @@ class _CustomerEditScreenState extends ConsumerState<CustomerEditScreen> {
     if (customer != null && mounted) {
       setState(() {
         _customer = customer;
-        _nameController.text = customer.name;
+        _nameController.text = customer.nameGujarati;
         _phoneController.text = customer.phone ?? '';
         _addressController.text = customer.address ?? '';
-        _noteController.text = customer.note ?? '';
         _loading = false;
       });
     } else {
@@ -57,7 +56,6 @@ class _CustomerEditScreenState extends ConsumerState<CustomerEditScreen> {
     _nameController.dispose();
     _phoneController.dispose();
     _addressController.dispose();
-    _noteController.dispose();
     super.dispose();
   }
 
@@ -76,31 +74,30 @@ class _CustomerEditScreenState extends ConsumerState<CustomerEditScreen> {
       if (_customer != null) {
         await repo.update(
           _customer!.copyWith(
-            name: name,
+            nameGujarati: name,
             phone: _phoneController.text.trim().isEmpty
                 ? null
                 : _phoneController.text.trim(),
             address: _addressController.text.trim().isEmpty
                 ? null
                 : _addressController.text.trim(),
-            note: _noteController.text.trim().isEmpty
-                ? null
-                : _noteController.text.trim(),
           ),
         );
       } else {
         await repo.insert(
           Customer(
-            name: name,
+            nameGujarati: name,
             phone: _phoneController.text.trim().isEmpty
                 ? null
                 : _phoneController.text.trim(),
             address: _addressController.text.trim().isEmpty
                 ? null
                 : _addressController.text.trim(),
-            note: _noteController.text.trim().isEmpty
-                ? null
-                : _noteController.text.trim(),
+            accountType: 'regular',
+            creditLimit: 2000.0,
+            totalOutstanding: 0.0,
+            isActive: true,
+            createdAt: DateTime.now().toIso8601String(),
           ),
         );
       }
@@ -157,12 +154,7 @@ class _CustomerEditScreenState extends ConsumerState<CustomerEditScreen> {
               decoration: const InputDecoration(labelText: AppStrings.address),
               maxLines: 2,
             ),
-            const SizedBox(height: 16),
-            TextField(
-              controller: _noteController,
-              decoration: const InputDecoration(labelText: AppStrings.note),
-              maxLines: 2,
-            ),
+
             const SizedBox(height: 24),
             PrimaryButton(
               label: AppStrings.saveButton,

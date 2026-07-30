@@ -1,6 +1,6 @@
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 
-import '../../data/models/customer.dart';
+import '../../shared/models/customer_model.dart';
 import '../../data/models/khata_entry.dart';
 import '../../data/providers.dart';
 

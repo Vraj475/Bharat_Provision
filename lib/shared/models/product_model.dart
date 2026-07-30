@@ -67,6 +67,8 @@ class Product {
     );
   }
 
+  bool get isLowStock => minStockQty > 0 ? stockQty <= minStockQty : false;
+
   factory Product.fromMap(Map<String, dynamic> map) {
     return Product(
       id: map['id'] as int?,

@@ -52,4 +52,30 @@ class Customer {
       'created_at': createdAt,
     };
   }
+
+  Customer copyWith({
+    int? id,
+    String? nameGujarati,
+    String? nameEnglish,
+    String? phone,
+    String? address,
+    String? accountType,
+    double? creditLimit,
+    double? totalOutstanding,
+    bool? isActive,
+    String? createdAt,
+  }) {
+    return Customer(
+      id: id ?? this.id,
+      nameGujarati: nameGujarati ?? this.nameGujarati,
+      nameEnglish: nameEnglish ?? this.nameEnglish,
+      phone: phone ?? this.phone,
+      address: address ?? this.address,
+      accountType: accountType ?? this.accountType,
+      creditLimit: creditLimit ?? this.creditLimit,
+      totalOutstanding: totalOutstanding ?? this.totalOutstanding,
+      isActive: isActive ?? this.isActive,
+      createdAt: createdAt ?? this.createdAt,
+    );
+  }
 }

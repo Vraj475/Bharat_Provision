@@ -2,8 +2,8 @@ import 'package:flutter/material.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 
 import '../../core/utils/currency_format.dart';
-import '../../data/models/bill.dart';
-import '../../data/models/bill_item.dart';
+import '../../shared/models/bill_model.dart';
+import '../../shared/models/bill_item_model.dart';
 import '../../data/providers.dart';
 
 class BillDetailScreen extends ConsumerWidget {
@@ -38,12 +38,12 @@ class BillDetailScreen extends ConsumerWidget {
                     children: [
                       Text('Bill Number: ${bill.billNumber}'),
                       Text(
-                        'Date: ${DateTime.fromMillisecondsSinceEpoch(bill.dateTime).toLocal()}',
+                        'Date: ${DateTime.parse(bill.createdAt).toLocal()}',
                       ),
-                      Text('Payment: ${bill.paymentMode.toUpperCase()}'),
+                      Text('Payment: ${bill.paymentMode?.toUpperCase() ?? "CASH"}'),
                       const SizedBox(height: 8),
                       Text('Subtotal: ${formatCurrency(bill.subtotal)}'),
-                      Text('Discount: ${formatCurrency(bill.discountAmount)}'),
+                      Text('Discount: ${formatCurrency(bill.discount)}'),
                       Text(
                         'Total: ${formatCurrency(bill.totalAmount)}',
                         style: const TextStyle(fontWeight: FontWeight.bold),
@@ -61,11 +61,11 @@ class BillDetailScreen extends ConsumerWidget {
               ...items.map(
                 (item) => ListTile(
                   contentPadding: EdgeInsets.zero,
-                  title: Text('Item #${item.itemId}'),
+                  title: Text('Item #${item.productId}'),
                   subtitle: Text(
-                    '${item.quantity.toStringAsFixed(2)} x ${formatCurrency(item.unitPrice)}',
+                    '${item.qty.toStringAsFixed(2)} x ${formatCurrency(item.sellPriceSnapshot ?? 0)}',
                   ),
-                  trailing: Text(formatCurrency(item.lineTotal)),
+                  trailing: Text(formatCurrency(item.amount)),
                 ),
               ),
             ],

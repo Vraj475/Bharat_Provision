@@ -267,14 +267,14 @@ class _KhataScreenState extends ConsumerState<KhataScreen>
     final db = await ref.read(databaseProvider.future);
     final results = await db.rawQuery('''
       SELECT 'bill' as source, b.id as source_id, b.date_time as date, 
-             COALESCE(c.name, 'Walk-in') as account_name, b.total_amount as amount,
+             COALESCE(c.name_gujarati, 'Walk-in') as account_name, b.total_amount as amount,
              b.payment_mode as reference, 'credit' as type
       FROM bills b
       LEFT JOIN customers c ON b.customer_id = c.id
       WHERE b.payment_mode IN ('cash', 'upi', 'card')
       UNION ALL
       SELECT 'payment' as source, up.id as source_id, up.date as date,
-             c.name as account_name, up.amount as amount,
+             c.name_gujarati as account_name, up.amount as amount,
              'Udhaar Payment' as reference, 'credit' as type
       FROM udhaar_payments up
       JOIN customers c ON up.customer_id = c.id

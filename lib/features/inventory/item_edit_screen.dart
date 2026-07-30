@@ -2,7 +2,7 @@ import 'package:flutter/material.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 
 import '../../core/localization/app_strings.dart';
-import '../../data/models/item.dart';
+import '../../shared/models/product_model.dart';
 import '../../data/providers.dart';
 import 'inventory_providers.dart';
 import 'item_edit_form.dart';
@@ -28,7 +28,7 @@ class _ItemEditScreenState extends ConsumerState<ItemEditScreen> {
   String _unit = AppStrings.unitPiece;
   bool _isActive = true;
   bool _loading = true;
-  Item? _item;
+  Product? _item;
 
   @override
   void initState() {
@@ -52,14 +52,14 @@ class _ItemEditScreenState extends ConsumerState<ItemEditScreen> {
     if (item != null && mounted) {
       setState(() {
         _item = item;
-        _nameController.text = item.nameGu;
-        _salePriceController.text = item.salePrice.toString();
-        _purchasePriceController.text = item.purchasePrice.toString();
-        _stockController.text = item.currentStock.toString();
-        _lowStockController.text = item.lowStockThreshold.toString();
+        _nameController.text = item.nameGujarati;
+        _salePriceController.text = item.sellPrice.toString();
+        _purchasePriceController.text = item.buyPrice.toString();
+        _stockController.text = item.stockQty.toString();
+        _lowStockController.text = item.minStockQty.toString();
         _barcodeController.text = item.barcode ?? '';
         _categoryId = item.categoryId;
-        _unit = item.unit;
+        _unit = item.unitType;
         _isActive = item.isActive;
         _loading = false;
       });
@@ -99,32 +99,33 @@ class _ItemEditScreenState extends ConsumerState<ItemEditScreen> {
       if (_item != null) {
         await repo.update(
           _item!.copyWith(
-            nameGu: name,
+            nameGujarati: name,
             categoryId: _categoryId,
             barcode: _barcodeController.text.trim().isEmpty
                 ? null
                 : _barcodeController.text.trim(),
-            unit: _unit,
-            salePrice: salePrice,
-            purchasePrice: purchasePrice,
-            currentStock: stock,
-            lowStockThreshold: lowStock,
+            unitType: _unit,
+            sellPrice: salePrice,
+            buyPrice: purchasePrice,
+            stockQty: stock,
+            minStockQty: lowStock,
             isActive: _isActive,
           ),
         );
       } else {
         await repo.insert(
-          Item(
-            nameGu: name,
+          Product(
+            nameGujarati: name,
+            transliterationKeys: '', // Required field
             categoryId: _categoryId,
             barcode: _barcodeController.text.trim().isEmpty
                 ? null
                 : _barcodeController.text.trim(),
-            unit: _unit,
-            salePrice: salePrice,
-            purchasePrice: purchasePrice,
-            currentStock: stock,
-            lowStockThreshold: lowStock,
+            unitType: _unit,
+            sellPrice: salePrice,
+            buyPrice: purchasePrice,
+            stockQty: stock,
+            minStockQty: lowStock,
             isActive: _isActive,
           ),
         );

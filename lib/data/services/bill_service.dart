@@ -1,7 +1,6 @@
 import 'package:sqflite_sqlcipher/sqflite.dart' hide DatabaseException;
-import '../models/bill.dart';
-import '../models/bill_item.dart';
-import '../models/bill_item_input.dart';
+import '../../shared/models/bill_model.dart';
+import '../../shared/models/bill_item_model.dart';
 import '../../core/database/transaction_helper.dart';
 import '../../core/errors/error_handler.dart';
 
@@ -18,7 +17,7 @@ class BillService {
   Future<int> saveBill({
     required int? customerId,
     required String? customerName,
-    required List<BillItemInput> items,
+    required List<BillItem> items,
     required double discountAmount,
     required double paidAmount,
     required String paymentMode,
@@ -37,7 +36,7 @@ class BillService {
       // Calculate totals
       double subtotal = 0;
       for (final item in items) {
-        subtotal += item.quantity * item.unitPrice;
+        subtotal += item.qty * item.sellPriceSnapshot!;
       }
       final totalAmount = subtotal - discountAmount;
 
@@ -73,19 +72,19 @@ class BillService {
 
         // 2. Insert bill items
         for (final item in items) {
-          final lineTotal = item.quantity * item.unitPrice;
+          final lineTotal = item.qty * item.sellPriceSnapshot!;
           await txn.insert('bill_items', {
             'bill_id': billId,
-            'item_id': item.itemId,
-            'quantity': item.quantity,
-            'unit_price': item.unitPrice,
+            'item_id': item.productId,
+            'quantity': item.qty,
+            'unit_price': item.sellPriceSnapshot,
             'line_total': lineTotal,
           });
 
           // 3. Update stock
           await txn.rawUpdate(
             'UPDATE items SET current_stock = current_stock - ? WHERE id = ?',
-            [item.quantity, item.itemId],
+            [item.qty, item.productId],
           );
         }
 
@@ -126,9 +125,28 @@ class BillService {
         whereArgs: [billId],
       );
 
+      final normalizedBill = Map<String, dynamic>.from(billMaps.first);
+      if (normalizedBill['created_at'] == null) {
+        normalizedBill['created_at'] = DateTime.fromMillisecondsSinceEpoch(
+                normalizedBill['date_time'] as int? ?? DateTime.now().millisecondsSinceEpoch)
+            .toIso8601String();
+      }
+      if (normalizedBill['bill_date'] == null) {
+        normalizedBill['bill_date'] = DateTime.tryParse(normalizedBill['created_at'])?.toIso8601String() ?? normalizedBill['created_at'];
+      }
+      normalizedBill['discount'] ??= normalizedBill['discount_amount'];
+      normalizedBill['gst_amount'] ??= normalizedBill['tax_amount'];
+
       return BillWithItems(
-        bill: Bill.fromMap(billMaps.first),
-        items: itemMaps.map((item) => BillItem.fromMap(item)).toList(),
+        bill: Bill.fromMap(normalizedBill),
+        items: itemMaps.map((item) {
+          final normalized = Map<String, dynamic>.from(item);
+          normalized['product_id'] ??= normalized['item_id'];
+          normalized['qty'] ??= normalized['quantity'];
+          normalized['sell_price_snapshot'] ??= normalized['unit_price'];
+          normalized['amount'] ??= normalized['line_total'];
+          return BillItem.fromMap(normalized);
+        }).toList(),
       );
     } catch (e, st) {
       throw ErrorHandler.handle(e, st, context: 'BillService.getBillWithItems');
@@ -191,7 +209,20 @@ class BillService {
         orderBy: 'date_time DESC',
       );
 
-      return maps.map((map) => Bill.fromMap(map)).toList();
+      return maps.map((map) {
+        final normalized = Map<String, dynamic>.from(map);
+        if (normalized['created_at'] == null) {
+          normalized['created_at'] = DateTime.fromMillisecondsSinceEpoch(
+                  normalized['date_time'] as int? ?? DateTime.now().millisecondsSinceEpoch)
+              .toIso8601String();
+        }
+        if (normalized['bill_date'] == null) {
+          normalized['bill_date'] = DateTime.tryParse(normalized['created_at'])?.toIso8601String() ?? normalized['created_at'];
+        }
+        normalized['discount'] ??= normalized['discount_amount'];
+        normalized['gst_amount'] ??= normalized['tax_amount'];
+        return Bill.fromMap(normalized);
+      }).toList();
     } catch (e, st) {
       throw ErrorHandler.handle(e, st, context: 'BillService.getTodaysBills');
     }
@@ -266,6 +297,6 @@ class BillWithItems {
 
   BillWithItems({required this.bill, required this.items});
 
-  double get subtotal => items.fold(0, (sum, item) => sum + item.lineTotal);
-  double get total => subtotal - bill.discountAmount;
+  double get subtotal => items.fold(0, (sum, item) => sum + item.amount);
+  double get total => subtotal - bill.discount;
 }

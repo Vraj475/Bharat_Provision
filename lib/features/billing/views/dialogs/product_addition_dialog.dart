@@ -3,10 +3,10 @@ import 'package:flutter/services.dart';
 import '../../../../core/utils/weight_calculator.dart';
 import '../../../../core/utils/currency_format.dart';
 import '../../../../core/constants/app_strings.dart' as strings;
-import '../../../../data/models/item.dart';
+import '../../../../shared/models/product_model.dart';
 
 class ProductAdditionDialog extends StatefulWidget {
-  final Item item;
+  final Product item;
   final Future<bool> Function(int itemId, double newQtyGrams) checkStock;
 
   const ProductAdditionDialog({
@@ -17,7 +17,7 @@ class ProductAdditionDialog extends StatefulWidget {
 
   static Future<(double qtyGrams, double amount)?> show(
     BuildContext context, {
-    required Item item,
+    required Product item,
     required Future<bool> Function(int, double) checkStock,
   }) {
     return showDialog<(double, double)>(
@@ -40,7 +40,7 @@ class _ProductAdditionDialogState extends State<ProductAdditionDialog> {
   @override
   void initState() {
     super.initState();
-    _amountPaid = widget.item.salePrice;
+    _amountPaid = widget.item.sellPrice;
   }
 
   @override
@@ -65,7 +65,7 @@ class _ProductAdditionDialogState extends State<ProductAdditionDialog> {
     if (_mode == 'amount') {
       finalQty = WeightCalculator.calculateWeightFromAmount(
         amountPaid: _amountPaid,
-        sellPricePerKg: item.salePrice,
+        sellPricePerKg: item.sellPrice,
       );
       finalAmount = _amountPaid;
     } else {
@@ -81,7 +81,7 @@ class _ProductAdditionDialogState extends State<ProductAdditionDialog> {
       final grams = parsedKg * 1000.0;
       finalAmount = WeightCalculator.calculateAmountFromWeight(
         weightGrams: grams,
-        sellPricePerKg: item.salePrice,
+        sellPricePerKg: item.sellPrice,
       );
       finalQty = grams;
     }
@@ -110,14 +110,14 @@ class _ProductAdditionDialogState extends State<ProductAdditionDialog> {
     if (_mode == 'amount') {
       calculatedWeight = WeightCalculator.calculateWeightFromAmount(
         amountPaid: _amountPaid,
-        sellPricePerKg: widget.item.salePrice,
+        sellPricePerKg: widget.item.sellPrice,
       );
     } else {
       final parsedKg = double.tryParse(_weightEntryController.text.trim());
       if (parsedKg != null && parsedKg > 0) {
         calculatedAmount = WeightCalculator.calculateAmountFromWeight(
           weightGrams: parsedKg * 1000.0,
-          sellPricePerKg: widget.item.salePrice,
+          sellPricePerKg: widget.item.sellPrice,
         );
       }
     }
@@ -131,7 +131,7 @@ class _ProductAdditionDialogState extends State<ProductAdditionDialog> {
     }
 
     return AlertDialog(
-      title: Text(widget.item.nameGu),
+      title: Text(widget.item.nameGujarati),
       content: ConstrainedBox(
         constraints: BoxConstraints(
           maxHeight: MediaQuery.of(context).size.height * 0.6,

@@ -3,14 +3,14 @@ import 'package:flutter_riverpod/flutter_riverpod.dart';
 import 'package:flutter/foundation.dart' show debugPrint;
 
 import '../../core/errors/error_handler.dart';
-import '../../data/models/item.dart';
+import '../../shared/models/product_model.dart';
 import '../../data/providers.dart';
 
 // Billing search provider
 final billingSearchProvider = StateProvider<String>((ref) => '');
 
 // Items provider for billing - fetches from the same items table as inventory
-final billingItemsProvider = FutureProvider<List<Item>>((ref) async {
+final billingItemsProvider = FutureProvider<List<Product>>((ref) async {
   try {
     final repo = await ref.watch(itemRepositoryFutureProvider.future);
     final query = ref.watch(billingSearchProvider);
@@ -33,7 +33,7 @@ final billingItemsProvider = FutureProvider<List<Item>>((ref) async {
 class BillLine {
   BillLine({required this.item, required this.qtyGrams, required this.amount});
 
-  final Item item;
+  final Product item;
 
   /// Stored in grams for weight-based units, or as "units" for count / litre.
   final double qtyGrams;

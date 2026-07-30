@@ -109,7 +109,7 @@ class _CustomerKhataDetailScreenState
     return Scaffold(
       appBar: AppBar(
         title: customerAsync.when(
-          data: (d) => Text(d.customer.name),
+          data: (d) => Text('${d.customer.nameGujarati} ખાતું'),
           loading: () => const Text(AppStrings.khataTitle),
           error: (_, _) => const Text(AppStrings.khataTitle),
         ),

@@ -1,4 +1,4 @@
-import '../../../data/models/item.dart';
+import '../../../shared/models/product_model.dart';
 
 class BillLineItem {
   BillLineItem({
@@ -9,13 +9,13 @@ class BillLineItem {
   });
 
   final String draftKey;
-  final Item item;
+  final Product item;
   final double qtyGrams;
   final double amount;
 
   BillLineItem copyWith({
     String? draftKey,
-    Item? item,
+    Product? item,
     double? qtyGrams,
     double? amount,
   }) {

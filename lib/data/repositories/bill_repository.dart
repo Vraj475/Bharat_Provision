@@ -1,8 +1,7 @@
 import 'package:sqflite_sqlcipher/sqflite.dart';
 
-import '../models/bill.dart';
-import '../models/bill_item.dart';
-import '../models/bill_item_input.dart';
+import '../../shared/models/bill_model.dart';
+import '../../shared/models/bill_item_model.dart';
 
 class BillRepository {
   BillRepository(this._db);
@@ -20,7 +19,7 @@ class BillRepository {
   Future<int> createBill({
     required int? customerId,
     String? customerNameSnapshot,
-    required List<BillItemInput> items,
+    required List<BillItem> items,
     required double discountAmount,
     required double paidAmount,
     required String paymentMode,
@@ -33,7 +32,7 @@ class BillRepository {
 
     double subtotal = 0;
     for (final i in items) {
-      subtotal += i.quantity * i.unitPrice;
+      subtotal += i.qty * i.sellPriceSnapshot!;
     }
     final totalAmount = subtotal - discountAmount;
     final udhaarAmount = (totalAmount - paidAmount).clamp(0.0, totalAmount);
@@ -163,15 +162,15 @@ class BillRepository {
       );
 
       for (final i in items) {
-        final lineTotal = i.quantity * i.unitPrice;
+        final lineTotal = i.qty * i.sellPriceSnapshot!;
         final billItemValues = <String, Object?>{'bill_id': billId};
-        if (hasBillItemItemId) billItemValues['item_id'] = i.itemId;
-        if (hasBillItemProductId) billItemValues['product_id'] = i.itemId;
-        if (hasBillItemQuantity) billItemValues['quantity'] = i.quantity;
-        if (hasBillItemQty) billItemValues['qty'] = i.quantity;
-        if (hasBillItemUnitPrice) billItemValues['unit_price'] = i.unitPrice;
+        if (hasBillItemItemId) billItemValues['item_id'] = i.productId;
+        if (hasBillItemProductId) billItemValues['product_id'] = i.productId;
+        if (hasBillItemQuantity) billItemValues['quantity'] = i.qty;
+        if (hasBillItemQty) billItemValues['qty'] = i.qty;
+        if (hasBillItemUnitPrice) billItemValues['unit_price'] = i.sellPriceSnapshot;
         if (hasBillItemSellPriceSnapshot) {
-          billItemValues['sell_price_snapshot'] = i.unitPrice;
+          billItemValues['sell_price_snapshot'] = i.sellPriceSnapshot;
         }
         if (hasBillItemLineTotal) billItemValues['line_total'] = lineTotal;
         if (hasBillItemAmount) billItemValues['amount'] = lineTotal;
@@ -183,7 +182,7 @@ class BillRepository {
             itemTable,
             columns: [itemStockColumn],
             where: 'id = ?',
-            whereArgs: [i.itemId],
+            whereArgs: [i.productId],
           );
           qtyBefore =
               (stockRow.firstOrNull?[itemStockColumn] as num?)?.toDouble() ?? 0;
@@ -192,7 +191,7 @@ class BillRepository {
         if (itemStockColumn != null) {
           await txn.rawUpdate(
             'UPDATE $itemTable SET $itemStockColumn = COALESCE($itemStockColumn, 0) - ? WHERE id = ?',
-            [i.quantity, i.itemId],
+            [i.qty, i.productId],
           );
         }
 
@@ -241,12 +240,12 @@ class BillRepository {
           );
 
           final stockValues = <String, Object?>{};
-          if (hasProductId) stockValues['product_id'] = i.itemId;
-          if (hasItemId) stockValues['item_id'] = i.itemId;
+          if (hasProductId) stockValues['product_id'] = i.productId;
+          if (hasItemId) stockValues['item_id'] = i.productId;
           if (hasTransactionType) stockValues['transaction_type'] = 'sale';
-          if (hasQtyChange) stockValues['qty_change'] = -i.quantity;
+          if (hasQtyChange) stockValues['qty_change'] = -i.qty;
           if (hasQtyBefore) stockValues['qty_before'] = qtyBefore;
-          if (hasQtyAfter) stockValues['qty_after'] = qtyBefore - i.quantity;
+          if (hasQtyAfter) stockValues['qty_after'] = qtyBefore - i.qty;
           if (hasReferenceId) stockValues['reference_id'] = billId;
           if (hasReferenceType) stockValues['reference_type'] = 'bill';
           if (hasNote) stockValues['note'] = 'Bill #$billNumber';
@@ -440,9 +439,20 @@ class BillRepository {
     final maps = await _db.query('bills', where: 'id = ?', whereArgs: [id]);
     if (maps.isEmpty) return null;
     final normalized = Map<String, dynamic>.from(maps.first);
-    normalized['date_time'] ??= _resolveBillEpoch(normalized);
-    normalized['discount_amount'] ??= normalized['discount'];
-    normalized['tax_amount'] ??= normalized['gst_amount'];
+    // Convert old 'date_time' integer column into a usable ISO string 'created_at' and 'bill_date'
+    if (normalized['created_at'] == null) {
+      normalized['created_at'] = DateTime.fromMillisecondsSinceEpoch(
+              _resolveBillEpoch(normalized))
+          .toIso8601String();
+    }
+    if (normalized['bill_date'] == null) {
+      normalized['bill_date'] =
+          DateTime.tryParse(normalized['created_at'])?.toIso8601String() ??
+              normalized['created_at'];
+    }
+    // Rename old numeric fields to map cleanly to the shared model
+    normalized['discount'] ??= normalized['discount_amount'];
+    normalized['gst_amount'] ??= normalized['tax_amount'];
     return Bill.fromMap(normalized);
   }
 
@@ -454,10 +464,10 @@ class BillRepository {
     );
     return maps.map((m) {
       final normalized = Map<String, dynamic>.from(m);
-      normalized['item_id'] ??= normalized['product_id'];
-      normalized['quantity'] ??= normalized['qty'];
-      normalized['unit_price'] ??= normalized['sell_price_snapshot'];
-      normalized['line_total'] ??= normalized['amount'];
+      normalized['product_id'] ??= normalized['item_id'];
+      normalized['qty'] ??= normalized['quantity'];
+      normalized['sell_price_snapshot'] ??= normalized['unit_price'];
+      normalized['amount'] ??= normalized['line_total'];
       return BillItem.fromMap(normalized);
     }).toList();
   }

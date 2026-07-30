@@ -15,7 +15,7 @@ import '../../core/errors/error_types.dart';
 import '../../shared/widgets/errors/error_dialogue.dart';
 import '../../shared/widgets/errors/error_dialog.dart';
 import '../../shared/widgets/customer_search_field.dart';
-import '../../data/models/bill_item_input.dart';
+import '../../shared/models/bill_item_model.dart';
 
 import 'models/bill_line_item.dart';
 import '../../routing/app_router.dart';
@@ -148,7 +148,7 @@ class _BillingHomeScreenState extends ConsumerState<BillingHomeScreen> {
   }
 
   double _toStockUnitQuantity(BillLineItem line) {
-    final unit = line.item.unit.trim().toLowerCase();
+    final unit = line.item.unitType.trim().toLowerCase();
     if (unit.contains('કિલો') || unit == 'kg' || unit.contains('kilo')) {
       return line.qtyGrams / 1000.0;
     }
@@ -158,16 +158,19 @@ class _BillingHomeScreenState extends ConsumerState<BillingHomeScreen> {
     return line.qtyGrams;
   }
 
-  List<BillItemInput> _buildBillItemsFromLines(List<BillLineItem> lines) {
+  List<BillItem> _buildBillItemsFromLines(List<BillLineItem> lines) {
     return lines.map((line) {
       final quantityInStockUnit = _toStockUnitQuantity(line);
       final double unitPrice = quantityInStockUnit > 0
           ? line.amount / quantityInStockUnit
           : 0.0;
-      return BillItemInput(
-        itemId: line.item.id ?? 0,
-        quantity: quantityInStockUnit,
-        unitPrice: unitPrice,
+      return BillItem(
+        billId: 0, // Placeholder, updated in repository
+        productId: line.item.id ?? 0,
+        qty: quantityInStockUnit,
+        amount: line.amount,
+        sellPriceSnapshot: unitPrice,
+        isReturned: false,
       );
     }).toList();
   }
@@ -319,7 +322,7 @@ class _BillingHomeScreenState extends ConsumerState<BillingHomeScreen> {
   Future<double> _getLatestStockKg(int itemId) async {
     final repo = await ref.read(itemRepositoryFutureProvider.future);
     final latestItem = await repo.getById(itemId);
-    return latestItem?.currentStock ?? 0.0;
+    return latestItem?.stockQty ?? 0.0;
   }
 
   Future<bool> _hasEnoughStockForDraft({

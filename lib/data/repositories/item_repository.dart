@@ -1,23 +1,23 @@
 import 'package:sqflite_sqlcipher/sqflite.dart';
 
 import '../models/category.dart';
-import '../models/item.dart';
+import '../../shared/models/product_model.dart';
 
 class ItemRepository {
   ItemRepository(this._db);
 
   final Database _db;
 
-  Future<List<Item>> getAll({bool activeOnly = true}) async {
+  Future<List<Product>> getAll({bool activeOnly = true}) async {
     final maps = await _db.query(
       'products',
       where: activeOnly ? 'is_active = 1' : null,
       orderBy: 'name_gujarati ASC',
     );
-    return maps.map((m) => Item.fromMap(m)).toList();
+    return maps.map((m) => Product.fromMap(m)).toList();
   }
 
-  Future<List<Item>> search(String query, {bool lowStockOnly = false}) async {
+  Future<List<Product>> search(String query, {bool lowStockOnly = false}) async {
     var where = 'is_active = 1';
     final args = <Object?>[];
 
@@ -37,37 +37,37 @@ class ItemRepository {
       whereArgs: args.isEmpty ? null : args,
       orderBy: 'name_gujarati ASC',
     );
-    return maps.map((m) => Item.fromMap(m)).toList();
+    return maps.map((m) => Product.fromMap(m)).toList();
   }
 
-  Future<Item?> getById(int id) async {
+  Future<Product?> getById(int id) async {
     final maps = await _db.query('products', where: 'id = ?', whereArgs: [id]);
     if (maps.isEmpty) return null;
-    return Item.fromMap(maps.first);
+    return Product.fromMap(maps.first);
   }
 
-  Future<Item?> getByBarcode(String barcode) async {
+  Future<Product?> getByBarcode(String barcode) async {
     final maps = await _db.query(
       'products',
       where: 'barcode = ? AND is_active = 1',
       whereArgs: [barcode],
     );
     if (maps.isEmpty) return null;
-    return Item.fromMap(maps.first);
+    return Product.fromMap(maps.first);
   }
 
-  Future<int> insert(Item item) async {
+  Future<int> insert(Product item) async {
     final now = DateTime.now().toIso8601String();
     return _db.insert('products', {
-      'name_gujarati': item.nameGu,
-      'name_english': null,
-      'transliteration_keys': null,
+      'name_gujarati': item.nameGujarati,
+      'name_english': item.nameEnglish,
+      'transliteration_keys': item.transliterationKeys,
       'category_id': item.categoryId,
-      'unit_type': item.unit,
-      'buy_price': item.purchasePrice,
-      'sell_price': item.salePrice,
-      'stock_qty': item.currentStock,
-      'min_stock_qty': item.lowStockThreshold,
+      'unit_type': item.unitType,
+      'buy_price': item.buyPrice,
+      'sell_price': item.sellPrice,
+      'stock_qty': item.stockQty,
+      'min_stock_qty': item.minStockQty,
       'is_active': item.isActive ? 1 : 0,
       'barcode': item.barcode,
       'created_at': now,
@@ -75,19 +75,21 @@ class ItemRepository {
     });
   }
 
-  Future<int> update(Item item) async {
+  Future<int> update(Product item) async {
     if (item.id == null) return 0;
     final now = DateTime.now().toIso8601String();
     return _db.update(
       'products',
       {
-        'name_gujarati': item.nameGu,
+        'name_gujarati': item.nameGujarati,
+        'name_english': item.nameEnglish,
+        'transliteration_keys': item.transliterationKeys,
         'category_id': item.categoryId,
-        'unit_type': item.unit,
-        'buy_price': item.purchasePrice,
-        'sell_price': item.salePrice,
-        'stock_qty': item.currentStock,
-        'min_stock_qty': item.lowStockThreshold,
+        'unit_type': item.unitType,
+        'buy_price': item.buyPrice,
+        'sell_price': item.sellPrice,
+        'stock_qty': item.stockQty,
+        'min_stock_qty': item.minStockQty,
         'is_active': item.isActive ? 1 : 0,
         'barcode': item.barcode,
         'updated_at': now,

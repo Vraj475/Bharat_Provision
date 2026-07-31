@@ -9,6 +9,7 @@ import '../../routing/app_router.dart';
 import '../../shared/models/customer_model.dart';
 import 'reminder_bottom_sheet.dart';
 import 'udhaar_providers.dart';
+import 'package:go_router/go_router.dart';
 
 class UdhaarDashboardScreen extends ConsumerStatefulWidget {
   const UdhaarDashboardScreen({super.key});
@@ -96,9 +97,9 @@ class _UdhaarDashboardScreenState extends ConsumerState<UdhaarDashboardScreen> {
                         return _CustomerTile(
                           row: row,
                           daysColor: _daysColor(row.daysSinceOldestUnpaid),
-                          onTap: () => Navigator.of(context).pushNamed(
+                          onTap: () => context.push(
                             AppRouter.udhaarCustomer,
-                            arguments: row.customer.id,
+                            extra: row.customer.id,
                           ),
                           onBell: () => _openReminder(row.customer),
                         );
@@ -180,11 +181,11 @@ class _UdhaarDashboardScreenState extends ConsumerState<UdhaarDashboardScreen> {
           ),
           actions: [
             TextButton(
-              onPressed: () => Navigator.pop(ctx, false),
+              onPressed: () => ctx.pop(false),
               child: const Text('રદ'),
             ),
             ElevatedButton(
-              onPressed: () => Navigator.pop(ctx, true),
+              onPressed: () => ctx.pop(true),
               child: const Text('ઉમેરો'),
             ),
           ],
@@ -226,11 +227,11 @@ class _UdhaarDashboardScreenState extends ConsumerState<UdhaarDashboardScreen> {
           ),
           actions: [
             TextButton(
-              onPressed: () => Navigator.pop(ctx, false),
+              onPressed: () => ctx.pop(false),
               child: const Text('રદ'),
             ),
             ElevatedButton(
-              onPressed: () => Navigator.pop(ctx, true),
+              onPressed: () => ctx.pop(true),
               child: const Text('છતાં ઉમેરો'),
             ),
           ],

@@ -5,6 +5,7 @@ import '../../shared/models/expense_account_model.dart';
 import '../../shared/models/expense_model.dart';
 import '../../core/utils/currency_format.dart';
 import 'expense_repository_provider.dart';
+import 'package:go_router/go_router.dart';
 
 class AddExpenseScreen extends ConsumerStatefulWidget {
   const AddExpenseScreen({super.key, this.expense});
@@ -76,49 +77,44 @@ class _AddExpenseScreenState extends ConsumerState<AddExpenseScreen> {
   }
 
   Widget _buildAccountDropdown() {
-    return ref
-        .watch(expenseRepositoryProvider)
-        .when(
-          data: (repo) => FutureBuilder<List<ExpenseAccount>>(
-            future: repo.getExpenseAccounts(),
-            builder: (context, snapshot) {
-              if (!snapshot.hasData) return const CircularProgressIndicator();
-              final accounts = snapshot.data!;
-              if (_selectedAccount == null &&
-                  widget.expense?.expenseAccountId != null) {
-                _selectedAccount = accounts
-                    .where((a) => a.id == widget.expense!.expenseAccountId)
-                    .firstOrNull;
-              }
-              return DropdownButtonFormField<ExpenseAccount>(
-                decoration: const InputDecoration(
-                  labelText: 'Expense Account',
-                  border: OutlineInputBorder(),
-                ),
-                initialValue: _selectedAccount,
-                items: accounts.map((account) {
-                  return DropdownMenuItem(
-                    value: account,
-                    child: Text(account.accountNameGujarati),
-                  );
-                }).toList(),
-                onChanged: (value) {
-                  setState(() {
-                    _selectedAccount = value;
-                    if (!_amountEdited && value != null) {
-                      _amountController.text = value.typicalAmount.toString();
-                    }
-                  });
-                },
-                validator: (value) {
-                  return value == null ? 'Please select an account' : null;
-                },
-              );
-            },
+    final repo = ref.watch(expenseRepositoryProvider);
+    return FutureBuilder<List<ExpenseAccount>>(
+      future: repo.getExpenseAccounts(),
+      builder: (context, snapshot) {
+        if (!snapshot.hasData) return const CircularProgressIndicator();
+        final accounts = snapshot.data!;
+        if (_selectedAccount == null &&
+            widget.expense?.expenseAccountId != null) {
+          _selectedAccount = accounts
+              .where((a) => a.id == widget.expense!.expenseAccountId)
+              .firstOrNull;
+        }
+        return DropdownButtonFormField<ExpenseAccount>(
+          decoration: const InputDecoration(
+            labelText: 'Expense Account',
+            border: OutlineInputBorder(),
           ),
-          error: (error, stack) => Text('Error: $error'),
-          loading: () => const CircularProgressIndicator(),
+          initialValue: _selectedAccount,
+          items: accounts.map((account) {
+            return DropdownMenuItem(
+              value: account,
+              child: Text(account.accountNameGujarati),
+            );
+          }).toList(),
+          onChanged: (value) {
+            setState(() {
+              _selectedAccount = value;
+              if (!_amountEdited && value != null) {
+                _amountController.text = value.typicalAmount.toString();
+              }
+            });
+          },
+          validator: (value) {
+            return value == null ? 'Please select an account' : null;
+          },
         );
+      },
+    );
   }
 
   Widget _buildAmountField() {
@@ -198,7 +194,7 @@ class _AddExpenseScreenState extends ConsumerState<AddExpenseScreen> {
       createdAt: widget.expense?.createdAt ?? DateTime.now().toIso8601String(),
     );
 
-    final repo = await ref.read(expenseRepositoryProvider.future);
+    final repo = ref.read(expenseRepositoryProvider);
     if (widget.expense == null) {
       await repo.addExpense(expense);
     } else {
@@ -215,7 +211,7 @@ class _AddExpenseScreenState extends ConsumerState<AddExpenseScreen> {
           ),
         ),
       );
-      Navigator.of(context).pop();
+      context.pop();
     }
   }
 }

@@ -11,6 +11,7 @@ import '../../shared/models/bill_item_model.dart';
 import '../../shared/models/bill_model.dart';
 import '../../shared/models/product_model.dart';
 import 'returns_providers.dart';
+import 'package:go_router/go_router.dart';
 
 class ReplaceScreen extends ConsumerStatefulWidget {
   const ReplaceScreen({super.key});
@@ -269,11 +270,11 @@ class _ReplaceScreenState extends ConsumerState<ReplaceScreen> {
           ),
           actions: [
             TextButton(
-              onPressed: () => Navigator.of(ctx).pop(false),
+              onPressed: () => ctx.pop(false),
               child: const Text('રદ'),
             ),
             ElevatedButton(
-              onPressed: () => Navigator.of(ctx).pop(true),
+              onPressed: () => ctx.pop(true),
               child: const Text('સાચવો'),
             ),
           ],

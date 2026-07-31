@@ -12,6 +12,7 @@ import '../billing_providers.dart';
 import '../controllers/billing_controller.dart';
 import '../models/bill_line_item.dart';
 import 'dialogs/product_addition_dialog.dart';
+import 'package:go_router/go_router.dart';
 
 enum BillingDropdownType { none, product }
 
@@ -180,11 +181,11 @@ class _BillingProductPanelState extends ConsumerState<BillingProductPanel> {
             ),
             actions: [
               TextButton(
-                onPressed: () => Navigator.of(ctx).pop(false),
+                onPressed: () => ctx.pop(false),
                 child: const Text('રદ કરો'),
               ),
               ElevatedButton(
-                onPressed: () => Navigator.of(ctx).pop(true),
+                onPressed: () => ctx.pop(true),
                 child: const Text('ઉમેરો'),
               ),
             ],
@@ -546,7 +547,7 @@ class _BillingProductPanelState extends ConsumerState<BillingProductPanel> {
                                 ),
                                 actions: [
                                   TextButton(
-                                    onPressed: () => Navigator.of(ctx).pop(),
+                                    onPressed: () => ctx.pop(),
                                     child: const Text('બરાબર'),
                                   ),
                                 ],

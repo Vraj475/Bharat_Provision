@@ -4,6 +4,7 @@ import 'package:flutter_riverpod/flutter_riverpod.dart';
 import '../../../core/constants/app_strings.dart';
 import '../../../shared/models/product_model.dart';
 import '../../../shared/providers/product_provider.dart';
+import 'package:go_router/go_router.dart';
 
 class AddEditProductScreen extends ConsumerStatefulWidget {
   final int? productId;
@@ -214,7 +215,7 @@ class _AddEditProductScreenState extends ConsumerState<AddEditProductScreen> {
                   const SizedBox(width: 12),
                   Expanded(
                     child: OutlinedButton(
-                      onPressed: () => Navigator.pop(context),
+                      onPressed: () => context.pop(),
                       child: const Text(AppStrings.cancelButton),
                     ),
                   ),
@@ -284,7 +285,7 @@ class _AddEditProductScreenState extends ConsumerState<AddEditProductScreen> {
     ScaffoldMessenger.of(context).showSnackBar(
       const SnackBar(content: Text(AppStrings.successProductSaved)),
     );
-    Navigator.pop(context);
+    context.pop();
   }
 
   String _dbUnitType(String uiLabel) {

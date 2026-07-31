@@ -7,6 +7,7 @@ import '../../core/utils/date_time_format.dart';
 import '../../core/widgets/numpad.dart';
 import '../../data/repositories/udhaar_repository.dart';
 import 'udhaar_providers.dart';
+import 'package:go_router/go_router.dart';
 
 class CollectPaymentScreen extends ConsumerStatefulWidget {
   const CollectPaymentScreen({super.key, required this.customerId});
@@ -63,7 +64,7 @@ class _CollectPaymentScreenState extends ConsumerState<CollectPaymentScreen>
         ScaffoldMessenger.of(context).showSnackBar(
           const SnackBar(content: Text('ચૂકવણી સફળતાપૂર્વક નોંધાઈ')),
         );
-        Navigator.of(context).pop();
+        context.pop();
       }
     } catch (e) {
       if (mounted) {
@@ -291,11 +292,11 @@ class _UnpaidBillTileState extends ConsumerState<_UnpaidBillTile> {
           ),
           actions: [
             TextButton(
-              onPressed: () => Navigator.pop(ctx, false),
+              onPressed: () => ctx.pop(false),
               child: const Text('રદ'),
             ),
             ElevatedButton(
-              onPressed: () => Navigator.pop(ctx, true),
+              onPressed: () => ctx.pop(true),
               child: const Text('ચૂકવો'),
             ),
           ],

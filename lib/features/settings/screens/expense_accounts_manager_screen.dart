@@ -6,6 +6,7 @@ import '../../../shared/models/expense_account_model.dart';
 import '../../../core/errors/error_handler.dart';
 import '../../../data/providers.dart';
 import '../../../data/repositories/expense_repository.dart';
+import 'package:go_router/go_router.dart';
 
 class ExpenseAccountsManagerScreen extends ConsumerStatefulWidget {
   const ExpenseAccountsManagerScreen({super.key});
@@ -74,7 +75,7 @@ class _ExpenseAccountsManagerScreenState
                     onEdit: () => _showEditAccountDialog(account),
                     onToggle: (isActive) async {
                       try {
-                        final db = await ref.read(databaseProvider.future);
+                        final db = ref.read(databaseProvider);
                         final repo = ExpenseRepository(db);
                         await repo.toggleExpenseAccountStatus(
                           account.id!,
@@ -128,7 +129,7 @@ class _ExpenseAccountsManagerScreenState
       builder: (context) => _AddEditAccountDialog(
         onSave: (gujaratiName, englishName, type, typicalAmount) async {
           try {
-            final db = await ref.read(databaseProvider.future);
+            final db = ref.read(databaseProvider);
             final repo = ExpenseRepository(db);
             await repo.addExpenseAccount(
               ExpenseAccount(
@@ -142,7 +143,7 @@ class _ExpenseAccountsManagerScreenState
             );
             ref.invalidate(expenseAccountsProvider);
             if (!context.mounted) return;
-            Navigator.of(context).pop();
+            context.pop();
             ScaffoldMessenger.of(context).showSnackBar(
               const SnackBar(content: Text('સફળતાપૂર્વક સેવ થયું')),
             );
@@ -170,7 +171,7 @@ class _ExpenseAccountsManagerScreenState
         initialAmount: account.typicalAmount.toString(),
         onSave: (gujaratiName, englishName, type, typicalAmount) async {
           try {
-            final db = await ref.read(databaseProvider.future);
+            final db = ref.read(databaseProvider);
             final repo = ExpenseRepository(db);
             await repo.updateExpenseAccount(
               ExpenseAccount(
@@ -185,7 +186,7 @@ class _ExpenseAccountsManagerScreenState
             );
             ref.invalidate(expenseAccountsProvider);
             if (!context.mounted) return;
-            Navigator.of(context).pop();
+            context.pop();
             ScaffoldMessenger.of(context).showSnackBar(
               const SnackBar(content: Text('સફળતાપૂર્વક અપડેટ થયું')),
             );
@@ -213,19 +214,19 @@ class _ExpenseAccountsManagerScreenState
         ),
         actions: [
           TextButton(
-            onPressed: () => Navigator.of(context).pop(),
+            onPressed: () => context.pop(),
             child: const Text('રદ કરો'),
           ),
           ElevatedButton(
             style: ElevatedButton.styleFrom(backgroundColor: Colors.red),
             onPressed: () async {
               try {
-                final db = await ref.read(databaseProvider.future);
+                final db = ref.read(databaseProvider);
                 final repo = ExpenseRepository(db);
                 await repo.resetExpenseAccountsToDefaults();
                 ref.invalidate(expenseAccountsProvider);
                 if (!context.mounted) return;
-                Navigator.of(context).pop();
+                context.pop();
                 ScaffoldMessenger.of(context).showSnackBar(
                   const SnackBar(
                     content: Text('ડિફૉલ્ટ સફળતાપૂર્વક રીસેટ થયું'),
@@ -389,7 +390,7 @@ class _AddEditAccountDialogState extends State<_AddEditAccountDialog> {
       ),
       actions: [
         TextButton(
-          onPressed: () => Navigator.of(context).pop(),
+          onPressed: () => context.pop(),
           child: const Text('Cancel'),
         ),
         ElevatedButton(

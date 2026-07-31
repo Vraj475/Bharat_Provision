@@ -15,7 +15,8 @@ import '../../data/providers.dart';
 import '../inventory/inventory_providers.dart';
 import '../khata/khata_providers.dart';
 import 'settings_providers.dart';
-import 'screens/pin_verification_screen.dart';
+import 'package:go_router/go_router.dart';
+import '../../routing/app_router.dart';
 
 class SettingsScreen extends ConsumerStatefulWidget {
   const SettingsScreen({super.key});
@@ -38,7 +39,7 @@ class _SettingsScreenState extends ConsumerState<SettingsScreen> {
   }
 
   Future<void> _loadSettings() async {
-    final repo = await ref.read(settingsRepositoryFutureProvider.future);
+    final repo = ref.read(settingsRepositoryProvider);
     _shopNameController.text = await repo.get('shop_name');
     _addressController.text = await repo.get('shop_address');
     _phoneController.text = await repo.get('shop_phone');
@@ -60,7 +61,7 @@ class _SettingsScreenState extends ConsumerState<SettingsScreen> {
   }
 
   Future<void> _saveProfile() async {
-    final repo = await ref.read(settingsRepositoryFutureProvider.future);
+    final repo = ref.read(settingsRepositoryProvider);
     final shopName = _shopNameController.text.trim();
     await repo.set('shop_name', shopName);
     final prefs = await SharedPreferences.getInstance();
@@ -227,9 +228,7 @@ class _SettingsScreenState extends ConsumerState<SettingsScreen> {
                 value: largeText,
                 onChanged: (v) async {
                   ref.read(largeTextProvider.notifier).state = v;
-                  final repo = await ref.read(
-                    settingsRepositoryFutureProvider.future,
-                  );
+                  final repo = ref.read(settingsRepositoryProvider);
                   await repo.setBool('large_text', v);
                 },
               ),
@@ -265,14 +264,7 @@ class _SettingsScreenState extends ConsumerState<SettingsScreen> {
                   title: const Text('Change PIN'),
                   subtitle: const Text('Update your login PIN'),
                   trailing: const Icon(Icons.arrow_forward_ios, size: 16),
-                  onTap: () {
-                    Navigator.push(
-                      context,
-                      MaterialPageRoute(
-                        builder: (_) => const ChangePinScreen(),
-                      ),
-                    );
-                  },
+                  onTap: () => context.push(AppRouter.changePin),
                 ),
               ),
             ],

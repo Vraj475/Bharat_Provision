@@ -4,6 +4,7 @@ import '../../../../core/utils/weight_calculator.dart';
 import '../../../../core/utils/currency_format.dart';
 import '../../../../core/constants/app_strings.dart' as strings;
 import '../../../../shared/models/product_model.dart';
+import 'package:go_router/go_router.dart';
 
 class ProductAdditionDialog extends StatefulWidget {
   final Product item;
@@ -99,7 +100,7 @@ class _ProductAdditionDialogState extends State<ProductAdditionDialog> {
       return;
     }
 
-    Navigator.of(context).pop((finalQty, finalAmount));
+    context.pop((finalQty, finalAmount));
   }
 
   @override
@@ -236,7 +237,7 @@ class _ProductAdditionDialogState extends State<ProductAdditionDialog> {
       ),
       actions: [
         TextButton(
-          onPressed: () => Navigator.of(context).pop(),
+          onPressed: () => context.pop(),
           child: const Text(strings.AppStrings.cancelButton),
         ),
         ElevatedButton(

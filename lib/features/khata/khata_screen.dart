@@ -1,12 +1,11 @@
 import 'package:flutter/material.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
+import 'package:go_router/go_router.dart';
 
 import '../../core/utils/currency_format.dart';
 import '../../data/providers.dart';
-import '../billing/bill_detail_screen.dart';
-import '../expenses/add_expense_screen.dart';
+import '../../routing/app_router.dart';
 import '../expenses/expense_repository_provider.dart';
-import '../udhaar/customer_ledger_screen.dart';
 
 class KhataScreen extends ConsumerStatefulWidget {
   const KhataScreen({super.key});
@@ -210,15 +209,10 @@ class _KhataScreenState extends ConsumerState<KhataScreen>
   void _openEntrySource(KhataEntry entry) async {
     switch (entry.source) {
       case 'bill':
-        await Navigator.push(
-          context,
-          MaterialPageRoute(
-            builder: (_) => BillDetailScreen(billId: entry.sourceId),
-          ),
-        );
+        context.push(AppRouter.billDetail, extra: entry.sourceId);
         return;
       case 'expense':
-        final repo = await ref.read(expenseRepositoryProvider.future);
+        final repo = ref.read(expenseRepositoryProvider);
         final expense = await repo.getExpenseById(entry.sourceId);
         if (!mounted) return;
         if (expense == null) {
@@ -227,13 +221,10 @@ class _KhataScreenState extends ConsumerState<KhataScreen>
           );
           return;
         }
-        await Navigator.push(
-          context,
-          MaterialPageRoute(builder: (_) => AddExpenseScreen(expense: expense)),
-        );
+        context.push(AppRouter.addExpense, extra: expense);
         return;
       case 'payment':
-        final db = await ref.read(databaseProvider.future);
+        final db = ref.read(databaseProvider);
         final rows = await db.query(
           'udhaar_payments',
           columns: ['customer_id'],
@@ -249,12 +240,7 @@ class _KhataScreenState extends ConsumerState<KhataScreen>
           return;
         }
         final customerId = rows.first['customer_id'] as int;
-        await Navigator.push(
-          context,
-          MaterialPageRoute(
-            builder: (_) => CustomerLedgerScreen(customerId: customerId),
-          ),
-        );
+        context.push(AppRouter.udhaarCustomer, extra: customerId);
         return;
       default:
         ScaffoldMessenger.of(
@@ -264,7 +250,7 @@ class _KhataScreenState extends ConsumerState<KhataScreen>
   }
 
   Future<List<KhataEntry>> _getCreditEntries() async {
-    final db = await ref.read(databaseProvider.future);
+    final db = ref.read(databaseProvider);
     final results = await db.rawQuery('''
       SELECT 'bill' as source, b.id as source_id, b.date_time as date, 
              COALESCE(c.name_gujarati, 'Walk-in') as account_name, b.total_amount as amount,
@@ -284,7 +270,7 @@ class _KhataScreenState extends ConsumerState<KhataScreen>
   }
 
   Future<List<KhataEntry>> _getDebitEntries() async {
-    final db = await ref.read(databaseProvider.future);
+    final db = ref.read(databaseProvider);
     final results = await db.rawQuery('''
       SELECT 'expense' as source, e.id as source_id, e.date as date,
              ea.name as account_name, e.amount as amount,

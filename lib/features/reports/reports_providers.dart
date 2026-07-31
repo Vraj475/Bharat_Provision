@@ -10,7 +10,7 @@ final reportDateRangeProvider = StateProvider<DateTimeRange>((ref) {
 });
 
 final salesReportProvider = FutureProvider<SalesSummary>((ref) async {
-  final repo = await ref.watch(reportRepositoryFutureProvider.future);
+  final repo = ref.watch(reportRepositoryProvider);
   final range = ref.watch(reportDateRangeProvider);
   final start = range.start.millisecondsSinceEpoch;
   final end = range.end.add(const Duration(days: 1)).millisecondsSinceEpoch;
@@ -20,6 +20,6 @@ final salesReportProvider = FutureProvider<SalesSummary>((ref) async {
 final outstandingKhataProvider = FutureProvider<List<OutstandingCustomer>>((
   ref,
 ) async {
-  final repo = await ref.watch(reportRepositoryFutureProvider.future);
+  final repo = ref.watch(reportRepositoryProvider);
   return repo.getOutstandingKhata();
 });

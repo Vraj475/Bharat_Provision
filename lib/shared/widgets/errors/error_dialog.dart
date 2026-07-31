@@ -1,5 +1,6 @@
 import 'package:flutter/material.dart';
 import '../../../core/errors/error_types.dart';
+import 'package:go_router/go_router.dart';
 
 class ErrorDialog {
   static Future<void> show(
@@ -17,7 +18,7 @@ class ErrorDialog {
           content: Text(error.userMessage),
           actions: [
             TextButton(
-              onPressed: () => Navigator.of(context).pop(),
+              onPressed: () => context.pop(),
               child: const Text('ઠીક છે'),
             ),
           ],

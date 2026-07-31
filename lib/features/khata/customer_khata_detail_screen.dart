@@ -8,6 +8,7 @@ import '../../core/utils/date_time_format.dart';
 import '../../core/widgets/numpad.dart';
 import '../../data/providers.dart';
 import 'khata_providers.dart';
+import 'package:go_router/go_router.dart';
 
 class CustomerKhataDetailScreen extends ConsumerStatefulWidget {
   const CustomerKhataDetailScreen({super.key, required this.customerId});
@@ -50,7 +51,7 @@ class _CustomerKhataDetailScreenState
                 NumpadWidget(
                   controller: ctrl,
                   allowDecimal: true,
-                  onSubmit: () => Navigator.pop(ctx, true),
+                  onSubmit: () => ctx.pop(true),
                 ),
               ],
             ),
@@ -58,11 +59,11 @@ class _CustomerKhataDetailScreenState
         ),
         actions: [
           TextButton(
-            onPressed: () => Navigator.pop(ctx, false),
+            onPressed: () => ctx.pop(false),
             child: const Text(AppStrings.cancelButton),
           ),
           ElevatedButton(
-            onPressed: () => Navigator.pop(ctx, true),
+            onPressed: () => ctx.pop(true),
             child: const Text(AppStrings.saveButton),
           ),
         ],
@@ -75,7 +76,7 @@ class _CustomerKhataDetailScreenState
     if (amount <= 0) return;
 
     try {
-      final repo = await ref.read(khataRepositoryFutureProvider.future);
+      final repo = ref.read(khataRepositoryProvider);
       await repo.addEntry(
         customerId: widget.customerId,
         type: type,

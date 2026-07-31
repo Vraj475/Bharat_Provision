@@ -8,13 +8,13 @@ final itemListSearchProvider = StateProvider<String>((ref) => '');
 final itemListLowStockOnlyProvider = StateProvider<bool>((ref) => false);
 
 final itemListProvider = FutureProvider<List<Product>>((ref) async {
-  final repo = await ref.watch(itemRepositoryFutureProvider.future);
+  final repo = ref.watch(itemRepositoryProvider);
   final query = ref.watch(itemListSearchProvider);
   final lowStockOnly = ref.watch(itemListLowStockOnlyProvider);
   return repo.search(query, lowStockOnly: lowStockOnly);
 });
 
 final categoryListProvider = FutureProvider<List<Category>>((ref) async {
-  final repo = await ref.watch(itemRepositoryFutureProvider.future);
+  final repo = ref.watch(itemRepositoryProvider);
   return repo.getCategories();
 });

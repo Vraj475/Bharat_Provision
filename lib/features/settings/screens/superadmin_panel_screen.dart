@@ -4,6 +4,7 @@ import '../providers/auth_provider.dart';
 import '../settings_providers.dart';
 import '../../../data/providers.dart';
 import 'pin_verification_screen.dart';
+import 'package:go_router/go_router.dart';
 
 class SuperadminPanelScreen extends ConsumerStatefulWidget {
   const SuperadminPanelScreen({super.key});
@@ -48,7 +49,7 @@ class _SuperadminPanelScreenState extends ConsumerState<SuperadminPanelScreen>
         _isPinVerified = true;
       });
     } else {
-      Navigator.of(context).pop();
+      context.pop();
     }
   }
 
@@ -223,9 +224,7 @@ class _ModuleToggle extends ConsumerWidget {
           Switch(
             value: value,
             onChanged: (newValue) async {
-              final repo = await ref.read(
-                settingsRepositoryFutureProvider.future,
-              );
+              final repo = ref.read(settingsRepositoryProvider);
               await repo.setBool(module, newValue);
               ref.invalidate(moduleSettingsProvider);
               if (!context.mounted) return;
@@ -302,7 +301,7 @@ class _UserManagerTab extends ConsumerWidget {
                   width: double.infinity,
                   child: ElevatedButton(
                     onPressed: () async {
-                      final db = await ref.read(databaseProvider.future);
+                      final db = ref.read(databaseProvider);
                       final columns = await db.rawQuery(
                         'PRAGMA table_info(users)',
                       );
@@ -349,7 +348,7 @@ class _UserManagerTab extends ConsumerWidget {
                           ),
                           actions: [
                             TextButton(
-                              onPressed: () => Navigator.of(ctx).pop(),
+                              onPressed: () => ctx.pop(),
                               child: const Text('બંધ કરો'),
                             ),
                           ],
@@ -469,9 +468,7 @@ class _ShopConfigTabState extends ConsumerState<_ShopConfigTab> {
                       width: double.infinity,
                       child: ElevatedButton(
                         onPressed: () async {
-                          final repo = await ref.read(
-                            settingsRepositoryFutureProvider.future,
-                          );
+                          final repo = ref.read(settingsRepositoryProvider);
                           await repo.set(
                             'shop_name',
                             _shopNameController.text.trim(),
@@ -562,7 +559,7 @@ class _ShopConfigTabState extends ConsumerState<_ShopConfigTab> {
                           final pinOk = await _showSuperadminPinDialog();
                           if (!pinOk || !context.mounted) return;
 
-                          final db = await ref.read(databaseProvider.future);
+                          final db = ref.read(databaseProvider);
                           await db.transaction((txn) async {
                             await txn.execute('PRAGMA foreign_keys = OFF');
                             final tables = await txn.rawQuery(
@@ -613,12 +610,12 @@ class _ShopConfigTabState extends ConsumerState<_ShopConfigTab> {
         ),
         actions: [
           TextButton(
-            onPressed: () => Navigator.of(ctx).pop(false),
+            onPressed: () => ctx.pop(false),
             child: const Text('રદ કરો'),
           ),
           ElevatedButton(
             onPressed: () =>
-                Navigator.of(ctx).pop(controller.text.trim() == 'RESET'),
+                ctx.pop(controller.text.trim() == 'RESET'),
             child: const Text('ખાતરી કરો'),
           ),
         ],
@@ -645,11 +642,11 @@ class _ShopConfigTabState extends ConsumerState<_ShopConfigTab> {
         ),
         actions: [
           TextButton(
-            onPressed: () => Navigator.of(ctx).pop(false),
+            onPressed: () => ctx.pop(false),
             child: const Text('રદ કરો'),
           ),
           ElevatedButton(
-            onPressed: () => Navigator.of(ctx).pop(true),
+            onPressed: () => ctx.pop(true),
             child: const Text('ખાતરી કરો'),
           ),
         ],

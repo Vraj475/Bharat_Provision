@@ -10,6 +10,7 @@ import '../../data/repositories/return_repository.dart';
 import '../../shared/models/bill_item_model.dart';
 import '../../shared/models/bill_model.dart';
 import 'returns_providers.dart';
+import 'package:go_router/go_router.dart';
 
 class ReturnScreen extends ConsumerStatefulWidget {
   const ReturnScreen({super.key});
@@ -228,11 +229,11 @@ class _ReturnScreenState extends ConsumerState<ReturnScreen> {
           ),
           actions: [
             TextButton(
-              onPressed: () => Navigator.of(ctx).pop(false),
+              onPressed: () => ctx.pop(false),
               child: const Text('રદ'),
             ),
             ElevatedButton(
-              onPressed: () => Navigator.of(ctx).pop(true),
+              onPressed: () => ctx.pop(true),
               child: const Text('સાચવો'),
             ),
           ],

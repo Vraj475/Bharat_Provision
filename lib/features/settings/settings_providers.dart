@@ -6,12 +6,12 @@ final largeTextProvider = StateProvider<bool>((ref) => false);
 
 // Shop name provider - auto-fetches from settings
 final shopNameProvider = FutureProvider<String>((ref) async {
-  final repo = await ref.watch(settingsRepositoryFutureProvider.future);
+  final repo = ref.watch(settingsRepositoryProvider);
   return await repo.get('shop_name');
 });
 
 final settingsValuesProvider = FutureProvider<Map<String, String>>((ref) async {
-  final repo = await ref.watch(settingsRepositoryFutureProvider.future);
+  final repo = ref.watch(settingsRepositoryProvider);
   return {
     'shop_name': await repo.get('shop_name'),
     'shop_address': await repo.get('shop_address'),
@@ -25,7 +25,7 @@ final settingsValuesProvider = FutureProvider<Map<String, String>>((ref) async {
 // These control whether features are visible and accessible in the app
 
 final moduleSettingsProvider = FutureProvider<Map<String, bool>>((ref) async {
-  final repo = await ref.watch(settingsRepositoryFutureProvider.future);
+  final repo = ref.watch(settingsRepositoryProvider);
   return {
     'module_udhaar': await repo.getBool('module_udhaar'),
     'module_returns': await repo.getBool('module_returns'),
@@ -52,7 +52,7 @@ final isModuleEnabledProvider = FutureProvider.family<bool, String>((
 
 // ===== Feature Toggles (settings visible to users) =====
 final featureToggleProvider = FutureProvider<Map<String, bool>>((ref) async {
-  final repo = await ref.watch(settingsRepositoryFutureProvider.future);
+  final repo = ref.watch(settingsRepositoryProvider);
   return {
     'module_customer_name_on_bill': await repo.getBool(
       'module_customer_name_on_bill',
@@ -73,7 +73,7 @@ final featureToggleProvider = FutureProvider<Map<String, bool>>((ref) async {
 final securitySettingsProvider = FutureProvider<Map<String, dynamic>>((
   ref,
 ) async {
-  final repo = await ref.watch(settingsRepositoryFutureProvider.future);
+  final repo = ref.watch(settingsRepositoryProvider);
   return {
     'session_timeout_minutes':
         int.tryParse(await repo.get('session_timeout_minutes')) ?? 5,

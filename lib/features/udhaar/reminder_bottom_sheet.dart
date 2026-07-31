@@ -6,6 +6,7 @@ import '../../core/theme/app_colors.dart';
 import '../../core/utils/currency_format.dart';
 import '../../shared/models/customer_model.dart';
 import 'udhaar_providers.dart';
+import 'package:go_router/go_router.dart';
 
 /// Bottom sheet for sending WhatsApp / SMS reminders to a customer.
 /// Only shows reminder types that are enabled in settings.
@@ -116,7 +117,7 @@ class _ReminderBottomSheetState extends ConsumerState<ReminderBottomSheet> {
             backgroundColor: AppColors.success,
           ),
         );
-        Navigator.of(context).pop();
+        context.pop();
       } else {
         if (!mounted) return;
         ScaffoldMessenger.of(context).showSnackBar(

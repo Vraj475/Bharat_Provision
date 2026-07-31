@@ -5,6 +5,7 @@ import 'package:intl/intl.dart';
 import '../../shared/models/expense_account_model.dart';
 import '../../shared/models/product_model.dart';
 import 'stock_providers.dart';
+import 'package:go_router/go_router.dart';
 
 class AddStockScreen extends ConsumerStatefulWidget {
   const AddStockScreen({super.key, this.prefilledProduct});
@@ -312,7 +313,7 @@ class _AddStockScreenState extends ConsumerState<AddStockScreen> {
         // Invalidate providers so dashboard & history refresh
         ref.invalidate(stockDashboardProductsProvider);
         ref.invalidate(stockSummaryProvider);
-        Navigator.of(context).pop();
+        context.pop();
       }
     } catch (e) {
       if (mounted) {

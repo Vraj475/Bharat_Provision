@@ -7,6 +7,7 @@ import '../../core/utils/currency_format.dart';
 import '../../data/providers.dart';
 import '../../routing/app_router.dart';
 import 'reports_providers.dart';
+import 'package:go_router/go_router.dart';
 
 class ReportsHomeScreen extends ConsumerWidget {
   const ReportsHomeScreen({super.key});
@@ -115,7 +116,7 @@ class ReportsHomeScreen extends ConsumerWidget {
                 Expanded(
                   child: ElevatedButton(
                     onPressed: () =>
-                        Navigator.of(context).pushNamed(AppRouter.plReport),
+                        context.push(AppRouter.plReport),
                     child: const Text('P&L Report'),
                   ),
                 ),
@@ -123,7 +124,7 @@ class ReportsHomeScreen extends ConsumerWidget {
                 Expanded(
                   child: ElevatedButton(
                     onPressed: () =>
-                        Navigator.of(context).pushNamed(AppRouter.dailyReport),
+                        context.push(AppRouter.dailyReport),
                     child: const Text('Daily Report'),
                   ),
                 ),
@@ -151,8 +152,8 @@ class _SalesCard extends ConsumerWidget {
   Widget build(BuildContext context, WidgetRef ref) {
     return FutureBuilder(
       future: ref
-          .read(reportRepositoryFutureProvider.future)
-          .then((repo) => repo.getSalesSummary(startEpoch, endEpoch)),
+          .read(reportRepositoryProvider)
+          .getSalesSummary(startEpoch, endEpoch),
       builder: (ctx, snap) {
         final summary = snap.data;
         return Card(

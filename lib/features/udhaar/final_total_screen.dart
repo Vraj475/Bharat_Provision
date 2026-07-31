@@ -8,6 +8,7 @@ import '../../data/repositories/udhaar_repository.dart';
 import '../../routing/app_router.dart';
 import 'reminder_bottom_sheet.dart';
 import 'udhaar_providers.dart';
+import 'package:go_router/go_router.dart';
 
 class FinalTotalScreen extends ConsumerStatefulWidget {
   const FinalTotalScreen({super.key, required this.customerId});
@@ -184,9 +185,9 @@ class _FinalTotalScreenState extends ConsumerState<FinalTotalScreen> {
                       icon: Icons.payments,
                       label: '₹ ચૂકવણી લો',
                       color: AppColors.success,
-                      onPressed: () => Navigator.of(context).pushNamed(
+                      onPressed: () => context.push(
                         AppRouter.udhaarCollect,
-                        arguments: widget.customerId,
+                        extra: widget.customerId,
                       ),
                     ),
                   ],

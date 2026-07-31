@@ -5,6 +5,7 @@ import '../../core/localization/app_strings.dart';
 import '../../data/models/category.dart';
 import '../../data/providers.dart';
 import 'inventory_providers.dart';
+import 'package:go_router/go_router.dart';
 
 class CategoryListScreen extends ConsumerWidget {
   const CategoryListScreen({super.key});
@@ -68,11 +69,11 @@ class CategoryListScreen extends ConsumerWidget {
         ),
         actions: [
           TextButton(
-            onPressed: () => Navigator.pop(ctx, false),
+            onPressed: () => ctx.pop(false),
             child: const Text(AppStrings.cancelButton),
           ),
           ElevatedButton(
-            onPressed: () => Navigator.pop(ctx, true),
+            onPressed: () => ctx.pop(true),
             child: const Text(AppStrings.saveButton),
           ),
         ],
@@ -81,7 +82,7 @@ class CategoryListScreen extends ConsumerWidget {
     if (ok != true || nameCtrl.text.trim().isEmpty) return;
 
     try {
-      final repo = await ref.read(itemRepositoryFutureProvider.future);
+      final repo = ref.read(itemRepositoryProvider);
       await repo.insertCategory(Category(nameGu: nameCtrl.text.trim()));
       ref.invalidate(categoryListProvider);
       if (context.mounted) {
@@ -114,11 +115,11 @@ class CategoryListScreen extends ConsumerWidget {
         ),
         actions: [
           TextButton(
-            onPressed: () => Navigator.pop(ctx, false),
+            onPressed: () => ctx.pop(false),
             child: const Text(AppStrings.cancelButton),
           ),
           ElevatedButton(
-            onPressed: () => Navigator.pop(ctx, true),
+            onPressed: () => ctx.pop(true),
             child: const Text(AppStrings.saveButton),
           ),
         ],
@@ -127,7 +128,7 @@ class CategoryListScreen extends ConsumerWidget {
     if (ok != true || nameCtrl.text.trim().isEmpty) return;
 
     try {
-      final repo = await ref.read(itemRepositoryFutureProvider.future);
+      final repo = ref.read(itemRepositoryProvider);
       await repo.updateCategory(c.copyWith(nameGu: nameCtrl.text.trim()));
       ref.invalidate(categoryListProvider);
       if (context.mounted) {

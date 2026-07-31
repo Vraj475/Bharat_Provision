@@ -5,6 +5,7 @@ import 'package:flutter_riverpod/flutter_riverpod.dart';
 import '../providers/auth_provider.dart';
 import 'role_selection_screen.dart';
 import '../utils/pin_utils.dart';
+import 'package:go_router/go_router.dart';
 
 /// PIN verification screen used for sensitive operations.
 class PinVerificationScreen extends ConsumerStatefulWidget {
@@ -91,7 +92,7 @@ class _PinVerificationScreenState extends ConsumerState<PinVerificationScreen> {
       }
 
       widget.onVerified(true);
-      Navigator.of(context).pop(true);
+      context.pop(true);
     } catch (_) {
       if (!mounted) return;
       setState(() {

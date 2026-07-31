@@ -1,5 +1,6 @@
 import 'package:flutter/material.dart';
 import '../localization/app_strings.dart';
+import 'package:go_router/go_router.dart';
 
 /// Improved loading dialog with Gujarati text
 class LoadingDialog extends StatelessWidget {
@@ -83,14 +84,14 @@ class ConfirmationDialog extends StatelessWidget {
       actions: [
         TextButton(
           onPressed: () {
-            Navigator.pop(context);
+            context.pop();
             onCancel?.call();
           },
           child: Text(cancelText),
         ),
         ElevatedButton(
           onPressed: () {
-            Navigator.pop(context);
+            context.pop();
             onConfirm();
           },
           style: ElevatedButton.styleFrom(backgroundColor: confirmColor),

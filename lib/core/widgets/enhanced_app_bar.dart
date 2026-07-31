@@ -5,6 +5,7 @@ import '../localization/app_strings.dart';
 import '../theme/role_theme.dart';
 import '../../features/settings/providers/auth_provider.dart';
 import '../../features/settings/screens/role_selection_screen.dart';
+import 'package:go_router/go_router.dart';
 
 /// Enhanced AppBar widget with role-aware styling.
 class EnhancedAppBar extends ConsumerWidget implements PreferredSizeWidget {
@@ -122,7 +123,7 @@ class LogoutButton extends ConsumerWidget {
         content: const Text('શું તમે ચોક્કસ લૉગ આઉટ કરવા માંગો છો?'),
         actions: [
           TextButton(
-            onPressed: () => Navigator.pop(context),
+            onPressed: () => context.pop(),
             child: const Text(AppStrings.deleteCancelButton),
           ),
           ElevatedButton(

@@ -9,6 +9,7 @@ import '../../shared/models/product_model.dart';
 import '../../data/providers.dart';
 import '../../routing/app_router.dart';
 import 'inventory_providers.dart';
+import 'package:go_router/go_router.dart';
 
 class ItemListScreen extends ConsumerStatefulWidget {
   const ItemListScreen({super.key});
@@ -71,7 +72,7 @@ class _ItemListScreenState extends ConsumerState<ItemListScreen> {
                   icon: const Icon(Icons.category),
                   label: const Text('કેટેગરીઓ'),
                   onPressed: () =>
-                      Navigator.of(context).pushNamed(AppRouter.categories),
+                      context.push(AppRouter.categories),
                 ),
                 FilterChip(
                   label: const Text(AppStrings.lowStockFilter),
@@ -110,9 +111,9 @@ class _ItemListScreenState extends ConsumerState<ItemListScreen> {
                         trailing: PopupMenuButton<String>(
                           onSelected: (v) {
                             if (v == 'edit') {
-                              Navigator.of(context).pushNamed(
+                              context.push(
                                 AppRouter.itemEdit,
-                                arguments: item.id,
+                                extra: item.id,
                               );
                             } else if (v == 'delete') {
                               _confirmDelete(item);
@@ -157,7 +158,7 @@ class _ItemListScreenState extends ConsumerState<ItemListScreen> {
         ],
       ),
       floatingActionButton: FloatingActionButton.extended(
-        onPressed: () => Navigator.of(context).pushNamed(AppRouter.itemAdd),
+        onPressed: () => context.push(AppRouter.itemAdd),
         icon: const Icon(Icons.add),
         label: const Text(AppStrings.addItem),
       ),
@@ -174,7 +175,7 @@ class _ItemListScreenState extends ConsumerState<ItemListScreen> {
 
     String message;
     try {
-      final repo = await ref.read(itemRepositoryFutureProvider.future);
+      final repo = ref.read(itemRepositoryProvider);
       await repo.delete(item.id!);
       ref.invalidate(itemListProvider);
       message = 'ઉત્પાદ સફળતાપૂર્વક કાઢી નાખ્યું';

@@ -11,28 +11,45 @@ import 'core/theme/app_theme.dart';
 import 'data/providers.dart';
 import 'features/settings/settings_providers.dart';
 
+import 'core/database/database_helper.dart';
 import 'routing/app_router.dart';
 
 
 void main() {
-  WidgetsFlutterBinding.ensureInitialized();
-
-  if (Platform.isWindows || Platform.isLinux) {
-    sqfliteFfiInit();
-  }
-
-  FlutterError.onError = (details) {
-    FlutterError.presentError(details);
-    ErrorHandler.handleSilently(
-      details.exception,
-      details.stack ?? StackTrace.current,
-      context: 'FlutterError.onError',
-    );
-  };
-
   runZonedGuarded(
-    () {
-      runApp(const ProviderScope(child: KiranaApp()));
+    () async {
+      WidgetsFlutterBinding.ensureInitialized();
+
+      if (Platform.isWindows || Platform.isLinux) {
+        sqfliteFfiInit();
+      }
+
+      // Initialize the database synchronously for providers
+      final db = await DatabaseHelper.instance.database;
+
+      FlutterError.onError = (details) {
+        final String message = details.exceptionAsString();
+        if (message.contains('keysPressed') && message.contains('RawKeyDownEvent')) {
+          // Known Flutter Windows bug: Alt key modifier flags not set
+          // Track: https://github.com/flutter/flutter/issues/75675
+          return; // suppress silently
+        }
+        FlutterError.presentError(details);
+        ErrorHandler.handleSilently(
+          details.exception,
+          details.stack ?? StackTrace.current,
+          context: 'FlutterError.onError',
+        );
+      };
+
+      runApp(
+        ProviderScope(
+          overrides: [
+            databaseProvider.overrideWithValue(db),
+          ],
+          child: const KiranaApp(),
+        ),
+      );
     },
     (error, stack) {
       ErrorHandler.handleSilently(error, stack, context: 'ZoneGuarded');
@@ -59,7 +76,7 @@ class _KiranaAppState extends ConsumerState<KiranaApp> {
 
   Future<void> _loadLargeText() async {
     try {
-      final repo = await ref.read(settingsRepositoryFutureProvider.future);
+      final repo = ref.read(settingsRepositoryProvider);
       final v = await repo.getBool('large_text');
       ref.read(largeTextProvider.notifier).state = v;
     } catch (_) {}

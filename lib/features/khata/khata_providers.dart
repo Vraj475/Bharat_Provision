@@ -11,13 +11,13 @@ final customerSearchProvider = StateProvider<String>((ref) => '');
 class CustomersNotifier extends AsyncNotifier<List<Customer>> {
   @override
   Future<List<Customer>> build() async {
-    final repo = await ref.watch(customerRepositoryFutureProvider.future);
+    final repo = ref.watch(customerRepositoryProvider);
     return repo.getAll();
   }
 
   /// Update customer's outstanding balance and reload providers
   Future<void> updateOutstanding(int customerId, double newOutstanding) async {
-    final repo = await ref.read(customerRepositoryFutureProvider.future);
+    final repo = ref.read(customerRepositoryProvider);
     final customer = await repo.getById(customerId);
     if (customer != null) {
       await repo.update(customer.copyWith());
@@ -29,7 +29,7 @@ class CustomersNotifier extends AsyncNotifier<List<Customer>> {
 
   /// Reload all customers from database
   Future<List<Customer>> _reloadCustomers() async {
-    final repo = await ref.read(customerRepositoryFutureProvider.future);
+    final repo = ref.read(customerRepositoryProvider);
     return repo.getAll();
   }
 }
@@ -42,7 +42,7 @@ final customersProvider =
     );
 
 final customerListProvider = FutureProvider<List<Customer>>((ref) async {
-  final repo = await ref.watch(customerRepositoryFutureProvider.future);
+  final repo = ref.watch(customerRepositoryProvider);
   final query = ref.watch(customerSearchProvider);
   return repo.search(query);
 });
@@ -52,10 +52,10 @@ final customerWithBalanceProvider =
       ref,
       customerId,
     ) async {
-      final customerRepo = await ref.watch(
-        customerRepositoryFutureProvider.future,
+      final customerRepo = ref.watch(
+        customerRepositoryProvider,
       );
-      final khataRepo = await ref.watch(khataRepositoryFutureProvider.future);
+      final khataRepo = ref.watch(khataRepositoryProvider);
       final customer = await customerRepo.getById(customerId);
       if (customer == null) throw StateError('Customer not found');
       final balance = await khataRepo.getBalance(customerId);
@@ -64,6 +64,6 @@ final customerWithBalanceProvider =
 
 final customerKhataEntriesProvider =
     FutureProvider.family<List<KhataEntry>, int>((ref, customerId) async {
-      final repo = await ref.watch(khataRepositoryFutureProvider.future);
+      final repo = ref.watch(khataRepositoryProvider);
       return repo.getEntries(customerId);
     });

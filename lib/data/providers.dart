@@ -1,7 +1,6 @@
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 import 'package:sqflite_sqlcipher/sqflite.dart';
 
-import '../core/database/database_helper.dart';
 import 'repositories/bill_repository.dart';
 import 'repositories/customer_repository.dart';
 import 'repositories/item_repository.dart';
@@ -10,55 +9,34 @@ import 'repositories/report_repository.dart';
 import 'repositories/settings_repository.dart';
 import 'repositories/user_repository.dart';
 
-final databaseProvider = FutureProvider<Database>((ref) async {
-  return DatabaseHelper.instance.database;
+final databaseProvider = Provider<Database>((ref) {
+  throw UnimplementedError('databaseProvider must be overridden');
 });
 
-final itemRepositoryFutureProvider = FutureProvider<ItemRepository>((
-  ref,
-) async {
-  final db = await DatabaseHelper.instance.database;
-  return ItemRepository(db);
+final itemRepositoryProvider = Provider<ItemRepository>((ref) {
+  return ItemRepository(ref.watch(databaseProvider));
 });
 
-final billRepositoryFutureProvider = FutureProvider<BillRepository>((
-  ref,
-) async {
-  final db = await DatabaseHelper.instance.database;
-  return BillRepository(db);
+final billRepositoryProvider = Provider<BillRepository>((ref) {
+  return BillRepository(ref.watch(databaseProvider));
 });
 
-final customerRepositoryFutureProvider = FutureProvider<CustomerRepository>((
-  ref,
-) async {
-  final db = await ref.watch(databaseProvider.future);
-  return CustomerRepository(db);
+final customerRepositoryProvider = Provider<CustomerRepository>((ref) {
+  return CustomerRepository(ref.watch(databaseProvider));
 });
 
-final khataRepositoryFutureProvider = FutureProvider<KhataRepository>((
-  ref,
-) async {
-  final db = await ref.watch(databaseProvider.future);
-  return KhataRepository(db);
+final khataRepositoryProvider = Provider<KhataRepository>((ref) {
+  return KhataRepository(ref.watch(databaseProvider));
 });
 
-final reportRepositoryFutureProvider = FutureProvider<ReportRepository>((
-  ref,
-) async {
-  final db = await ref.watch(databaseProvider.future);
-  return ReportRepository(db);
+final reportRepositoryProvider = Provider<ReportRepository>((ref) {
+  return ReportRepository(ref.watch(databaseProvider));
 });
 
-final settingsRepositoryFutureProvider = FutureProvider<SettingsRepository>((
-  ref,
-) async {
-  final db = await ref.watch(databaseProvider.future);
-  return SettingsRepository(db);
+final settingsRepositoryProvider = Provider<SettingsRepository>((ref) {
+  return SettingsRepository(ref.watch(databaseProvider));
 });
 
-final userRepositoryFutureProvider = FutureProvider<UserRepository>((
-  ref,
-) async {
-  final db = await ref.watch(databaseProvider.future);
-  return UserRepository(db);
+final userRepositoryProvider = Provider<UserRepository>((ref) {
+  return UserRepository(ref.watch(databaseProvider));
 });

@@ -5,7 +5,7 @@ import '../providers.dart';
 
 /// Bill service provider
 final billServiceProvider = FutureProvider<BillService>((ref) async {
-  final db = await ref.watch(databaseProvider.future);
+  final db = ref.watch(databaseProvider);
   return BillService(db);
 });
 

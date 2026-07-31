@@ -1,10 +1,11 @@
 import 'package:flutter/material.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
+import 'package:go_router/go_router.dart';
 
 import '../../core/auth/role_provider.dart';
 import '../../core/utils/currency_format.dart';
 import '../../data/repositories/report_repository.dart';
-import '../billing/bill_detail_screen.dart';
+import '../../routing/app_router.dart';
 import '../dashboard/dashboard_providers.dart';
 
 class DailyReportScreen extends ConsumerStatefulWidget {
@@ -251,12 +252,7 @@ class _DailyReportScreenState extends ConsumerState<DailyReportScreen> {
                     ),
                     trailing: Text(formatCurrency(bill.totalAmount)),
                     onTap: () {
-                      Navigator.push(
-                        context,
-                        MaterialPageRoute(
-                          builder: (_) => BillDetailScreen(billId: bill.id!),
-                        ),
-                      );
+                      context.push(AppRouter.billDetail, extra: bill.id!);
                     },
                   ),
                 ),

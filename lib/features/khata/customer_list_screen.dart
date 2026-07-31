@@ -9,6 +9,7 @@ import '../../shared/models/customer_model.dart';
 import '../../data/providers.dart';
 import '../../routing/app_router.dart';
 import 'khata_providers.dart';
+import 'package:go_router/go_router.dart';
 
 class CustomerListScreen extends ConsumerStatefulWidget {
   const CustomerListScreen({super.key});
@@ -77,7 +78,7 @@ class _CustomerListScreenState extends ConsumerState<CustomerListScreen> {
         ],
       ),
       floatingActionButton: FloatingActionButton.extended(
-        onPressed: () => Navigator.of(context).pushNamed(AppRouter.customerAdd),
+        onPressed: () => context.push(AppRouter.customerAdd),
         icon: const Icon(Icons.add),
         label: const Text(AppStrings.addCustomer),
       ),
@@ -94,7 +95,7 @@ class _CustomerListScreenState extends ConsumerState<CustomerListScreen> {
 
     String message;
     try {
-      final repo = await ref.read(customerRepositoryFutureProvider.future);
+      final repo = ref.read(customerRepositoryProvider);
       await repo.delete(customer.id!);
       ref.invalidate(customerListProvider);
       message = 'ગ્રાહક સફળતાપૂર્વક કાઢી નાખ્યું';
@@ -131,10 +132,8 @@ class _CustomerListWithBalances extends ConsumerWidget {
       itemCount: customers.length,
       itemBuilder: (ctx, i) {
         final c = customers[i];
-        return FutureBuilder(
-          future: ref
-              .read(khataRepositoryFutureProvider.future)
-              .then((repo) => repo.getBalance(c.id!)),
+        return FutureBuilder<double>(
+          future: ref.read(khataRepositoryProvider).getBalance(c.id!),
           builder: (ctx, snap) {
             final balance = snap.data ?? 0.0;
             return Card(

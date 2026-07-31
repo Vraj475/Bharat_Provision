@@ -6,6 +6,7 @@ import '../../shared/models/product_model.dart';
 import '../../data/providers.dart';
 import 'inventory_providers.dart';
 import 'item_edit_form.dart';
+import 'package:go_router/go_router.dart';
 
 class ItemEditScreen extends ConsumerStatefulWidget {
   const ItemEditScreen({super.key, this.itemId});
@@ -47,7 +48,7 @@ class _ItemEditScreenState extends ConsumerState<ItemEditScreen> {
       });
       return;
     }
-    final repo = await ref.read(itemRepositoryFutureProvider.future);
+    final repo = ref.read(itemRepositoryProvider);
     final item = await repo.getById(widget.itemId!);
     if (item != null && mounted) {
       setState(() {
@@ -93,7 +94,7 @@ class _ItemEditScreenState extends ConsumerState<ItemEditScreen> {
     final stock = double.tryParse(_stockController.text) ?? 0;
     final lowStock = double.tryParse(_lowStockController.text) ?? 0;
 
-    final repo = await ref.read(itemRepositoryFutureProvider.future);
+    final repo = ref.read(itemRepositoryProvider);
 
     try {
       if (_item != null) {
@@ -132,7 +133,7 @@ class _ItemEditScreenState extends ConsumerState<ItemEditScreen> {
       }
       ref.invalidate(itemListProvider);
       if (mounted) {
-        Navigator.of(context).pop();
+        context.pop();
         ScaffoldMessenger.of(context).showSnackBar(
           const SnackBar(content: Text('ઉત્પાદ સફળતાપૂર્વક સેવ થયું')),
         );

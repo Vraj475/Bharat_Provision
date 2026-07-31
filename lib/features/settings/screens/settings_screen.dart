@@ -5,19 +5,21 @@ import 'dart:io';
 import 'package:blue_thermal_printer/blue_thermal_printer.dart';
 import 'package:flutter/material.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
+import 'package:go_router/go_router.dart';
 import 'package:intl/intl.dart';
 import 'package:path_provider/path_provider.dart';
 import 'package:share_plus/share_plus.dart';
 import 'package:shared_preferences/shared_preferences.dart';
-import '../providers/auth_provider.dart';
+
 import '../../../core/database/database_helper.dart';
 import '../../../core/errors/error_handler.dart';
-import '../settings_providers.dart';
-import 'superadmin_panel_screen.dart';
-import 'expense_accounts_manager_screen.dart';
-import 'transliteration_dictionary_screen.dart';
-import 'pin_verification_screen.dart';
 import '../../../data/providers.dart';
+import '../../../routing/app_router.dart';
+import '../providers/auth_provider.dart';
+import '../settings_providers.dart';
+import 'expense_accounts_manager_screen.dart';
+import 'superadmin_panel_screen.dart';
+import 'transliteration_dictionary_screen.dart';
 
 class SettingsScreen extends ConsumerStatefulWidget {
   const SettingsScreen({super.key});
@@ -121,9 +123,7 @@ class _ShopInfoTab extends ConsumerWidget {
                   label: 'Shop Name',
                   value: data['shop_name']!,
                   onSave: (value) async {
-                    final repo = await ref.read(
-                      settingsRepositoryFutureProvider.future,
-                    );
+                    final repo = ref.read(settingsRepositoryProvider);
                     final shopName = value.trim();
                     await repo.set('shop_name', shopName);
                     final prefs = await SharedPreferences.getInstance();
@@ -140,9 +140,7 @@ class _ShopInfoTab extends ConsumerWidget {
                   label: 'Address',
                   value: data['shop_address']!,
                   onSave: (value) async {
-                    final repo = await ref.read(
-                      settingsRepositoryFutureProvider.future,
-                    );
+                    final repo = ref.read(settingsRepositoryProvider);
                     await repo.set('shop_address', value);
                     ref.invalidate(settingsValuesProvider);
                     if (context.mounted) {
@@ -156,9 +154,7 @@ class _ShopInfoTab extends ConsumerWidget {
                   label: 'Phone',
                   value: data['shop_phone']!,
                   onSave: (value) async {
-                    final repo = await ref.read(
-                      settingsRepositoryFutureProvider.future,
-                    );
+                    final repo = ref.read(settingsRepositoryProvider);
                     await repo.set('shop_phone', value);
                     ref.invalidate(settingsValuesProvider);
                     if (context.mounted) {
@@ -172,9 +168,7 @@ class _ShopInfoTab extends ConsumerWidget {
                   label: 'GST Number',
                   value: data['gstin']!,
                   onSave: (value) async {
-                    final repo = await ref.read(
-                      settingsRepositoryFutureProvider.future,
-                    );
+                    final repo = ref.read(settingsRepositoryProvider);
                     await repo.set('gstin', value);
                     ref.invalidate(settingsValuesProvider);
                     if (context.mounted) {
@@ -212,9 +206,7 @@ class _BillSettingsTab extends ConsumerWidget {
                   label: 'ગ્રાહકનું નામ બિલ પર',
                   value: data['module_customer_name_on_bill']!,
                   onChanged: (value) async {
-                    final repo = await ref.read(
-                      settingsRepositoryFutureProvider.future,
-                    );
+                    final repo = ref.read(settingsRepositoryProvider);
                     await repo.setBool('module_customer_name_on_bill', value);
                     ref.invalidate(featureToggleProvider);
                     if (context.mounted) {
@@ -228,9 +220,7 @@ class _BillSettingsTab extends ConsumerWidget {
                   label: 'ચૂકવણી પ્રકાર બિલ પર',
                   value: data['module_payment_mode_on_bill']!,
                   onChanged: (value) async {
-                    final repo = await ref.read(
-                      settingsRepositoryFutureProvider.future,
-                    );
+                    final repo = ref.read(settingsRepositoryProvider);
                     await repo.setBool('module_payment_mode_on_bill', value);
                     ref.invalidate(featureToggleProvider);
                     if (context.mounted) {
@@ -244,9 +234,7 @@ class _BillSettingsTab extends ConsumerWidget {
                   label: 'વજન બિલ પર',
                   value: data['show_weight_on_bill']!,
                   onChanged: (value) async {
-                    final repo = await ref.read(
-                      settingsRepositoryFutureProvider.future,
-                    );
+                    final repo = ref.read(settingsRepositoryProvider);
                     await repo.setBool('show_weight_on_bill', value);
                     ref.invalidate(featureToggleProvider);
                     if (context.mounted) {
@@ -260,9 +248,7 @@ class _BillSettingsTab extends ConsumerWidget {
                   label: 'GST ગણતરી',
                   value: data['gst_enabled']!,
                   onChanged: (value) async {
-                    final repo = await ref.read(
-                      settingsRepositoryFutureProvider.future,
-                    );
+                    final repo = ref.read(settingsRepositoryProvider);
                     await repo.setBool('gst_enabled', value);
                     ref.invalidate(featureToggleProvider);
                     if (context.mounted) {
@@ -300,9 +286,7 @@ class _PrintSettingsTab extends ConsumerWidget {
                   label: 'ઉધારે બિલ છાપો',
                   value: data['print_udhaar_receipt']!,
                   onChanged: (value) async {
-                    final repo = await ref.read(
-                      settingsRepositoryFutureProvider.future,
-                    );
+                    final repo = ref.read(settingsRepositoryProvider);
                     await repo.setBool('print_udhaar_receipt', value);
                     ref.invalidate(featureToggleProvider);
                     if (context.mounted) {
@@ -316,9 +300,7 @@ class _PrintSettingsTab extends ConsumerWidget {
                   label: 'ચૂકવણી રસીદ છાપો',
                   value: data['print_payment_receipt']!,
                   onChanged: (value) async {
-                    final repo = await ref.read(
-                      settingsRepositoryFutureProvider.future,
-                    );
+                    final repo = ref.read(settingsRepositoryProvider);
                     await repo.setBool('print_payment_receipt', value);
                     ref.invalidate(featureToggleProvider);
                     if (context.mounted) {
@@ -332,9 +314,7 @@ class _PrintSettingsTab extends ConsumerWidget {
                   label: 'અંતિમ ચૂકવણી રસીદ',
                   value: data['print_final_receipt']!,
                   onChanged: (value) async {
-                    final repo = await ref.read(
-                      settingsRepositoryFutureProvider.future,
-                    );
+                    final repo = ref.read(settingsRepositoryProvider);
                     await repo.setBool('print_final_receipt', value);
                     ref.invalidate(featureToggleProvider);
                     if (context.mounted) {
@@ -389,9 +369,7 @@ class _ReminderSettingsTab extends ConsumerWidget {
                   label: 'WhatsApp રીમાઇન્ડર',
                   value: data['reminder_whatsapp']!,
                   onChanged: (value) async {
-                    final repo = await ref.read(
-                      settingsRepositoryFutureProvider.future,
-                    );
+                    final repo = ref.read(settingsRepositoryProvider);
                     await repo.setBool('reminder_whatsapp', value);
                     ref.invalidate(featureToggleProvider);
                     ref.invalidate(moduleSettingsProvider);
@@ -406,9 +384,7 @@ class _ReminderSettingsTab extends ConsumerWidget {
                   label: 'SMS રીમાઇન્ડર',
                   value: data['reminder_sms']!,
                   onChanged: (value) async {
-                    final repo = await ref.read(
-                      settingsRepositoryFutureProvider.future,
-                    );
+                    final repo = ref.read(settingsRepositoryProvider);
                     await repo.setBool('reminder_sms', value);
                     ref.invalidate(featureToggleProvider);
                     ref.invalidate(moduleSettingsProvider);
@@ -423,9 +399,7 @@ class _ReminderSettingsTab extends ConsumerWidget {
                   label: 'PDF સ્ટેટમેન્ટ',
                   value: data['reminder_pdf']!,
                   onChanged: (value) async {
-                    final repo = await ref.read(
-                      settingsRepositoryFutureProvider.future,
-                    );
+                    final repo = ref.read(settingsRepositoryProvider);
                     await repo.setBool('reminder_pdf', value);
                     ref.invalidate(featureToggleProvider);
                     ref.invalidate(moduleSettingsProvider);
@@ -470,12 +444,7 @@ class _SecuritySettingsTab extends ConsumerWidget {
                 title: const Text('Change PIN'),
                 subtitle: const Text('Update your 4-digit PIN'),
                 trailing: const Icon(Icons.arrow_forward_ios, size: 16),
-                onTap: () {
-                  Navigator.push(
-                    context,
-                    MaterialPageRoute(builder: (_) => const ChangePinScreen()),
-                  );
-                },
+                onTap: () => context.push(AppRouter.changePin),
               ),
             ),
           ],
@@ -489,9 +458,7 @@ class _SecuritySettingsTab extends ConsumerWidget {
                   label: 'Session Timeout (minutes)',
                   value: data['session_timeout_minutes'] as int,
                   onChanged: (value) async {
-                    final repo = await ref.read(
-                      settingsRepositoryFutureProvider.future,
-                    );
+                    final repo = ref.read(settingsRepositoryProvider);
                     await repo.set('session_timeout_minutes', value.toString());
                     ref.invalidate(securitySettingsProvider);
                     if (context.mounted) {
@@ -505,9 +472,7 @@ class _SecuritySettingsTab extends ConsumerWidget {
                   label: 'Require PIN on Open',
                   value: data['require_pin_on_open'] as bool,
                   onChanged: (value) async {
-                    final repo = await ref.read(
-                      settingsRepositoryFutureProvider.future,
-                    );
+                    final repo = ref.read(settingsRepositoryProvider);
                     await repo.setBool('require_pin_on_open', value);
                     ref.invalidate(securitySettingsProvider);
                     if (context.mounted) {
@@ -530,14 +495,10 @@ class _SecuritySettingsTab extends ConsumerWidget {
                       'Set employee PIN from security settings',
                     ),
                     trailing: const Icon(Icons.chevron_right_rounded),
-                    onTap: () {
-                      Navigator.of(context).push(
-                        MaterialPageRoute(
-                          builder: (context) =>
-                              const ChangePinScreen(forRole: 'employee'),
-                        ),
-                      );
-                    },
+                    onTap: () => context.push(
+                      AppRouter.changePin,
+                      extra: 'employee',
+                    ),
                   ),
               ],
             ),
@@ -570,9 +531,7 @@ class _DisplaySettingsTab extends ConsumerWidget {
                   value: largeText,
                   onChanged: (value) async {
                     ref.read(largeTextProvider.notifier).state = value;
-                    final repo = await ref.read(
-                      settingsRepositoryFutureProvider.future,
-                    );
+                    final repo = ref.read(settingsRepositoryProvider);
                     await repo.setBool('large_text', value);
                     if (context.mounted) {
                       ScaffoldMessenger.of(context).showSnackBar(
@@ -705,7 +664,7 @@ class _SettingsActions {
                       try {
                         await _printer.connect(d);
                         if (!sheetContext.mounted) return;
-                        Navigator.of(sheetContext).pop();
+                        sheetContext.pop();
                         if (!context.mounted) return;
                         ScaffoldMessenger.of(context).showSnackBar(
                           SnackBar(
@@ -716,7 +675,7 @@ class _SettingsActions {
                         );
                       } catch (e, st) {
                         if (!sheetContext.mounted) return;
-                        Navigator.of(sheetContext).pop();
+                        sheetContext.pop();
                         if (!context.mounted) return;
                         ErrorHandler.handleAndShowSnackbar(
                           context,
@@ -811,7 +770,7 @@ class _SettingsActions {
     WidgetRef ref,
   ) async {
     try {
-      final db = await ref.read(databaseProvider.future);
+      final db = ref.read(databaseProvider);
       final products = await _readCount(db, ['products', 'items']);
       final bills = await _readCount(db, ['bills']);
       final customers = await _readCount(db, ['customers']);
@@ -839,7 +798,7 @@ class _SettingsActions {
           ),
           actions: [
             TextButton(
-              onPressed: () => Navigator.of(ctx).pop(),
+              onPressed: () => ctx.pop(),
               child: const Text('બંધ કરો'),
             ),
           ],
@@ -879,11 +838,11 @@ class _SettingsActions {
         content: const Text('શું તમે Bill Counter રીસેટ કરવા માંગો છો?'),
         actions: [
           TextButton(
-            onPressed: () => Navigator.of(ctx).pop(false),
+            onPressed: () => ctx.pop(false),
             child: const Text('રદ કરો'),
           ),
           ElevatedButton(
-            onPressed: () => Navigator.of(ctx).pop(true),
+            onPressed: () => ctx.pop(true),
             child: const Text('ખાતરી કરો'),
           ),
         ],
@@ -892,7 +851,7 @@ class _SettingsActions {
 
     if (confirmed != true || !context.mounted) return;
     try {
-      final repo = await ref.read(settingsRepositoryFutureProvider.future);
+      final repo = ref.read(settingsRepositoryProvider);
       await repo.set('bill_counter', '1');
       if (!context.mounted) return;
       ScaffoldMessenger.of(

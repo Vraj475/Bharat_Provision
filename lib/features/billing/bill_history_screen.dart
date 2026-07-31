@@ -4,7 +4,9 @@ import 'package:flutter/material.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 import 'package:intl/intl.dart';
 
-import 'bill_detail_screen.dart';
+import 'package:go_router/go_router.dart';
+
+import '../../routing/app_router.dart';
 import 'bill_history_providers.dart';
 import 'bill_history_widgets.dart';
 
@@ -127,12 +129,7 @@ class _BillHistoryScreenState extends ConsumerState<BillHistoryScreen> {
                       return BillHistoryCard(
                         bill: bill,
                         onTap: () {
-                          Navigator.of(context).push(
-                            MaterialPageRoute(
-                              builder: (_) =>
-                                  BillDetailScreen(billId: bill.id!),
-                            ),
-                          );
+                          context.push(AppRouter.billDetail, extra: bill.id!);
                         },
                       );
                     },

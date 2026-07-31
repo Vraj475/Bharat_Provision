@@ -4,6 +4,7 @@ import 'package:flutter_riverpod/flutter_riverpod.dart';
 import '../../core/utils/app_data.dart';
 import '../../routing/app_router.dart';
 import 'dashboard_body.dart';
+import 'package:go_router/go_router.dart';
 
 class DashboardScreen extends ConsumerStatefulWidget {
   const DashboardScreen({super.key});
@@ -27,7 +28,7 @@ class _DashboardScreenState extends ConsumerState<DashboardScreen> {
           IconButton(
             icon: const Icon(Icons.settings),
             onPressed: () =>
-                Navigator.of(context).pushNamed(AppRouter.settings),
+                context.push(AppRouter.settings),
           ),
         ],
       ),

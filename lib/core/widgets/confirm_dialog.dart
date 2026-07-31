@@ -1,6 +1,7 @@
 import 'package:flutter/material.dart';
 
 import '../localization/app_strings.dart';
+import 'package:go_router/go_router.dart';
 
 /// Confirmation dialog before delete or irreversible actions
 class ConfirmDialog extends StatelessWidget {
@@ -37,7 +38,7 @@ class ConfirmDialog extends StatelessWidget {
         confirmLabel: confirmLabel,
         cancelLabel: cancelLabel,
         isDestructive: isDestructive,
-        onConfirm: () => Navigator.of(ctx).pop(true),
+        onConfirm: () => ctx.pop(true),
       ),
     );
   }
@@ -49,13 +50,13 @@ class ConfirmDialog extends StatelessWidget {
       content: Text(message),
       actions: [
         TextButton(
-          onPressed: () => Navigator.of(context).pop(false),
+          onPressed: () => context.pop(false),
           child: Text(cancelLabel),
         ),
         ElevatedButton(
           onPressed: () {
             onConfirm();
-            Navigator.of(context).pop(true);
+            context.pop(true);
           },
           style: isDestructive
               ? ElevatedButton.styleFrom(

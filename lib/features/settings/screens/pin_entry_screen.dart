@@ -7,6 +7,7 @@ import '../../../core/auth/role_provider.dart';
 import '../../../core/widgets/home_screen.dart';
 import '../providers/auth_provider.dart';
 import '../settings_providers.dart';
+import 'package:go_router/go_router.dart';
 
 class PinEntryScreen extends ConsumerStatefulWidget {
   final String role;
@@ -345,7 +346,7 @@ class _PinEntryScreenState extends ConsumerState<PinEntryScreen> {
                                 TextButton(
                                   onPressed: _isLoading
                                       ? null
-                                      : () => Navigator.of(context).pop(),
+                                      : () => context.pop(),
                                   child: const Text('Back to role selection'),
                                 ),
                               ],

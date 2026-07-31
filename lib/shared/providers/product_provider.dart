@@ -45,98 +45,88 @@ class ProductProvider extends AsyncNotifier<List<Product>> {
   }
 
   Future<void> addProduct(Product product) async {
-    state = const AsyncValue.loading();
-    state = await AsyncValue.guard(() async {
-      try {
-        await _dbHelper.runInTransaction((txn) async {
-          final now = DateTime.now().toIso8601String();
-          final productMap = {
-            ...product.toMap(),
-            'created_at': product.createdAt ?? now,
-            'updated_at': product.updatedAt ?? now,
-            // P02: ensure transliteration_keys stored as JSON array string if possible
-            'transliteration_keys': _normalizeTranslit(
-              product.transliterationKeys,
-            ),
-          };
+    try {
+      await _dbHelper.runInTransaction((txn) async {
+        final now = DateTime.now().toIso8601String();
+        final productMap = {
+          ...product.toMap(),
+          'created_at': product.createdAt ?? now,
+          'updated_at': product.updatedAt ?? now,
+          'transliteration_keys': _normalizeTranslit(
+            product.transliterationKeys,
+          ),
+        };
 
-          final id = await txn.insert('products', productMap);
+        final id = await txn.insert('products', productMap);
 
-          if (product.stockQty > 0) {
-            final before = 0.0;
-            final after = product.stockQty;
-            await txn.insert('stock_log', {
-              'product_id': id,
-              'transaction_type': 'purchase',
-              'qty_change': product.stockQty,
-              'qty_before': before,
-              'qty_after': after,
-              'reference_id': null,
-              'reference_type': 'manual',
-              'note': null,
-              'created_at': now,
-            });
-          }
-        });
-        return _fetchAllProducts();
-      } catch (e, st) {
-        throw ErrorHandler.handle(
-          e,
-          st,
-          context: 'ProductProvider.addProduct',
-        );
-      }
-    });
+        if (product.stockQty > 0) {
+          final before = 0.0;
+          final after = product.stockQty;
+          await txn.insert('stock_log', {
+            'product_id': id,
+            'transaction_type': 'purchase',
+            'qty_change': product.stockQty,
+            'qty_before': before,
+            'qty_after': after,
+            'reference_id': null,
+            'reference_type': 'manual',
+            'note': null,
+            'created_at': now,
+          });
+        }
+      });
+      ref.invalidateSelf();
+    } catch (e, st) {
+      throw ErrorHandler.handle(
+        e,
+        st,
+        context: 'ProductProvider.addProduct',
+      );
+    }
   }
 
   Future<void> updateProduct(Product product) async {
     if (product.id == null) return;
-    state = const AsyncValue.loading();
-    state = await AsyncValue.guard(() async {
-      try {
-        await _dbHelper.runInTransaction((txn) async {
-          final now = DateTime.now().toIso8601String();
-          await txn.update(
-            'products',
-            {
-              ...product.toMap(),
-              'updated_at': now,
-              'transliteration_keys': _normalizeTranslit(
-                product.transliterationKeys,
-              ),
-            },
-            where: 'id = ?',
-            whereArgs: [product.id],
-          );
-        });
-        return _fetchAllProducts();
-      } catch (e, st) {
-        throw ErrorHandler.handle(
-          e,
-          st,
-          context: 'ProductProvider.updateProduct',
+    try {
+      await _dbHelper.runInTransaction((txn) async {
+        final now = DateTime.now().toIso8601String();
+        await txn.update(
+          'products',
+          {
+            ...product.toMap(),
+            'updated_at': now,
+            'transliteration_keys': _normalizeTranslit(
+              product.transliterationKeys,
+            ),
+          },
+          where: 'id = ?',
+          whereArgs: [product.id],
         );
-      }
-    });
+      });
+      ref.invalidateSelf();
+    } catch (e, st) {
+      throw ErrorHandler.handle(
+        e,
+        st,
+        context: 'ProductProvider.updateProduct',
+      );
+    }
   }
 
   Future<void> deleteProduct(Product product) async {
     if (product.id == null) return;
-    state = const AsyncValue.loading();
-    state = await AsyncValue.guard(() async {
-      try {
-        await _dbHelper.runInTransaction((txn) async {
-          await txn.delete('products', where: 'id = ?', whereArgs: [product.id]);
-        });
-        return _fetchAllProducts();
-      } catch (e, st) {
-        throw ErrorHandler.handle(
-          e,
-          st,
-          context: 'ProductProvider.deleteProduct',
-        );
-      }
-    });
+    try {
+      await _dbHelper.runInTransaction((txn) async {
+        await txn.delete('products', where: 'id = ?', whereArgs: [product.id]);
+      });
+      ref.invalidateSelf();
+    } catch (e, st) {
+      throw ErrorHandler.handle(
+        e,
+        st,
+        context: 'ProductProvider.deleteProduct',
+      );
+    }
   }
 
   Future<void> searchProducts(String query) async {

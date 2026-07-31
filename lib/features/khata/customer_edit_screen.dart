@@ -6,6 +6,7 @@ import '../../core/widgets/primary_button.dart';
 import '../../shared/models/customer_model.dart';
 import '../../data/providers.dart';
 import 'khata_providers.dart';
+import 'package:go_router/go_router.dart';
 
 class CustomerEditScreen extends ConsumerStatefulWidget {
   const CustomerEditScreen({super.key, this.customerId});
@@ -36,7 +37,7 @@ class _CustomerEditScreenState extends ConsumerState<CustomerEditScreen> {
       setState(() => _loading = false);
       return;
     }
-    final repo = await ref.read(customerRepositoryFutureProvider.future);
+    final repo = ref.read(customerRepositoryProvider);
     final customer = await repo.getById(widget.customerId!);
     if (customer != null && mounted) {
       setState(() {
@@ -68,7 +69,7 @@ class _CustomerEditScreenState extends ConsumerState<CustomerEditScreen> {
       return;
     }
 
-    final repo = await ref.read(customerRepositoryFutureProvider.future);
+    final repo = ref.read(customerRepositoryProvider);
 
     try {
       if (_customer != null) {
@@ -103,7 +104,7 @@ class _CustomerEditScreenState extends ConsumerState<CustomerEditScreen> {
       }
       ref.invalidate(customerListProvider);
       if (mounted) {
-        Navigator.of(context).pop();
+        context.pop();
         ScaffoldMessenger.of(context).showSnackBar(
           const SnackBar(content: Text('ગ્રાહક સફળતાપૂર્વક સેવ થયું')),
         );

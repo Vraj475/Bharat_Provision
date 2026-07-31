@@ -12,7 +12,7 @@ final billingSearchProvider = StateProvider<String>((ref) => '');
 // Items provider for billing - fetches from the same items table as inventory
 final billingItemsProvider = FutureProvider<List<Product>>((ref) async {
   try {
-    final repo = await ref.watch(itemRepositoryFutureProvider.future);
+    final repo = ref.watch(itemRepositoryProvider);
     final query = ref.watch(billingSearchProvider);
 
     if (query.isEmpty) {

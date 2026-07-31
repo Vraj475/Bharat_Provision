@@ -10,6 +10,7 @@ import '../../shared/models/bill_item_model.dart';
 import '../../shared/models/customer_model.dart';
 import 'reminder_bottom_sheet.dart';
 import 'udhaar_providers.dart';
+import 'package:go_router/go_router.dart';
 
 class CustomerLedgerScreen extends ConsumerStatefulWidget {
   const CustomerLedgerScreen({super.key, required this.customerId});
@@ -99,11 +100,11 @@ class _CustomerLedgerScreenState extends ConsumerState<CustomerLedgerScreen> {
         ),
         actions: [
           TextButton(
-            onPressed: () => Navigator.pop(ctx, false),
+            onPressed: () => ctx.pop(false),
             child: const Text('રદ'),
           ),
           ElevatedButton(
-            onPressed: () => Navigator.pop(ctx, true),
+            onPressed: () => ctx.pop(true),
             child: const Text('સ્વીકારો'),
           ),
         ],
@@ -245,10 +246,9 @@ class _CustomerLedgerScreenState extends ConsumerState<CustomerLedgerScreen> {
                   icon: Icons.payments,
                   label: 'ચૂકવણી લો',
                   color: AppColors.success,
-                  onPressed: () => Navigator.of(context)
-                      .pushNamed(
+                  onPressed: () => context.push(
                         AppRouter.udhaarCollect,
-                        arguments: widget.customerId,
+                        extra: widget.customerId,
                       )
                       .then((_) {
                         ref.invalidate(
@@ -265,9 +265,9 @@ class _CustomerLedgerScreenState extends ConsumerState<CustomerLedgerScreen> {
                   icon: Icons.receipt_long,
                   label: 'Final Total',
                   color: AppColors.primary,
-                  onPressed: () => Navigator.of(context).pushNamed(
+                  onPressed: () => context.push(
                     AppRouter.udhaarFinal,
-                    arguments: widget.customerId,
+                    extra: widget.customerId,
                   ),
                 ),
               ),

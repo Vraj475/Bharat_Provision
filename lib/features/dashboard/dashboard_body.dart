@@ -3,12 +3,12 @@ import 'dart:async';
 import 'package:fl_chart/fl_chart.dart';
 import 'package:flutter/material.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
+import 'package:go_router/go_router.dart';
 import 'package:intl/intl.dart';
 
 import '../../core/auth/role_provider.dart';
 import '../../core/utils/currency_format.dart';
 import '../../routing/app_router.dart';
-import '../billing/bill_detail_screen.dart';
 import '../billing/bill_history_providers.dart';
 import '../billing/bill_history_widgets.dart';
 import 'dashboard_providers.dart';
@@ -100,7 +100,7 @@ class _DashboardBodyState extends ConsumerState<DashboardBody> {
             padding: const EdgeInsets.symmetric(horizontal: 48, vertical: 24),
             textStyle: const TextStyle(fontSize: 24),
           ),
-          onPressed: () => Navigator.of(context).pushNamed(AppRouter.billing),
+          onPressed: () => context.push(AppRouter.billing),
           child: const Text('નવું બિલ'),
         ),
       ),
@@ -247,8 +247,7 @@ class _DashboardBodyState extends ConsumerState<DashboardBody> {
                     ),
                   ),
                   TextButton(
-                    onPressed: () =>
-                        Navigator.of(context).pushNamed(AppRouter.inventory),
+                    onPressed: () => context.push(AppRouter.inventory),
                     child: const Text('View'),
                   ),
                 ],
@@ -354,22 +353,22 @@ class _DashboardBodyState extends ConsumerState<DashboardBody> {
                 _buildActionButton(
                   'નવું બિલ',
                   Icons.receipt,
-                  () => Navigator.of(context).pushNamed(AppRouter.billing),
+                  () => context.push(AppRouter.billing),
                 ),
                 _buildActionButton(
                   'સ્ટોક ઉમેરો',
                   Icons.inventory,
-                  () => Navigator.of(context).pushNamed(AppRouter.stockAdd),
+                  () => context.push(AppRouter.stockAdd),
                 ),
                 _buildActionButton(
                   'ખર્ચ ઉમેરો',
                   Icons.money_off,
-                  () => Navigator.of(context).pushNamed(AppRouter.addExpense),
+                  () => context.push(AppRouter.addExpense),
                 ),
                 _buildActionButton(
                   'રિપોર્ટ્સ',
                   Icons.bar_chart,
-                  () => Navigator.of(context).pushNamed(AppRouter.reports),
+                  () => context.push(AppRouter.reports),
                 ),
               ],
             ),
@@ -403,8 +402,7 @@ class _DashboardBodyState extends ConsumerState<DashboardBody> {
                   ),
                 ),
                 TextButton(
-                  onPressed: () =>
-                      Navigator.of(context).pushNamed(AppRouter.billHistory),
+                  onPressed: () => context.push(AppRouter.billHistory),
                   child: const Text('જુઓ બધા'),
                 ),
               ],
@@ -494,11 +492,9 @@ class _DashboardBodyState extends ConsumerState<DashboardBody> {
                             final bill = preview.bills[index];
                             return BillHistoryCard(
                               bill: bill,
-                              onTap: () => Navigator.of(context).push(
-                                MaterialPageRoute(
-                                  builder: (_) =>
-                                      BillDetailScreen(billId: bill.id!),
-                                ),
+                              onTap: () => context.push(
+                                AppRouter.billDetail,
+                                extra: bill.id!,
                               ),
                             );
                           },

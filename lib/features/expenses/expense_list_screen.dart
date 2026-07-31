@@ -1,7 +1,8 @@
 import 'package:flutter/material.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
+import 'package:go_router/go_router.dart';
 
-import 'add_expense_screen.dart';
+import '../../routing/app_router.dart';
 import '../../shared/models/expense_account_model.dart';
 import '../../shared/models/expense_model.dart';
 import '../../core/utils/currency_format.dart';
@@ -27,7 +28,7 @@ class _ExpenseListScreenState extends ConsumerState<ExpenseListScreen> {
         actions: [
           IconButton(
             icon: const Icon(Icons.add),
-            onPressed: () => Navigator.of(context).pushNamed('/expenses/add'),
+            onPressed: () => context.push('/expenses/add'),
           ),
         ],
       ),
@@ -65,37 +66,32 @@ class _ExpenseListScreenState extends ConsumerState<ExpenseListScreen> {
   }
 
   Widget _buildAccountDropdown() {
-    return ref
-        .watch(expenseRepositoryProvider)
-        .when(
-          data: (repo) => FutureBuilder<List<ExpenseAccount>>(
-            future: repo.getExpenseAccounts(),
-            builder: (context, snapshot) {
-              if (!snapshot.hasData) return const SizedBox.shrink();
-              final accounts = snapshot.data!;
-              return DropdownButton<ExpenseAccount?>(
-                value: _selectedAccount,
-                hint: const Text('All Accounts'),
-                isExpanded: true,
-                items: [
-                  const DropdownMenuItem(
-                    value: null,
-                    child: Text('All Accounts'),
-                  ),
-                  ...accounts.map((account) {
-                    return DropdownMenuItem(
-                      value: account,
-                      child: Text(account.accountNameGujarati),
-                    );
-                  }),
-                ],
-                onChanged: (value) => setState(() => _selectedAccount = value),
+    final repo = ref.watch(expenseRepositoryProvider);
+    return FutureBuilder<List<ExpenseAccount>>(
+      future: repo.getExpenseAccounts(),
+      builder: (context, snapshot) {
+        if (!snapshot.hasData) return const SizedBox.shrink();
+        final accounts = snapshot.data!;
+        return DropdownButton<ExpenseAccount?>(
+          value: _selectedAccount,
+          hint: const Text('All Accounts'),
+          isExpanded: true,
+          items: [
+            const DropdownMenuItem(
+              value: null,
+              child: Text('All Accounts'),
+            ),
+            ...accounts.map((account) {
+              return DropdownMenuItem(
+                value: account,
+                child: Text(account.accountNameGujarati),
               );
-            },
-          ),
-          error: (error, stack) => Text('Error: $error'),
-          loading: () => const CircularProgressIndicator(),
+            }),
+          ],
+          onChanged: (value) => setState(() => _selectedAccount = value),
         );
+      },
+    );
   }
 
   void _selectDateRange() async {
@@ -116,71 +112,72 @@ class _ExpenseListScreenState extends ConsumerState<ExpenseListScreen> {
   }
 
   Widget _buildExpenseList() {
-    return ref
-        .watch(expenseRepositoryProvider)
-        .when(
-          data: (repo) => FutureBuilder<List<Expense>>(
-            future: repo.getExpenses(
-              startDate: _startDate,
-              endDate: _endDate,
-              accountId: _selectedAccount?.id,
+    final repo = ref.watch(expenseRepositoryProvider);
+    return FutureBuilder<List<Expense>>(
+      future: repo.getExpenses(
+        startDate: _startDate,
+        endDate: _endDate,
+        accountId: _selectedAccount?.id,
+      ),
+      builder: (context, snapshot) {
+        if (snapshot.connectionState == ConnectionState.waiting) {
+          return const Center(child: CircularProgressIndicator());
+        }
+        if (snapshot.hasError) {
+          return Center(child: Text('Error: ${snapshot.error}'));
+        }
+        if (!snapshot.hasData) {
+          return const Center(child: CircularProgressIndicator());
+        }
+        final expenses = snapshot.data!;
+        if (expenses.isEmpty) {
+          return const Center(child: Text('No expenses found'));
+        }
+
+        // Group by date
+        final grouped = <String, List<Expense>>{};
+        for (final expense in expenses) {
+          final date = expense.expenseDate.split('T').first;
+          grouped.putIfAbsent(date, () => []).add(expense);
+        }
+
+        final total = expenses.fold(0.0, (sum, e) => sum + e.amount);
+
+        return Column(
+          children: [
+            Padding(
+              padding: const EdgeInsets.all(16),
+              child: Text(
+                'Total: ${formatCurrency(total)}',
+                style: const TextStyle(
+                  fontSize: 18,
+                  fontWeight: FontWeight.bold,
+                ),
+              ),
             ),
-            builder: (context, snapshot) {
-              if (!snapshot.hasData) {
-                return const Center(child: CircularProgressIndicator());
-              }
-              final expenses = snapshot.data!;
-              if (expenses.isEmpty) {
-                return const Center(child: Text('No expenses found'));
-              }
-
-              // Group by date
-              final grouped = <String, List<Expense>>{};
-              for (final expense in expenses) {
-                final date = expense.expenseDate.split('T').first;
-                grouped.putIfAbsent(date, () => []).add(expense);
-              }
-
-              final total = expenses.fold(0.0, (sum, e) => sum + e.amount);
-
-              return Column(
-                children: [
-                  Padding(
-                    padding: const EdgeInsets.all(16),
-                    child: Text(
-                      'Total: ${formatCurrency(total)}',
-                      style: const TextStyle(
-                        fontSize: 18,
-                        fontWeight: FontWeight.bold,
-                      ),
-                    ),
-                  ),
-                  Expanded(
-                    child: ListView.builder(
-                      itemCount: grouped.length,
-                      itemBuilder: (context, index) {
-                        final date = grouped.keys.elementAt(index);
-                        final dayExpenses = grouped[date]!;
-                        final dayTotal = dayExpenses.fold(
-                          0.0,
-                          (sum, e) => sum + e.amount,
-                        );
-                        return ExpansionTile(
-                          title: Text('$date - ${formatCurrency(dayTotal)}'),
-                          children: dayExpenses
-                              .map((expense) => _buildExpenseTile(expense))
-                              .toList(),
-                        );
-                      },
-                    ),
-                  ),
-                ],
-              );
-            },
-          ),
-          error: (error, stack) => Center(child: Text('Error: $error')),
-          loading: () => const Center(child: CircularProgressIndicator()),
+            Expanded(
+              child: ListView.builder(
+                itemCount: grouped.length,
+                itemBuilder: (context, index) {
+                  final date = grouped.keys.elementAt(index);
+                  final dayExpenses = grouped[date]!;
+                  final dayTotal = dayExpenses.fold(
+                    0.0,
+                    (sum, e) => sum + e.amount,
+                  );
+                  return ExpansionTile(
+                    title: Text('$date - ${formatCurrency(dayTotal)}'),
+                    children: dayExpenses
+                        .map((expense) => _buildExpenseTile(expense))
+                        .toList(),
+                  );
+                },
+              ),
+            ),
+          ],
         );
+      },
+    );
   }
 
   Widget _buildExpenseTile(Expense expense) {
@@ -214,16 +211,13 @@ class _ExpenseListScreenState extends ConsumerState<ExpenseListScreen> {
 
   Future<ExpenseAccount?> _getAccountName(int? accountId) async {
     if (accountId == null) return null;
-    final repo = await ref.read(expenseRepositoryProvider.future);
+    final repo = ref.read(expenseRepositoryProvider);
     final accounts = await repo.getExpenseAccounts();
     return accounts.where((a) => a.id == accountId).firstOrNull;
   }
 
   void _editExpense(Expense expense) async {
-    await Navigator.push(
-      context,
-      MaterialPageRoute(builder: (_) => AddExpenseScreen(expense: expense)),
-    );
+    await context.push(AppRouter.addExpense, extra: expense);
     if (!mounted) return;
     setState(() {});
   }
@@ -236,11 +230,11 @@ class _ExpenseListScreenState extends ConsumerState<ExpenseListScreen> {
         content: const Text('Are you sure you want to delete this expense?'),
         actions: [
           TextButton(
-            onPressed: () => Navigator.of(context).pop(false),
+            onPressed: () => context.pop(false),
             child: const Text('Cancel'),
           ),
           TextButton(
-            onPressed: () => Navigator.of(context).pop(true),
+            onPressed: () => context.pop(true),
             child: const Text('Delete'),
           ),
         ],
@@ -248,7 +242,7 @@ class _ExpenseListScreenState extends ConsumerState<ExpenseListScreen> {
     );
 
     if (confirm == true) {
-      final repo = await ref.read(expenseRepositoryProvider.future);
+      final repo = ref.read(expenseRepositoryProvider);
       await repo.deleteExpense(expense.id!);
       if (!mounted) return;
       setState(() {});

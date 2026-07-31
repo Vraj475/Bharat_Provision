@@ -6,6 +6,7 @@ import '../core/widgets/app_scaffold.dart';
 import '../core/auth/role_provider.dart';
 import '../core/auth/role_guard.dart';
 import '../features/billing/billing_home_screen.dart';
+import '../features/billing/bill_detail_screen.dart';
 import '../features/billing/bill_history_screen.dart';
 import '../features/inventory/category_list_screen.dart';
 import '../features/inventory/item_list_screen.dart';
@@ -20,6 +21,7 @@ import '../features/returns/return_history_screen.dart';
 import '../features/returns/return_screen.dart';
 import '../features/returns/replace_screen.dart';
 import '../features/settings/settings_screen.dart';
+import '../features/settings/screens/pin_verification_screen.dart';
 import '../features/stock/stock_dashboard_screen.dart';
 import '../features/stock/add_stock_screen.dart';
 import '../features/stock/stock_history_screen.dart';
@@ -33,6 +35,8 @@ import '../features/reports/pl_report_screen.dart';
 import '../features/reports/daily_report_screen.dart';
 import '../features/expenses/add_expense_screen.dart';
 import '../features/expenses/expense_list_screen.dart';
+import '../features/products/presentation/add_edit_product_screen.dart';
+import '../shared/models/expense_model.dart';
 
 final appRouter = GoRouter(
   initialLocation: '/splash',
@@ -87,7 +91,7 @@ final appRouter = GoRouter(
       builder: (context, state) => const RoleGuard(
         allowedRoles: ['admin', 'superadmin'],
         child: _ShellRoute(
-          currentRoute: AppRouter.customers,
+          currentRoute: AppRouter.khata,
           child: KhataScreen(),
         ),
       ),
@@ -250,10 +254,13 @@ final appRouter = GoRouter(
     ),
     GoRoute(
       path: AppRouter.addExpense,
-      builder: (context, state) => const RoleGuard(
-        allowedRoles: ['admin', 'superadmin'],
-        child: AddExpenseScreen(),
-      ),
+      builder: (context, state) {
+        final expense = state.extra as Expense?;
+        return RoleGuard(
+          allowedRoles: const ['admin', 'superadmin'],
+          child: AddExpenseScreen(expense: expense),
+        );
+      },
     ),
     GoRoute(
       path: AppRouter.expenseList,
@@ -261,6 +268,31 @@ final appRouter = GoRouter(
         allowedRoles: ['admin', 'superadmin'],
         child: ExpenseListScreen(),
       ),
+    ),
+    GoRoute(
+      path: AppRouter.productAdd,
+      builder: (context, state) => const AddEditProductScreen(),
+    ),
+    GoRoute(
+      path: AppRouter.productEdit,
+      builder: (context, state) {
+        final id = state.extra as int?;
+        return AddEditProductScreen(productId: id);
+      },
+    ),
+    GoRoute(
+      path: AppRouter.billDetail,
+      builder: (context, state) {
+        final id = state.extra as int;
+        return BillDetailScreen(billId: id);
+      },
+    ),
+    GoRoute(
+      path: AppRouter.changePin,
+      builder: (context, state) {
+        final forRole = state.extra as String? ?? 'own';
+        return ChangePinScreen(forRole: forRole);
+      },
     ),
   ],
 );
@@ -296,6 +328,10 @@ class AppRouter {
   static const String dailyReport = '/reports/daily';
   static const String addExpense = '/expenses/add';
   static const String expenseList = '/expenses';
+  static const String productAdd = '/products/add';
+  static const String productEdit = '/products/edit';
+  static const String billDetail = '/bill-detail';
+  static const String changePin = '/settings/change-pin';
 
   static List<String> _mainRoutesForRole(String role) {
     final isAdmin = canAccessUdhaar(role);

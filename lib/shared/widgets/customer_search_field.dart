@@ -186,8 +186,8 @@ class _CustomerSearchFieldState extends ConsumerState<CustomerSearchField> {
     });
   }
 
-  void _handleKeyEvent(RawKeyEvent event) {
-    if (event is! RawKeyDownEvent || !_isDropdownOpen || _results.isEmpty) {
+  void _handleKeyEvent(KeyEvent event) {
+    if (event is! KeyDownEvent || !_isDropdownOpen || _results.isEmpty) {
       return;
     }
 
@@ -207,9 +207,9 @@ class _CustomerSearchFieldState extends ConsumerState<CustomerSearchField> {
 
   @override
   Widget build(BuildContext context) {
-    return RawKeyboardListener(
+    return KeyboardListener(
       focusNode: _keyboardFocusNode,
-      onKey: _handleKeyEvent,
+      onKeyEvent: _handleKeyEvent,
       child: Column(
         crossAxisAlignment: CrossAxisAlignment.stretch,
         children: [

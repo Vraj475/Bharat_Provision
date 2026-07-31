@@ -20,6 +20,7 @@ import '../../shared/models/bill_item_model.dart';
 import 'models/bill_line_item.dart';
 import '../../routing/app_router.dart';
 import 'billing_providers.dart';
+import 'bill_history_providers.dart';
 import '../../core/services/notification_service.dart';
 import '../../features/inventory/inventory_providers.dart';
 import '../../features/stock/stock_providers.dart';
@@ -34,6 +35,7 @@ import 'views/bill_lines_panel.dart';
 import 'views/billing_product_panel.dart';
 import 'controllers/billing_controller.dart';
 import '../../core/auth/role_provider.dart';
+import 'package:go_router/go_router.dart';
 
 /// Simplified single-screen billing - Create bills and print them.
 class BillingHomeScreen extends ConsumerStatefulWidget {
@@ -70,7 +72,7 @@ class _BillingHomeScreenState extends ConsumerState<BillingHomeScreen> {
   }
 
   Future<void> _loadShopProfileFromSettings() async {
-    final repo = await ref.read(settingsRepositoryFutureProvider.future);
+    final repo = ref.read(settingsRepositoryProvider);
     final savedShopName = (await repo.get('shop_name')).trim();
     if (!mounted) return;
     setState(() {
@@ -104,7 +106,7 @@ class _BillingHomeScreenState extends ConsumerState<BillingHomeScreen> {
         ),
         actions: [
           TextButton(
-            onPressed: () => Navigator.of(ctx).pop(),
+            onPressed: () => ctx.pop(),
             child: const Text(strings.AppStrings.cancelButton),
           ),
           ElevatedButton(
@@ -117,16 +119,14 @@ class _BillingHomeScreenState extends ConsumerState<BillingHomeScreen> {
               setState(() => _shopName = newShopName);
 
               if (newShopName != null) {
-                final repo = await ref.read(
-                  settingsRepositoryFutureProvider.future,
-                );
+                final repo = ref.read(settingsRepositoryProvider);
                 await repo.set('shop_name', newShopName);
                 ref.invalidate(shopNameProvider);
                 ref.invalidate(settingsValuesProvider);
               }
 
               if (!ctx.mounted) return;
-              Navigator.of(ctx).pop();
+              ctx.pop();
             },
             child: const Text(strings.AppStrings.saveButton),
           ),
@@ -218,7 +218,7 @@ class _BillingHomeScreenState extends ConsumerState<BillingHomeScreen> {
 
     try {
       final billItems = _buildBillItemsFromLines(linesSnapshot);
-      final billRepo = await ref.read(billRepositoryFutureProvider.future);
+      final billRepo = ref.read(billRepositoryProvider);
       final billId = await billRepo.createBill(
         customerId: customerIdSnapshot,
         customerNameSnapshot:
@@ -234,12 +234,15 @@ class _BillingHomeScreenState extends ConsumerState<BillingHomeScreen> {
       );
 
       if (mounted) {
-        ref.invalidate(reportRepositoryFutureProvider);
+        ref.invalidate(reportRepositoryProvider);
         ref.invalidate(salesReportProvider);
         ref.invalidate(billingItemsProvider);
         ref.invalidate(itemListProvider);
         ref.invalidate(stockDashboardProductsProvider);
         ref.invalidate(todaysBillsProvider);
+        ref.invalidate(billsProvider);
+        ref.invalidate(billHistoryProvider);
+        ref.invalidate(billHistoryPreviewProvider);
       }
 
       try {
@@ -320,7 +323,7 @@ class _BillingHomeScreenState extends ConsumerState<BillingHomeScreen> {
   }
 
   Future<double> _getLatestStockKg(int itemId) async {
-    final repo = await ref.read(itemRepositoryFutureProvider.future);
+    final repo = ref.read(itemRepositoryProvider);
     final latestItem = await repo.getById(itemId);
     return latestItem?.stockQty ?? 0.0;
   }
@@ -380,7 +383,7 @@ class _BillingHomeScreenState extends ConsumerState<BillingHomeScreen> {
     required bool allowRetry,
   }) async {
     try {
-      final billRepo = await ref.read(billRepositoryFutureProvider.future);
+      final billRepo = ref.read(billRepositoryProvider);
       final savedBill = await billRepo.getById(billId);
       final savedBillItems = await billRepo.getBillItems(billId);
       if (savedBill == null || savedBillItems.isEmpty) {
@@ -504,9 +507,9 @@ class _BillingHomeScreenState extends ConsumerState<BillingHomeScreen> {
           PopupMenuButton<String>(
             onSelected: (value) {
               if (value == 'returns') {
-                Navigator.of(context).pushNamed(AppRouter.returnsNew);
+                context.push(AppRouter.returnsNew);
               } else if (value == 'replace') {
-                Navigator.of(context).pushNamed(AppRouter.returnsReplace);
+                context.push(AppRouter.returnsReplace);
               }
             },
             itemBuilder: (context) => [

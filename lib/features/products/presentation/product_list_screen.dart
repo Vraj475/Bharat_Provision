@@ -1,10 +1,12 @@
 import 'package:flutter/material.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
+import 'package:go_router/go_router.dart';
 
 import '../../../core/constants/app_strings.dart';
 import '../../../core/constants/app_strings.dart' as strings;
 import '../../../core/errors/error_handler.dart';
 import '../../../core/errors/error_types.dart';
+import '../../../routing/app_router.dart';
 import '../../../shared/models/product_model.dart';
 import '../../../shared/providers/product_provider.dart';
 import '../../../shared/widgets/errors/error_dialogue.dart';
@@ -180,9 +182,7 @@ class _ProductListScreenState extends ConsumerState<ProductListScreen> {
       floatingActionButton: Padding(
         padding: const EdgeInsets.only(bottom: 12),
         child: FloatingActionButton.extended(
-          onPressed: () {
-            Navigator.of(context).pushNamed('/products/add');
-          },
+          onPressed: () => context.push(AppRouter.productAdd),
           icon: const Icon(Icons.add),
           label: const Text(
             strings.AppStrings.addProductFab,
@@ -205,17 +205,15 @@ class _ProductListScreenState extends ConsumerState<ProductListScreen> {
                 leading: const Icon(Icons.edit),
                 title: const Text(AppStrings.productActionEdit),
                 onTap: () {
-                  Navigator.pop(context);
-                  Navigator.of(
-                    context,
-                  ).pushNamed('/products/edit', arguments: product.id);
+                  context.pop();
+                  context.push(AppRouter.productEdit, extra: product.id);
                 },
               ),
               ListTile(
                 leading: const Icon(Icons.delete, color: Colors.red),
                 title: const Text(AppStrings.productActionDelete),
                 onTap: () {
-                  Navigator.pop(context);
+                  context.pop();
                   _confirmDelete(context, product);
                 },
               ),
@@ -235,13 +233,13 @@ class _ProductListScreenState extends ConsumerState<ProductListScreen> {
           content: const Text(AppStrings.deleteProductMessage),
           actions: [
             TextButton(
-              onPressed: () => Navigator.pop(context),
+              onPressed: () => context.pop(),
               child: const Text(AppStrings.deleteCancel),
             ),
             ElevatedButton(
               onPressed: () async {
                 final messenger = ScaffoldMessenger.of(context);
-                Navigator.pop(context);
+                context.pop();
                 await ref.read(productProvider.notifier).deleteProduct(product);
                 if (mounted) {
                   messenger.showSnackBar(

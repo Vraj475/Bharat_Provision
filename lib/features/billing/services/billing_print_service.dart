@@ -22,7 +22,7 @@ class BillingPrintService {
     required VoidCallback onClearDraft,
   }) async {
     try {
-      final billRepo = await ref.read(billRepositoryFutureProvider.future);
+      final billRepo = ref.read(billRepositoryProvider);
 
       final savedBill = await billRepo.getById(billId);
       final savedBillItems = await billRepo.getBillItems(billId);

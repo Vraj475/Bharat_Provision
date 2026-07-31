@@ -1,4 +1,5 @@
 import 'package:flutter/material.dart';
+import 'package:go_router/go_router.dart';
 
 class UnauthorizedScreen extends StatelessWidget {
   final String attemptedRole;
@@ -15,7 +16,7 @@ class UnauthorizedScreen extends StatelessWidget {
     return Scaffold(
       appBar: AppBar(
         title: const Text('અધિકૃત નથી'),
-        leading: BackButton(onPressed: () => Navigator.of(context).pop()),
+        leading: BackButton(onPressed: () => context.pop()),
       ),
       body: Center(
         child: Padding(
@@ -48,7 +49,7 @@ class UnauthorizedScreen extends StatelessWidget {
               ),
               const SizedBox(height: 32),
               ElevatedButton(
-                onPressed: () => Navigator.of(context).pop(),
+                onPressed: () => context.pop(),
                 child: const Text('પાછળ જાઓ'),
               ),
             ],

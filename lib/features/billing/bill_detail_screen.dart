@@ -76,7 +76,7 @@ class BillDetailScreen extends ConsumerWidget {
   }
 
   Future<(Bill?, List<BillItem>)> _loadBill(WidgetRef ref) async {
-    final repo = await ref.read(billRepositoryFutureProvider.future);
+    final repo = ref.read(billRepositoryProvider);
     final bill = await repo.getById(billId);
     if (bill == null) {
       return (null as Bill?, <BillItem>[]);

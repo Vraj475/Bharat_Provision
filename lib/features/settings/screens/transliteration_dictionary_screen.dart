@@ -1,6 +1,7 @@
 import 'package:flutter/material.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 import '../providers/auth_provider.dart';
+import 'package:go_router/go_router.dart';
 
 // Models for transliteration
 class TransliterationEntry {
@@ -195,7 +196,7 @@ class _TransliterationDictionaryScreenState
               ),
             );
           });
-          Navigator.of(context).pop();
+          context.pop();
           ScaffoldMessenger.of(context).showSnackBar(
             SnackBar(content: Text('"$phoneticKey" → "$gujaratiText" added')),
           );
@@ -219,7 +220,7 @@ class _TransliterationDictionaryScreenState
               gujaratiText: gujaratiText,
             );
           });
-          Navigator.of(context).pop();
+          context.pop();
           ScaffoldMessenger.of(context).showSnackBar(
             SnackBar(content: Text('"$phoneticKey" → "$gujaratiText" updated')),
           );
@@ -238,7 +239,7 @@ class _TransliterationDictionaryScreenState
         ),
         actions: [
           TextButton(
-            onPressed: () => Navigator.of(context).pop(),
+            onPressed: () => context.pop(),
             child: const Text('Cancel'),
           ),
           ElevatedButton(
@@ -247,7 +248,7 @@ class _TransliterationDictionaryScreenState
               setState(() {
                 _entries.remove(entry);
               });
-              Navigator.of(context).pop();
+              context.pop();
               ScaffoldMessenger.of(context).showSnackBar(
                 SnackBar(content: Text('"${entry.phoneticKey}" deleted')),
               );
@@ -269,7 +270,7 @@ class _TransliterationDictionaryScreenState
         ),
         actions: [
           TextButton(
-            onPressed: () => Navigator.of(context).pop(),
+            onPressed: () => context.pop(),
             child: const Text('Cancel'),
           ),
           ElevatedButton(
@@ -278,7 +279,7 @@ class _TransliterationDictionaryScreenState
               setState(() {
                 _entries.removeWhere((entry) => !entry.isBuiltIn);
               });
-              Navigator.of(context).pop();
+              context.pop();
               ScaffoldMessenger.of(context).showSnackBar(
                 const SnackBar(content: Text('Custom entries removed')),
               );
@@ -402,7 +403,7 @@ class _AddEditEntryDialogState extends State<_AddEditEntryDialog> {
       ),
       actions: [
         TextButton(
-          onPressed: () => Navigator.of(context).pop(),
+          onPressed: () => context.pop(),
           child: const Text('Cancel'),
         ),
         ElevatedButton(

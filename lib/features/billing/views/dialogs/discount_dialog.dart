@@ -1,4 +1,5 @@
 import 'package:flutter/material.dart';
+import 'package:go_router/go_router.dart';
 
 class DiscountDialog extends StatefulWidget {
   final double initialDiscount;
@@ -38,7 +39,7 @@ class _DiscountDialogState extends State<DiscountDialog> {
 
   void _submit() {
     final parsed = double.tryParse(_controller.text) ?? 0.0;
-    Navigator.of(context).pop(parsed);
+    context.pop(parsed);
   }
 
   @override
@@ -56,7 +57,7 @@ class _DiscountDialogState extends State<DiscountDialog> {
       ),
       actions: [
         TextButton(
-          onPressed: () => Navigator.of(context).pop(null),
+          onPressed: () => context.pop(null),
           child: const Text('રદ કરો'),
         ),
         ElevatedButton(

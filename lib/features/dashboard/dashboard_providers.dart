@@ -5,7 +5,7 @@ import '../../data/repositories/report_repository.dart';
 import '../../shared/models/product_model.dart';
 
 final reportRepositoryProvider = FutureProvider<ReportRepository>((ref) async {
-  final db = await ref.watch(databaseProvider.future);
+  final db = ref.watch(databaseProvider);
   return ReportRepository(db);
 });
 

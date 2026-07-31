@@ -1,5 +1,6 @@
 import 'package:flutter/material.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
+import 'package:go_router/go_router.dart';
 
 import '../core/widgets/app_scaffold.dart';
 import '../core/auth/role_provider.dart';
@@ -14,6 +15,7 @@ import '../features/khata/customer_khata_detail_screen.dart';
 import '../features/khata/customer_edit_screen.dart';
 import '../features/khata/khata_screen.dart';
 import '../features/reports/reports_home_screen.dart';
+import '../features/settings/screens/splash_screen.dart';
 import '../features/returns/return_history_screen.dart';
 import '../features/returns/return_screen.dart';
 import '../features/returns/replace_screen.dart';
@@ -31,6 +33,237 @@ import '../features/reports/pl_report_screen.dart';
 import '../features/reports/daily_report_screen.dart';
 import '../features/expenses/add_expense_screen.dart';
 import '../features/expenses/expense_list_screen.dart';
+
+final appRouter = GoRouter(
+  initialLocation: '/splash',
+  routes: [
+    GoRoute(
+      path: '/splash',
+      builder: (context, state) => const SplashScreen(),
+    ),
+    GoRoute(
+      path: AppRouter.dashboard,
+      builder: (context, state) => const _ShellRoute(
+        currentRoute: AppRouter.dashboard,
+        child: DashboardScreen(),
+      ),
+    ),
+    GoRoute(
+      path: AppRouter.billing,
+      builder: (context, state) => const _ShellRoute(
+        currentRoute: AppRouter.billing,
+        child: BillingHomeScreen(),
+      ),
+    ),
+    GoRoute(
+      path: AppRouter.billHistory,
+      builder: (context, state) => const RoleGuard(
+        allowedRoles: ['admin', 'superadmin'],
+        child: _ShellRoute(
+          currentRoute: AppRouter.billHistory,
+          child: BillHistoryScreen(),
+        ),
+      ),
+    ),
+    GoRoute(
+      path: AppRouter.inventory,
+      builder: (context, state) => const _ShellRoute(
+        currentRoute: AppRouter.inventory,
+        child: ItemListScreen(),
+      ),
+    ),
+    GoRoute(
+      path: AppRouter.customers,
+      builder: (context, state) => const RoleGuard(
+        allowedRoles: ['admin', 'superadmin'],
+        child: _ShellRoute(
+          currentRoute: AppRouter.customers,
+          child: CustomerListScreen(),
+        ),
+      ),
+    ),
+    GoRoute(
+      path: AppRouter.khata,
+      builder: (context, state) => const RoleGuard(
+        allowedRoles: ['admin', 'superadmin'],
+        child: _ShellRoute(
+          currentRoute: AppRouter.customers,
+          child: KhataScreen(),
+        ),
+      ),
+    ),
+    GoRoute(
+      path: AppRouter.reports,
+      builder: (context, state) => const RoleGuard(
+        allowedRoles: ['admin', 'superadmin'],
+        child: _ShellRoute(
+          currentRoute: AppRouter.reports,
+          child: ReportsHomeScreen(),
+        ),
+      ),
+    ),
+    GoRoute(
+      path: AppRouter.settings,
+      builder: (context, state) => const RoleGuard(
+        allowedRoles: ['admin', 'superadmin'],
+        child: _ShellRoute(
+          currentRoute: AppRouter.settings,
+          child: SettingsScreen(),
+        ),
+      ),
+    ),
+    GoRoute(
+      path: AppRouter.categories,
+      builder: (context, state) => const CategoryListScreen(),
+    ),
+    GoRoute(
+      path: AppRouter.itemAdd,
+      builder: (context, state) => const ItemEditScreen(),
+    ),
+    GoRoute(
+      path: AppRouter.itemEdit,
+      builder: (context, state) {
+        final id = state.extra as int?;
+        return ItemEditScreen(itemId: id);
+      },
+    ),
+    GoRoute(
+      path: AppRouter.customerAdd,
+      builder: (context, state) => const CustomerEditScreen(),
+    ),
+    GoRoute(
+      path: AppRouter.customerEdit,
+      builder: (context, state) {
+        final id = state.extra as int?;
+        return CustomerEditScreen(customerId: id);
+      },
+    ),
+    GoRoute(
+      path: AppRouter.customerKhata,
+      builder: (context, state) {
+        final id = state.extra as int;
+        return CustomerKhataDetailScreen(customerId: id);
+      },
+    ),
+    GoRoute(
+      path: AppRouter.stockDashboard,
+      builder: (context, state) => const _ShellRoute(
+        currentRoute: AppRouter.inventory,
+        child: StockDashboardScreen(),
+      ),
+    ),
+    GoRoute(
+      path: AppRouter.stockAdd,
+      builder: (context, state) {
+        final product = state.extra as Product?;
+        return AddStockScreen(prefilledProduct: product);
+      },
+    ),
+    GoRoute(
+      path: AppRouter.stockHistory,
+      builder: (context, state) {
+        final args = state.extra as Map<String, dynamic>?;
+        final productId = args?['productId'] as int?;
+        final productName = args?['productName'] as String?;
+        if (productId != null && productName != null) {
+          return StockHistoryScreen(productId: productId, productName: productName);
+        }
+        return Scaffold(
+          body: Center(child: Text('Not found: ${state.matchedLocation}')),
+        );
+      },
+    ),
+    GoRoute(
+      path: AppRouter.returnsNew,
+      builder: (context, state) => const RoleGuard(
+        allowedRoles: ['admin', 'superadmin'],
+        child: ReturnScreen(),
+      ),
+    ),
+    GoRoute(
+      path: AppRouter.returnsReplace,
+      builder: (context, state) => const RoleGuard(
+        allowedRoles: ['admin', 'superadmin'],
+        child: ReplaceScreen(),
+      ),
+    ),
+    GoRoute(
+      path: AppRouter.returnsHistory,
+      builder: (context, state) => const RoleGuard(
+        allowedRoles: ['admin', 'superadmin'],
+        child: ReturnHistoryScreen(),
+      ),
+    ),
+    GoRoute(
+      path: AppRouter.udhaarDashboard,
+      builder: (context, state) => const RoleGuard(
+        allowedRoles: ['admin', 'superadmin'],
+        child: _ShellRoute(
+          currentRoute: AppRouter.udhaarDashboard,
+          child: UdhaarDashboardScreen(),
+        ),
+      ),
+    ),
+    GoRoute(
+      path: AppRouter.udhaarCustomer,
+      builder: (context, state) {
+        final customerId = state.extra as int;
+        return RoleGuard(
+          allowedRoles: const ['admin', 'superadmin'],
+          child: CustomerLedgerScreen(customerId: customerId),
+        );
+      },
+    ),
+    GoRoute(
+      path: AppRouter.udhaarCollect,
+      builder: (context, state) {
+        final customerId = state.extra as int;
+        return RoleGuard(
+          allowedRoles: const ['admin', 'superadmin'],
+          child: CollectPaymentScreen(customerId: customerId),
+        );
+      },
+    ),
+    GoRoute(
+      path: AppRouter.udhaarFinal,
+      builder: (context, state) {
+        final customerId = state.extra as int;
+        return RoleGuard(
+          allowedRoles: const ['admin', 'superadmin'],
+          child: FinalTotalScreen(customerId: customerId),
+        );
+      },
+    ),
+    GoRoute(
+      path: AppRouter.plReport,
+      builder: (context, state) => const RoleGuard(
+        allowedRoles: ['admin', 'superadmin'],
+        child: PLReportScreen(),
+      ),
+    ),
+    GoRoute(
+      path: AppRouter.dailyReport,
+      builder: (context, state) => const RoleGuard(
+        allowedRoles: ['admin', 'superadmin'],
+        child: DailyReportScreen(),
+      ),
+    ),
+    GoRoute(
+      path: AppRouter.addExpense,
+      builder: (context, state) => const RoleGuard(
+        allowedRoles: ['admin', 'superadmin'],
+        child: AddExpenseScreen(),
+      ),
+    ),
+    GoRoute(
+      path: AppRouter.expenseList,
+      builder: (context, state) => const RoleGuard(
+        allowedRoles: ['admin', 'superadmin'],
+        child: ExpenseListScreen(),
+      ),
+    ),
+  ],
+);
 
 class AppRouter {
   AppRouter._();
@@ -81,182 +314,6 @@ class AppRouter {
     final i = _mainRoutesForRole(role).indexOf(route);
     return i >= 0 ? i : 0;
   }
-
-  static Route<dynamic> onGenerateRoute(RouteSettings routeSettings) {
-    switch (routeSettings.name) {
-      case dashboard:
-        return _buildShell(dashboard, const DashboardScreen());
-      case billing:
-        return _buildShell(billing, const BillingHomeScreen());
-      case billHistory:
-        return _buildShellGuarded(
-          billHistory,
-          const BillHistoryScreen(),
-          allowedRoles: const ['admin', 'superadmin'],
-        );
-      case inventory:
-        return _buildShell(inventory, const ItemListScreen());
-      case customers:
-        return _buildShellGuarded(
-          customers,
-          const CustomerListScreen(),
-          allowedRoles: const ['admin', 'superadmin'],
-        );
-      case khata:
-        return _buildShellGuarded(
-          customers,
-          const KhataScreen(),
-          allowedRoles: const ['admin', 'superadmin'],
-        );
-      case reports:
-        return _buildShellGuarded(
-          reports,
-          const ReportsHomeScreen(),
-          allowedRoles: const ['admin', 'superadmin'],
-        );
-      case settings:
-        return _buildShellGuarded(
-          settings,
-          const SettingsScreen(),
-          allowedRoles: const ['admin', 'superadmin'],
-        );
-      case categories:
-        return _build(const CategoryListScreen());
-      case itemAdd:
-        return _build(const ItemEditScreen());
-      case itemEdit:
-        final id = routeSettings.arguments as int?;
-        return _build(ItemEditScreen(itemId: id));
-      case customerAdd:
-        return _build(const CustomerEditScreen());
-      case customerEdit:
-        final id = routeSettings.arguments as int?;
-        return _build(CustomerEditScreen(customerId: id));
-      case customerKhata:
-        final id = routeSettings.arguments as int;
-        return _build(CustomerKhataDetailScreen(customerId: id));
-      case stockDashboard:
-        return _buildShell(inventory, const StockDashboardScreen());
-      case stockAdd:
-        final product = routeSettings.arguments as Product?;
-        return _build(AddStockScreen(prefilledProduct: product));
-      case stockHistory:
-        final args = routeSettings.arguments as Map<String, dynamic>?;
-        final productId = args?['productId'] as int?;
-        final productName = args?['productName'] as String?;
-        if (productId != null && productName != null) {
-          return _build(
-            StockHistoryScreen(productId: productId, productName: productName),
-          );
-        }
-        return _build(
-          Scaffold(
-            body: Center(child: Text('Not found: ${routeSettings.name}')),
-          ),
-        );
-      case returnsNew:
-        return _buildGuarded(
-          const ReturnScreen(),
-          allowedRoles: const ['admin', 'superadmin'],
-        );
-      case returnsReplace:
-        return _buildGuarded(
-          const ReplaceScreen(),
-          allowedRoles: const ['admin', 'superadmin'],
-        );
-      case returnsHistory:
-        return _buildGuarded(
-          const ReturnHistoryScreen(),
-          allowedRoles: const ['admin', 'superadmin'],
-        );
-      case udhaarDashboard:
-        return _buildShellGuarded(
-          udhaarDashboard,
-          const UdhaarDashboardScreen(),
-          allowedRoles: const ['admin', 'superadmin'],
-        );
-      case udhaarCustomer:
-        final customerId = routeSettings.arguments as int;
-        return _buildGuarded(
-          CustomerLedgerScreen(customerId: customerId),
-          allowedRoles: const ['admin', 'superadmin'],
-        );
-      case udhaarCollect:
-        final customerId = routeSettings.arguments as int;
-        return _buildGuarded(
-          CollectPaymentScreen(customerId: customerId),
-          allowedRoles: const ['admin', 'superadmin'],
-        );
-      case udhaarFinal:
-        final customerId = routeSettings.arguments as int;
-        return _buildGuarded(
-          FinalTotalScreen(customerId: customerId),
-          allowedRoles: const ['admin', 'superadmin'],
-        );
-      case plReport:
-        return _buildGuarded(
-          const PLReportScreen(),
-          allowedRoles: const ['admin', 'superadmin'],
-        );
-      case dailyReport:
-        return _buildGuarded(
-          const DailyReportScreen(),
-          allowedRoles: const ['admin', 'superadmin'],
-        );
-      case addExpense:
-        return _buildGuarded(
-          const AddExpenseScreen(),
-          allowedRoles: const ['admin', 'superadmin'],
-        );
-      case expenseList:
-        return _buildGuarded(
-          const ExpenseListScreen(),
-          allowedRoles: const ['admin', 'superadmin'],
-        );
-      default:
-        return _build(
-          Scaffold(
-            body: Center(child: Text('Not found: ${routeSettings.name}')),
-          ),
-        );
-    }
-  }
-
-  static MaterialPageRoute<dynamic> _buildShell(
-    String currentRoute,
-    Widget child,
-  ) {
-    return MaterialPageRoute(
-      builder: (context) =>
-          _ShellRoute(currentRoute: currentRoute, child: child),
-    );
-  }
-
-  static MaterialPageRoute<dynamic> _buildShellGuarded(
-    String currentRoute,
-    Widget child, {
-    required List<String> allowedRoles,
-  }) {
-    return MaterialPageRoute(
-      builder: (context) => RoleGuard(
-        allowedRoles: allowedRoles,
-        child: _ShellRoute(currentRoute: currentRoute, child: child),
-      ),
-    );
-  }
-
-  static MaterialPageRoute<dynamic> _build(Widget page) {
-    return MaterialPageRoute(builder: (_) => page);
-  }
-
-  static MaterialPageRoute<dynamic> _buildGuarded(
-    Widget page, {
-    required List<String> allowedRoles,
-  }) {
-    return MaterialPageRoute(
-      builder: (context) => RoleGuard(allowedRoles: allowedRoles, child: page),
-    );
-  }
 }
 
 class _ShellRoute extends ConsumerWidget {
@@ -275,7 +332,7 @@ class _ShellRoute extends ConsumerWidget {
       currentIndex: currentIndex,
       onDestinationSelected: (i) {
         if (i < 0 || i >= routes.length) return;
-        Navigator.of(context).pushReplacementNamed(routes[i]);
+        GoRouter.of(context).go(routes[i]);
       },
       child: child,
     );

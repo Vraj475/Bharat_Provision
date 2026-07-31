@@ -12,9 +12,7 @@ import 'data/providers.dart';
 import 'features/settings/settings_providers.dart';
 
 import 'routing/app_router.dart';
-import 'features/settings/screens/splash_screen.dart';
 
-final GlobalKey<NavigatorState> _navigatorKey = GlobalKey<NavigatorState>();
 
 void main() {
   WidgetsFlutterBinding.ensureInitialized();
@@ -71,8 +69,7 @@ class _KiranaAppState extends ConsumerState<KiranaApp> {
   Widget build(BuildContext context) {
     final largeText = ref.watch(largeTextProvider);
 
-    return MaterialApp(
-      navigatorKey: _navigatorKey,
+    return MaterialApp.router(
       title: AppStrings.appTitle,
       theme: AppTheme.lightTheme(largeText: largeText),
       debugShowCheckedModeBanner: false,
@@ -86,8 +83,7 @@ class _KiranaAppState extends ConsumerState<KiranaApp> {
           child: child ?? const SizedBox.shrink(),
         );
       },
-      home: const SplashScreen(),
-      onGenerateRoute: AppRouter.onGenerateRoute,
+      routerConfig: appRouter,
     );
   }
 }

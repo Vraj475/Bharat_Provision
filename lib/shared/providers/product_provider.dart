@@ -1,5 +1,5 @@
+import 'dart:async';
 import 'dart:convert';
-
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 import 'package:string_similarity/string_similarity.dart';
 
@@ -7,17 +7,19 @@ import '../../core/database/database_helper.dart';
 import '../../core/errors/error_handler.dart';
 import '../models/product_model.dart';
 
-final productProvider =
-    StateNotifierProvider<ProductProvider, AsyncValue<List<Product>>>(
-      (ref) => ProductProvider(DatabaseHelper.instance)..loadAllProducts(),
-    );
+final productProvider = AsyncNotifierProvider<ProductProvider, List<Product>>(() {
+  return ProductProvider();
+});
 
-class ProductProvider extends StateNotifier<AsyncValue<List<Product>>> {
-  final DatabaseHelper _dbHelper;
+class ProductProvider extends AsyncNotifier<List<Product>> {
+  DatabaseHelper get _dbHelper => DatabaseHelper.instance;
 
-  ProductProvider(this._dbHelper) : super(const AsyncValue.loading());
+  @override
+  FutureOr<List<Product>> build() {
+    return _fetchAllProducts();
+  }
 
-  Future<void> loadAllProducts() async {
+  Future<List<Product>> _fetchAllProducts() async {
     try {
       final db = await _dbHelper.database;
       final rows = await db.query(
@@ -25,110 +27,116 @@ class ProductProvider extends StateNotifier<AsyncValue<List<Product>>> {
         where: 'is_active = 1',
         orderBy: 'name_gujarati COLLATE NOCASE',
       );
-      final products = rows
+      return rows
           .map<Product>((m) => Product.fromMap(m as Map<String, dynamic>))
           .toList();
-      state = AsyncValue.data(products);
     } catch (e, st) {
-      final appError = ErrorHandler.handle(
+      throw ErrorHandler.handle(
         e,
         st,
         context: 'ProductProvider.loadAllProducts',
       );
-      state = AsyncValue.error(appError, st);
     }
   }
 
+  Future<void> loadAllProducts() async {
+    state = const AsyncValue.loading();
+    state = await AsyncValue.guard(() => _fetchAllProducts());
+  }
+
   Future<void> addProduct(Product product) async {
-    try {
-      state = const AsyncValue.loading();
-      await _dbHelper.runInTransaction((txn) async {
-        final now = DateTime.now().toIso8601String();
-        final productMap = {
-          ...product.toMap(),
-          'created_at': product.createdAt ?? now,
-          'updated_at': product.updatedAt ?? now,
-          // P02: ensure transliteration_keys stored as JSON array string if possible
-          'transliteration_keys': _normalizeTranslit(
-            product.transliterationKeys,
-          ),
-        };
+    state = const AsyncValue.loading();
+    state = await AsyncValue.guard(() async {
+      try {
+        await _dbHelper.runInTransaction((txn) async {
+          final now = DateTime.now().toIso8601String();
+          final productMap = {
+            ...product.toMap(),
+            'created_at': product.createdAt ?? now,
+            'updated_at': product.updatedAt ?? now,
+            // P02: ensure transliteration_keys stored as JSON array string if possible
+            'transliteration_keys': _normalizeTranslit(
+              product.transliterationKeys,
+            ),
+          };
 
-        final id = await txn.insert('products', productMap);
+          final id = await txn.insert('products', productMap);
 
-        if (product.stockQty > 0) {
-          final before = 0.0;
-          final after = product.stockQty;
-          await txn.insert('stock_log', {
-            'product_id': id,
-            'transaction_type': 'purchase',
-            'qty_change': product.stockQty,
-            'qty_before': before,
-            'qty_after': after,
-            'reference_id': null,
-            'reference_type': 'manual',
-            'note': null,
-            'created_at': now,
-          });
-        }
-      });
-      await loadAllProducts();
-    } catch (e, st) {
-      final appError = ErrorHandler.handle(
-        e,
-        st,
-        context: 'ProductProvider.addProduct',
-      );
-      state = AsyncValue.error(appError, st);
-    }
+          if (product.stockQty > 0) {
+            final before = 0.0;
+            final after = product.stockQty;
+            await txn.insert('stock_log', {
+              'product_id': id,
+              'transaction_type': 'purchase',
+              'qty_change': product.stockQty,
+              'qty_before': before,
+              'qty_after': after,
+              'reference_id': null,
+              'reference_type': 'manual',
+              'note': null,
+              'created_at': now,
+            });
+          }
+        });
+        return _fetchAllProducts();
+      } catch (e, st) {
+        throw ErrorHandler.handle(
+          e,
+          st,
+          context: 'ProductProvider.addProduct',
+        );
+      }
+    });
   }
 
   Future<void> updateProduct(Product product) async {
     if (product.id == null) return;
-    try {
-      state = const AsyncValue.loading();
-      await _dbHelper.runInTransaction((txn) async {
-        final now = DateTime.now().toIso8601String();
-        await txn.update(
-          'products',
-          {
-            ...product.toMap(),
-            'updated_at': now,
-            'transliteration_keys': _normalizeTranslit(
-              product.transliterationKeys,
-            ),
-          },
-          where: 'id = ?',
-          whereArgs: [product.id],
+    state = const AsyncValue.loading();
+    state = await AsyncValue.guard(() async {
+      try {
+        await _dbHelper.runInTransaction((txn) async {
+          final now = DateTime.now().toIso8601String();
+          await txn.update(
+            'products',
+            {
+              ...product.toMap(),
+              'updated_at': now,
+              'transliteration_keys': _normalizeTranslit(
+                product.transliterationKeys,
+              ),
+            },
+            where: 'id = ?',
+            whereArgs: [product.id],
+          );
+        });
+        return _fetchAllProducts();
+      } catch (e, st) {
+        throw ErrorHandler.handle(
+          e,
+          st,
+          context: 'ProductProvider.updateProduct',
         );
-      });
-      await loadAllProducts();
-    } catch (e, st) {
-      final appError = ErrorHandler.handle(
-        e,
-        st,
-        context: 'ProductProvider.updateProduct',
-      );
-      state = AsyncValue.error(appError, st);
-    }
+      }
+    });
   }
 
   Future<void> deleteProduct(Product product) async {
     if (product.id == null) return;
-    try {
-      state = const AsyncValue.loading();
-      await _dbHelper.runInTransaction((txn) async {
-        await txn.delete('products', where: 'id = ?', whereArgs: [product.id]);
-      });
-      await loadAllProducts();
-    } catch (e, st) {
-      final appError = ErrorHandler.handle(
-        e,
-        st,
-        context: 'ProductProvider.deleteProduct',
-      );
-      state = AsyncValue.error(appError, st);
-    }
+    state = const AsyncValue.loading();
+    state = await AsyncValue.guard(() async {
+      try {
+        await _dbHelper.runInTransaction((txn) async {
+          await txn.delete('products', where: 'id = ?', whereArgs: [product.id]);
+        });
+        return _fetchAllProducts();
+      } catch (e, st) {
+        throw ErrorHandler.handle(
+          e,
+          st,
+          context: 'ProductProvider.deleteProduct',
+        );
+      }
+    });
   }
 
   Future<void> searchProducts(String query) async {
@@ -137,62 +145,64 @@ class ProductProvider extends StateNotifier<AsyncValue<List<Product>>> {
       await loadAllProducts();
       return;
     }
-    try {
-      state = const AsyncValue.loading();
-      final db = await _dbHelper.database;
-      final like = '%$q%';
+    
+    state = const AsyncValue.loading();
+    state = await AsyncValue.guard(() async {
+      try {
+        final db = await _dbHelper.database;
+        final like = '%$q%';
 
-      final rows = await db.rawQuery(
-        '''
-        SELECT DISTINCT p.*
-        FROM products p
-        LEFT JOIN transliteration_dictionary t
-          ON t.gujarati_text = p.name_gujarati
-        WHERE p.is_active = 1
-          AND (
-            p.name_gujarati LIKE ? OR
-            p.name_english LIKE ? OR
-            CAST(p.sell_price AS TEXT) LIKE ? OR
-            p.transliteration_keys LIKE ? OR
-            t.phonetic_key LIKE ?
-          )
-      ''',
-        [like, like, like, like, like],
-      );
+        final rows = await db.rawQuery(
+          '''
+          SELECT DISTINCT p.*
+          FROM products p
+          LEFT JOIN transliteration_dictionary t
+            ON t.gujarati_text = p.name_gujarati
+          WHERE p.is_active = 1
+            AND (
+              p.name_gujarati LIKE ? OR
+              p.name_english LIKE ? OR
+              CAST(p.sell_price AS TEXT) LIKE ? OR
+              p.transliteration_keys LIKE ? OR
+              t.phonetic_key LIKE ?
+            )
+        ''',
+          [like, like, like, like, like],
+        );
 
-      final products = rows
-          .map<Product>((m) => Product.fromMap(m as Map<String, dynamic>))
-          .toList();
+        final products = rows
+            .map<Product>((m) => Product.fromMap(m as Map<String, dynamic>))
+            .toList();
 
-      // Fuzzy ranking
-      final queryLower = q.toLowerCase();
-      products.sort((a, b) {
-        final aKey = _bestSearchKey(a).toLowerCase();
-        final bKey = _bestSearchKey(b).toLowerCase();
+        // Fuzzy ranking
+        final queryLower = q.toLowerCase();
+        products.sort((a, b) {
+          final aKey = _bestSearchKey(a).toLowerCase();
+          final bKey = _bestSearchKey(b).toLowerCase();
 
-        int rank(String key) {
-          if (key == queryLower) return 0;
-          if (key.startsWith(queryLower)) return 1;
-          if (key.contains(queryLower)) return 2;
-          final score = StringSimilarity.compareTwoStrings(key, queryLower);
-          return score > 0.6 ? 3 : 4;
-        }
+          int rank(String key) {
+            if (key == queryLower) return 0;
+            if (key.startsWith(queryLower)) return 1;
+            if (key.contains(queryLower)) return 2;
+            final score = StringSimilarity.compareTwoStrings(key, queryLower);
+            return score > 0.6 ? 3 : 4;
+          }
 
-        final ra = rank(aKey);
-        final rb = rank(bKey);
-        if (ra != rb) return ra.compareTo(rb);
-        return a.nameGujarati.compareTo(b.nameGujarati);
-      });
+          final ra = rank(aKey);
+          final rb = rank(bKey);
+          if (ra != rb) return ra.compareTo(rb);
+          return a.nameGujarati.compareTo(b.nameGujarati);
+        });
 
-      state = AsyncValue.data(products);
-    } catch (e, st) {
-      final appError = ErrorHandler.handle(
-        e,
-        st,
-        context: 'ProductProvider.searchProducts',
-      );
-      state = AsyncValue.error(appError, st);
-    }
+        return products;
+      } catch (e, st) {
+        throw ErrorHandler.handle(
+          e,
+          st,
+          context: 'ProductProvider.searchProducts',
+        );
+      }
+    });
   }
 
   Future<List<Product>> getLowStockProducts() async {

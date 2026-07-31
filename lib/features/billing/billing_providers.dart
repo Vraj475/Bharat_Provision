@@ -99,14 +99,14 @@ class BillingTabsState {
   }
 }
 
-class BillingTabsNotifier extends StateNotifier<BillingTabsState> {
-  BillingTabsNotifier()
-    : super(
-        BillingTabsState(
-          activeIndex: 0,
-          drafts: List<BillDraft>.generate(5, (_) => BillDraft()),
-        ),
-      );
+class BillingTabsNotifier extends Notifier<BillingTabsState> {
+  @override
+  BillingTabsState build() {
+    return BillingTabsState(
+      activeIndex: 0,
+      drafts: List<BillDraft>.generate(5, (_) => BillDraft()),
+    );
+  }
 
   void switchToTab(int index) {
     if (index < 0 || index >= state.drafts.length) return;
@@ -199,6 +199,4 @@ class BillingTabsNotifier extends StateNotifier<BillingTabsState> {
 
 /// Riverpod provider exposing the billing tabs state.
 final billingTabsProvider =
-    StateNotifierProvider<BillingTabsNotifier, BillingTabsState>((ref) {
-      return BillingTabsNotifier();
-    });
+    NotifierProvider<BillingTabsNotifier, BillingTabsState>(BillingTabsNotifier.new);

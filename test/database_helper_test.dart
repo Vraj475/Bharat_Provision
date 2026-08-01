@@ -2,7 +2,9 @@ import 'dart:convert';
 import 'package:flutter_test/flutter_test.dart';
 import 'package:bharat_provision/core/database/database_helper.dart';
 import 'package:sqflite_common_ffi/sqflite_ffi.dart';
+// ignore: depend_on_referenced_packages
 import 'package:path_provider_platform_interface/path_provider_platform_interface.dart';
+// ignore: depend_on_referenced_packages
 import 'package:plugin_platform_interface/plugin_platform_interface.dart';
 import 'dart:io';
 
@@ -28,7 +30,6 @@ void main() {
 
   test('initDatabase creates tables and inserts defaults', () async {
     await DatabaseHelper.instance.initDatabase(adminPin: '1234');
-    final db = await DatabaseHelper.instance.database;
     
     // Check settings
     final settings = await DatabaseHelper.instance.query('settings');
@@ -113,7 +114,8 @@ void main() {
       'created_at': DateTime.now().toIso8601String(),
     });
 
-    final jsonStr = await DatabaseHelper.instance.exportToJson();
+    final db = await DatabaseHelper.instance.database;
+    final jsonStr = await DatabaseHelper.instance.exportToJson(db);
     expect(jsonStr, isNotEmpty);
     
     final Map<String, dynamic> data = jsonDecode(jsonStr);
@@ -124,7 +126,7 @@ void main() {
     expect(customersList.isNotEmpty, true);
 
     // Import the data back
-    await DatabaseHelper.instance.importFromJson(jsonStr);
+    await DatabaseHelper.instance.importFromJson(db, jsonStr);
     
     // Verify it didn't crash and data is still there
     final customersAfter = await DatabaseHelper.instance.query('customers');

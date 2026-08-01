@@ -54,11 +54,15 @@ class DatabaseHelper {
           final dbDir = Directory(dbPath);
           if (!await dbDir.exists()) {
             await dbDir.create(recursive: true);
-            debugPrint('DatabaseHelper: Created database directory at $dbPath');
+            if (kDebugMode) {
+              debugPrint('DatabaseHelper: Created database directory at $dbPath');
+            }
           }
 
           final path = p.join(dbPath, dbFileName);
-          debugPrint('DatabaseHelper: Opening encrypted database at $path');
+          if (kDebugMode) {
+            debugPrint('DatabaseHelper: Opening encrypted database at $path');
+          }
 
           final password = _password ?? PinHasher.sha256('1234');
 
@@ -70,23 +74,31 @@ class DatabaseHelper {
               await db.execute('PRAGMA foreign_keys = ON');
             },
             onCreate: (db, version) async {
-              debugPrint(
+              if (kDebugMode) {
+                debugPrint(
                 'DatabaseHelper: Creating new schema (version $version)',
               );
+              }
               await _createSchema(db);
               await _insertDefaultData(db);
             },
             onUpgrade: (db, oldVersion, newVersion) async {
-              debugPrint(
+              if (kDebugMode) {
+                debugPrint(
                 'DatabaseHelper: Upgrading schema from $oldVersion to $newVersion',
               );
+              }
               await _createSchema(db);
             },
           );
-          debugPrint('DatabaseHelper: Successfully opened database');
+          if (kDebugMode) {
+            debugPrint('DatabaseHelper: Successfully opened database');
+          }
           return db;
         } catch (e) {
-          debugPrint('DatabaseHelper: Android database open error: $e');
+          if (kDebugMode) {
+            debugPrint('DatabaseHelper: Android database open error: $e');
+          }
 
           // Try to recover by deleting corrupted database and recreating
           if (e.toString().contains('database is encrypted') ||
@@ -95,7 +107,9 @@ class DatabaseHelper {
               e.toString().contains('no such table') ||
               e.toString().contains('bad decrypt')) {
             try {
-              debugPrint('DatabaseHelper: Attempting database recovery...');
+              if (kDebugMode) {
+                debugPrint('DatabaseHelper: Attempting database recovery...');
+              }
               final dbPath = await sqlcipher.getDatabasesPath();
               final path = p.join(dbPath, dbFileName);
               final file = File(path);
@@ -106,15 +120,21 @@ class DatabaseHelper {
 
               if (await file.exists()) {
                 await file.delete();
-                debugPrint('DatabaseHelper: Deleted corrupted database file');
+                if (kDebugMode) {
+                  debugPrint('DatabaseHelper: Deleted corrupted database file');
+                }
               }
               if (await walFile.exists()) {
                 await walFile.delete();
-                debugPrint('DatabaseHelper: Deleted WAL file');
+                if (kDebugMode) {
+                  debugPrint('DatabaseHelper: Deleted WAL file');
+                }
               }
               if (await shmFile.exists()) {
                 await shmFile.delete();
-                debugPrint('DatabaseHelper: Deleted SHM file');
+                if (kDebugMode) {
+                  debugPrint('DatabaseHelper: Deleted SHM file');
+                }
               }
 
               // Retry opening with fresh database
@@ -127,7 +147,9 @@ class DatabaseHelper {
                   await db.execute('PRAGMA foreign_keys = ON');
                 },
                 onCreate: (db, version) async {
-                  debugPrint('DatabaseHelper: Creating schema after recovery');
+                  if (kDebugMode) {
+                    debugPrint('DatabaseHelper: Creating schema after recovery');
+                  }
                   await _createSchema(db);
                   await _insertDefaultData(db);
                 },
@@ -136,7 +158,9 @@ class DatabaseHelper {
                 },
               );
             } catch (recoveryError) {
-              debugPrint('DatabaseHelper: Recovery failed: $recoveryError');
+              if (kDebugMode) {
+                debugPrint('DatabaseHelper: Recovery failed: $recoveryError');
+              }
               rethrow;
             }
           }

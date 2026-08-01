@@ -8,6 +8,7 @@ import 'package:flutter_riverpod/flutter_riverpod.dart';
 
 import '../../core/database/database_helper.dart';
 import '../../core/theme/app_colors.dart';
+import 'package:flutter/foundation.dart';
 
 class CustomerSearchField extends ConsumerStatefulWidget {
   final String hintText;
@@ -131,7 +132,9 @@ class _CustomerSearchFieldState extends ConsumerState<CustomerSearchField> {
           _highlightedIndex = _results.isEmpty ? -1 : 0;
         });
       } catch (error) {
-        debugPrint('CUSTOMER SEARCH ERROR: $error');
+        if (kDebugMode) {
+          debugPrint('CUSTOMER SEARCH ERROR: $error');
+        }
         if (!mounted || token != _searchToken) {
           return;
         }
@@ -153,7 +156,9 @@ class _CustomerSearchFieldState extends ConsumerState<CustomerSearchField> {
   }
 
   void _selectCustomer(_CustomerSearchResult customer) {
-    debugPrint('CUSTOMER SELECTED IN CORRECT CONTROL: id=${customer.id}');
+    if (kDebugMode) {
+      debugPrint('CUSTOMER SELECTED IN CORRECT CONTROL: id=${customer.id}');
+    }
     _searchDebounce?.cancel();
     widget.controller.value = TextEditingValue(
       text: customer.nameGujarati,

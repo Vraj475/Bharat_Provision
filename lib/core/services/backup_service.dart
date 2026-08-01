@@ -34,7 +34,9 @@ class BackupService {
       final file = File(path);
       await file.writeAsString(jsonStr);
       
-      debugPrint('Backup saved to $path');
+      if (kDebugMode) {
+        debugPrint('Backup saved to $path');
+      }
       return path;
     } catch (e, st) {
       ErrorHandler.handleSilently(e, st, context: 'BackupService.createBackup');
@@ -63,7 +65,9 @@ class BackupService {
       
       await DatabaseHelper.instance.importFromJson(_db, jsonStr);
       
-      debugPrint('Backup restored successfully from $path');
+      if (kDebugMode) {
+        debugPrint('Backup restored successfully from $path');
+      }
     } catch (e, st) {
       throw ErrorHandler.handle(e, st, context: 'BackupService.restoreBackup');
     }

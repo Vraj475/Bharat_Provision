@@ -1,6 +1,6 @@
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 
-import 'package:flutter/foundation.dart' show debugPrint;
+import 'package:flutter/foundation.dart' show debugPrint, kDebugMode;
 
 import '../../core/errors/error_handler.dart';
 import '../../shared/models/product_model.dart';
@@ -161,7 +161,9 @@ class BillingTabsNotifier extends Notifier<BillingTabsState> {
   }
 
   void setSelectedCustomer(int customerId, String customerName) {
-    debugPrint('CUSTOMER SET: id=$customerId name=$customerName');
+    if (kDebugMode) {
+      debugPrint('CUSTOMER SET: id=$customerId name=$customerName');
+    }
     setCustomerForActive(customerId: customerId, customerName: customerName);
   }
 

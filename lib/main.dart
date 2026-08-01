@@ -13,6 +13,7 @@ import 'features/settings/settings_providers.dart';
 
 import 'core/database/database_helper.dart';
 import 'routing/app_router.dart';
+import 'package:flutter/foundation.dart';
 
 
 void main() {
@@ -70,7 +71,9 @@ class _KiranaAppState extends ConsumerState<KiranaApp> {
     super.initState();
     WidgetsBinding.instance.addPostFrameCallback((_) {
       _loadLargeText();
-      debugPrint('Application Ran Without error and warning');
+      if (kDebugMode) {
+        debugPrint('Application Ran Without error and warning');
+      }
     });
   }
 
@@ -79,7 +82,11 @@ class _KiranaAppState extends ConsumerState<KiranaApp> {
       final repo = ref.read(settingsRepositoryProvider);
       final v = await repo.getBool('large_text');
       ref.read(largeTextProvider.notifier).state = v;
-    } catch (_) {}
+    } catch (e, stackTrace) {
+      if (kDebugMode) {
+        debugPrint('Error in _loadLargeText: $e\n$stackTrace');
+      }
+    }
   }
 
   @override

@@ -53,7 +53,9 @@ class NotificationService {
         }
       } catch (e) {
         // Silently handle any errors in permission request
-        debugPrint('Notification permission request failed: $e');
+        if (kDebugMode) {
+          debugPrint('Notification permission request failed: $e');
+        }
       }
     }
 

@@ -1,5 +1,6 @@
 import 'package:flutter/material.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
+import 'package:go_router/go_router.dart';
 
 import '../../core/localization/app_strings.dart';
 import '../../core/theme/app_colors.dart';
@@ -9,7 +10,6 @@ import '../../shared/models/customer_model.dart';
 import '../../data/providers.dart';
 import '../../routing/app_router.dart';
 import 'khata_providers.dart';
-import 'package:go_router/go_router.dart';
 
 class CustomerListScreen extends ConsumerStatefulWidget {
   const CustomerListScreen({super.key});
@@ -65,9 +65,10 @@ class _CustomerListScreenState extends ConsumerState<CustomerListScreen> {
               data: (customers) => _CustomerListWithBalances(
                 customers: customers,
                 balanceColor: _balanceColor,
-                onCustomerTap: (c) => Navigator.of(
-                  context,
-                ).pushNamed(AppRouter.customerKhata, arguments: c.id),
+                onCustomerTap: (c) => context.push(
+                  AppRouter.customerKhata,
+                  extra: c.id,
+                ),
                 onDelete: (_, c) => _confirmDelete(c),
               ),
               loading: () => const Center(child: CircularProgressIndicator()),
@@ -159,9 +160,10 @@ class _CustomerListWithBalances extends ConsumerWidget {
                         if (v == 'khata') {
                           onCustomerTap(c);
                         } else if (v == 'edit') {
-                          Navigator.of(
-                            context,
-                          ).pushNamed(AppRouter.customerEdit, arguments: c.id);
+                          context.push(
+                            AppRouter.customerEdit,
+                            extra: c.id,
+                          );
                         } else if (v == 'delete') {
                           onDelete(context, c);
                         }

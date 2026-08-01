@@ -1,12 +1,12 @@
 import 'package:flutter/material.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
+import 'package:go_router/go_router.dart';
 
 import '../../core/theme/app_colors.dart';
 import '../../shared/models/product_model.dart';
 import '../../data/repositories/stock_repository.dart';
+import '../../routing/app_router.dart';
 import 'stock_providers.dart';
-import 'add_stock_screen.dart';
-import 'stock_history_screen.dart';
 
 class StockDashboardScreen extends ConsumerStatefulWidget {
   const StockDashboardScreen({super.key});
@@ -222,26 +222,18 @@ class _StockDashboardScreenState extends ConsumerState<StockDashboardScreen> {
     return list;
   }
 
-  void _openAddStock(Product product) async {
-    await Navigator.of(context).push(
-      MaterialPageRoute(
-        builder: (_) => AddStockScreen(prefilledProduct: product),
-      ),
-    );
+  Future<void> _openAddStock(Product product) async {
+    await context.push(AppRouter.stockAdd, extra: product);
     // Refresh after returning
     ref.invalidate(stockDashboardProductsProvider);
     ref.invalidate(stockSummaryProvider);
   }
 
   void _openHistory(Product product) {
-    Navigator.of(context).push(
-      MaterialPageRoute(
-        builder: (_) => StockHistoryScreen(
-          productId: product.id!,
-          productName: product.nameGujarati,
-        ),
-      ),
-    );
+    context.push(AppRouter.stockHistory, extra: {
+      'productId': product.id!,
+      'productName': product.nameGujarati,
+    });
   }
 }
 

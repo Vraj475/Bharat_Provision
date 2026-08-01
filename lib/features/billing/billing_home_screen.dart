@@ -25,7 +25,6 @@ import '../../core/services/notification_service.dart';
 import '../../features/inventory/inventory_providers.dart';
 import '../../features/stock/stock_providers.dart';
 import '../../features/settings/providers/auth_provider.dart';
-import '../../features/settings/screens/role_selection_screen.dart';
 import '../../features/settings/settings_providers.dart';
 import '../../data/providers.dart';
 import '../../data/services/bill_service_provider.dart';
@@ -455,10 +454,7 @@ class _BillingHomeScreenState extends ConsumerState<BillingHomeScreen> {
 
   void _logoutFromBilling() {
     ref.read(authSessionProvider.notifier).logout();
-    Navigator.of(context).pushAndRemoveUntil(
-      MaterialPageRoute(builder: (_) => const RoleSelectionScreen()),
-      (route) => false,
-    );
+    context.go(AppRouter.roleSelection);
   }
 
   @override

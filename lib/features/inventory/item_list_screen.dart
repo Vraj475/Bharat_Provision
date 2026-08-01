@@ -1,5 +1,6 @@
 import 'package:flutter/material.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
+import 'package:go_router/go_router.dart';
 
 import '../../core/localization/app_strings.dart';
 import '../../core/theme/app_colors.dart';
@@ -9,7 +10,6 @@ import '../../shared/models/product_model.dart';
 import '../../data/providers.dart';
 import '../../routing/app_router.dart';
 import 'inventory_providers.dart';
-import 'package:go_router/go_router.dart';
 
 class ItemListScreen extends ConsumerStatefulWidget {
   const ItemListScreen({super.key});
@@ -71,8 +71,7 @@ class _ItemListScreenState extends ConsumerState<ItemListScreen> {
                 TextButton.icon(
                   icon: const Icon(Icons.category),
                   label: const Text('કેટેગરીઓ'),
-                  onPressed: () =>
-                      context.push(AppRouter.categories),
+                  onPressed: () => context.push(AppRouter.categories),
                 ),
                 FilterChip(
                   label: const Text(AppStrings.lowStockFilter),
@@ -142,9 +141,10 @@ class _ItemListScreenState extends ConsumerState<ItemListScreen> {
                             ),
                           ],
                         ),
-                        onTap: () => Navigator.of(
-                          context,
-                        ).pushNamed(AppRouter.itemEdit, arguments: item.id),
+                        onTap: () => context.push(
+                          AppRouter.itemEdit,
+                          extra: item.id,
+                        ),
                       ),
                     );
                   },

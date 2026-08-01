@@ -25,6 +25,11 @@ import '../features/settings/screens/pin_verification_screen.dart';
 import '../features/stock/stock_dashboard_screen.dart';
 import '../features/stock/add_stock_screen.dart';
 import '../features/stock/stock_history_screen.dart';
+import '../features/settings/screens/role_selection_screen.dart';
+import '../features/settings/screens/pin_entry_screen.dart';
+import '../features/settings/screens/superadmin_panel_screen.dart';
+import '../features/settings/screens/expense_accounts_manager_screen.dart';
+import '../features/settings/screens/transliteration_dictionary_screen.dart';
 import '../shared/models/product_model.dart';
 import '../features/udhaar/udhaar_dashboard_screen.dart';
 import '../features/udhaar/customer_ledger_screen.dart';
@@ -294,6 +299,49 @@ final appRouter = GoRouter(
         return ChangePinScreen(forRole: forRole);
       },
     ),
+    GoRoute(
+      path: AppRouter.pinEntry,
+      builder: (context, state) {
+        final role = state.extra as String;
+        return PinEntryScreen(role: role);
+      },
+    ),
+    GoRoute(
+      path: AppRouter.pinVerify,
+      builder: (context, state) {
+        final args = state.extra as Map<String, dynamic>? ?? {};
+        final title = args['title'] as String? ?? 'Verify PIN';
+        return PinVerificationScreen(
+          title: title,
+          onVerified: (_) {},
+        );
+      },
+    ),
+    GoRoute(
+      path: AppRouter.roleSelection,
+      builder: (context, state) => const RoleSelectionScreen(),
+    ),
+    GoRoute(
+      path: AppRouter.superadminPanel,
+      builder: (context, state) => const RoleGuard(
+        allowedRoles: ['superadmin'],
+        child: SuperadminPanelScreen(),
+      ),
+    ),
+    GoRoute(
+      path: AppRouter.expenseAccounts,
+      builder: (context, state) => const RoleGuard(
+        allowedRoles: ['admin', 'superadmin'],
+        child: ExpenseAccountsManagerScreen(),
+      ),
+    ),
+    GoRoute(
+      path: AppRouter.transliterationDict,
+      builder: (context, state) => const RoleGuard(
+        allowedRoles: ['admin', 'superadmin'],
+        child: TransliterationDictionaryScreen(),
+      ),
+    ),
   ],
 );
 
@@ -332,6 +380,12 @@ class AppRouter {
   static const String productEdit = '/products/edit';
   static const String billDetail = '/bill-detail';
   static const String changePin = '/settings/change-pin';
+  static const String roleSelection = '/role-selection';
+  static const String pinVerify = '/settings/pin-verify';
+  static const String pinEntry = '/pin-entry';
+  static const String superadminPanel = '/settings/superadmin';
+  static const String expenseAccounts = '/settings/expense-accounts';
+  static const String transliterationDict = '/settings/transliteration';
 
   static List<String> _mainRoutesForRole(String role) {
     final isAdmin = canAccessUdhaar(role);

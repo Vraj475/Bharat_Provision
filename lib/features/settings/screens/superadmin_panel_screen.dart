@@ -3,7 +3,7 @@ import 'package:flutter_riverpod/flutter_riverpod.dart';
 import '../providers/auth_provider.dart';
 import '../settings_providers.dart';
 import '../../../data/providers.dart';
-import 'pin_verification_screen.dart';
+import '../../../routing/app_router.dart';
 import 'package:go_router/go_router.dart';
 
 class SuperadminPanelScreen extends ConsumerStatefulWidget {
@@ -34,13 +34,11 @@ class _SuperadminPanelScreenState extends ConsumerState<SuperadminPanelScreen>
 
   void _verifyPin() async {
     // Show PIN verification
-    final verified = await Navigator.of(context).push<bool>(
-      MaterialPageRoute(
-        builder: (context) => PinVerificationScreen(
-          title: 'Superadmin Authentication',
-          onVerified: (verified) {},
-        ),
-      ),
+    final verified = await context.push<bool>(
+      '/settings/pin-verify',
+      extra: <String, dynamic>{
+        'title': 'Superadmin Authentication',
+      },
     );
 
     if (!mounted) return;
@@ -265,12 +263,7 @@ class _UserManagerTab extends ConsumerWidget {
                   width: double.infinity,
                   child: ElevatedButton(
                     onPressed: () {
-                      Navigator.of(context).push(
-                        MaterialPageRoute(
-                          builder: (context) =>
-                              const ChangePinScreen(forRole: 'admin'),
-                        ),
-                      );
+                      context.push(AppRouter.changePin, extra: 'admin');
                     },
                     child: const Text('Change Admin PIN'),
                   ),
@@ -283,12 +276,7 @@ class _UserManagerTab extends ConsumerWidget {
                   width: double.infinity,
                   child: ElevatedButton(
                     onPressed: () {
-                      Navigator.of(context).push(
-                        MaterialPageRoute(
-                          builder: (context) =>
-                              const ChangePinScreen(forRole: 'employee'),
-                        ),
-                      );
+                      context.push(AppRouter.changePin, extra: 'employee');
                     },
                     child: const Text('Change Employee PIN'),
                   ),

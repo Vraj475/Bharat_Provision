@@ -4,7 +4,7 @@ import 'package:flutter_riverpod/flutter_riverpod.dart';
 import 'package:shared_preferences/shared_preferences.dart';
 
 import '../../../core/auth/role_provider.dart';
-import '../../../core/widgets/home_screen.dart';
+import '../../../routing/app_router.dart';
 import '../providers/auth_provider.dart';
 import '../settings_providers.dart';
 import 'package:go_router/go_router.dart';
@@ -165,10 +165,7 @@ class _PinEntryScreenState extends ConsumerState<PinEntryScreen> {
       if (isNavigating) return;
       isNavigating = true;
       if (!mounted) return;
-      Navigator.of(context).pushAndRemoveUntil(
-        MaterialPageRoute(builder: (_) => const HomeScreen()),
-        (route) => false,
-      );
+      context.go(AppRouter.billing);
     } catch (_) {
       if (!mounted) return;
       setState(() {

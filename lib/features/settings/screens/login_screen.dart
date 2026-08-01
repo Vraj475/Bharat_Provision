@@ -2,8 +2,8 @@ import 'package:flutter/material.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 
 import '../../../core/utils/app_data.dart';
-import 'pin_entry_screen.dart';
-import 'role_selection_screen.dart';
+import 'package:go_router/go_router.dart';
+import '../../../routing/app_router.dart';
 
 class LoginScreen extends ConsumerStatefulWidget {
   final ValueChanged<String> onLoginSuccess;
@@ -39,10 +39,7 @@ class _LoginScreenState extends ConsumerState<LoginScreen> {
     if (_selectedRole == null) {
       WidgetsBinding.instance.addPostFrameCallback((_) {
         if (!mounted || _selectedRole != null) return;
-        Navigator.of(context).pushAndRemoveUntil(
-          MaterialPageRoute(builder: (_) => const RoleSelectionScreen()),
-          (route) => false,
-        );
+        context.go(AppRouter.roleSelection);
       });
       return;
     }
@@ -62,13 +59,11 @@ class _LoginScreenState extends ConsumerState<LoginScreen> {
     });
 
     try {
-      final isLoggedIn = await Navigator.of(context).push<bool>(
-        MaterialPageRoute(
-          builder: (context) => PinEntryScreen(role: _selectedRole!),
-        ),
-      );
-
-      if (isLoggedIn == true && mounted) {
+      // PinEntryScreen navigates to billing on success via context.go
+      // so no return value is needed; just push and let it handle navigation
+      await context.push(AppRouter.pinEntry, extra: _selectedRole!);
+      // If we're here, the user pressed back without logging in
+      if (mounted) {
         widget.onLoginSuccess(_selectedRole!);
       }
     } finally {
@@ -181,13 +176,7 @@ class _LoginScreenState extends ConsumerState<LoginScreen> {
                                 onPressed: _isOpeningPinScreen
                                     ? null
                                     : () {
-                                        Navigator.pushReplacement(
-                                          context,
-                                          MaterialPageRoute(
-                                            builder: (_) =>
-                                                const RoleSelectionScreen(),
-                                          ),
-                                        );
+                                        context.go(AppRouter.roleSelection);
                                       },
                                 child: const Text('Change role'),
                               ),

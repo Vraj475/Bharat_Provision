@@ -17,9 +17,6 @@ import '../../../data/providers.dart';
 import '../../../routing/app_router.dart';
 import '../providers/auth_provider.dart';
 import '../settings_providers.dart';
-import 'expense_accounts_manager_screen.dart';
-import 'superadmin_panel_screen.dart';
-import 'transliteration_dictionary_screen.dart';
 
 class SettingsScreen extends ConsumerStatefulWidget {
   const SettingsScreen({super.key});
@@ -92,11 +89,7 @@ class _SettingsScreenState extends ConsumerState<SettingsScreen>
       floatingActionButton: session.role == 'superadmin'
           ? FloatingActionButton.extended(
               onPressed: () {
-                Navigator.of(context).push(
-                  MaterialPageRoute(
-                    builder: (context) => const SuperadminPanelScreen(),
-                  ),
-                );
+                context.push(AppRouter.superadminPanel);
               },
               label: const Text('Superadmin Panel'),
               icon: const Icon(Icons.admin_panel_settings),
@@ -563,22 +556,13 @@ class _DataManagementTab extends ConsumerWidget {
             _ActionSettingField(
               label: 'Expense Accounts',
               onPressed: () {
-                Navigator.of(context).push(
-                  MaterialPageRoute(
-                    builder: (context) => const ExpenseAccountsManagerScreen(),
-                  ),
-                );
+                context.push(AppRouter.expenseAccounts);
               },
             ),
             _ActionSettingField(
               label: 'Transliteration Dictionary',
               onPressed: () {
-                Navigator.of(context).push(
-                  MaterialPageRoute(
-                    builder: (context) =>
-                        const TransliterationDictionaryScreen(),
-                  ),
-                );
+                context.push(AppRouter.transliterationDict);
               },
             ),
           ],

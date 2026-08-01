@@ -5,7 +5,8 @@ import 'package:shared_preferences/shared_preferences.dart';
 
 import '../../../core/auth/role_provider.dart';
 import '../../../core/utils/app_data.dart';
-import '../../../core/widgets/home_screen.dart';
+import 'package:go_router/go_router.dart';
+import '../../../routing/app_router.dart';
 import '../providers/auth_provider.dart';
 import '../settings_providers.dart';
 
@@ -168,10 +169,7 @@ class _RoleSelectionScreenState extends ConsumerState<RoleSelectionScreen> {
       _isNavigating = true;
 
       if (!mounted) return;
-      Navigator.of(context).pushAndRemoveUntil(
-        MaterialPageRoute(builder: (_) => const HomeScreen()),
-        (route) => false,
-      );
+      context.go(AppRouter.billing);
     } catch (_) {
       if (!mounted) return;
       setState(() {

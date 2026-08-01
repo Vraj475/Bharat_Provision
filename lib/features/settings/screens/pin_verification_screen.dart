@@ -3,7 +3,7 @@ import 'package:flutter/services.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 
 import '../providers/auth_provider.dart';
-import 'role_selection_screen.dart';
+import '../../../routing/app_router.dart';
 import '../utils/pin_utils.dart';
 import 'package:go_router/go_router.dart';
 
@@ -212,11 +212,7 @@ class _ChangePinScreenState extends ConsumerState<ChangePinScreen> {
     hasNavigated = true;
 
     if (!mounted) return;
-    Navigator.pushAndRemoveUntil(
-      context,
-      MaterialPageRoute(builder: (_) => const RoleSelectionScreen()),
-      (route) => false,
-    );
+    context.go(AppRouter.roleSelection);
   }
 
   String? _targetRole() {

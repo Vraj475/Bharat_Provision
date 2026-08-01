@@ -1,8 +1,9 @@
 import 'package:flutter/material.dart';
+import 'package:go_router/go_router.dart';
 import 'package:shared_preferences/shared_preferences.dart';
 
 import '../../../core/utils/app_data.dart';
-import 'role_selection_screen.dart';
+import '../../../routing/app_router.dart';
 
 class SplashScreen extends StatefulWidget {
   const SplashScreen({super.key});
@@ -30,23 +31,17 @@ class _SplashScreenState extends State<SplashScreen> {
       await Future<void>.delayed(const Duration(seconds: 2));
 
       if (!mounted) return;
-      Navigator.pushReplacement(
-        context,
-        MaterialPageRoute(builder: (_) => const RoleSelectionScreen()),
-      );
+      context.go(AppRouter.roleSelection);
     } catch (_) {
       if (!mounted) return;
-      Navigator.pushReplacement(
-        context,
-        MaterialPageRoute(builder: (_) => const RoleSelectionScreen()),
-      );
+      context.go(AppRouter.roleSelection);
     }
   }
 
   @override
   Widget build(BuildContext context) {
     return Scaffold(
-      backgroundColor: Color(0xFF0D47A1),
+      backgroundColor: const Color(0xFF0D47A1),
       body: SafeArea(
         child: Center(
           child: Column(

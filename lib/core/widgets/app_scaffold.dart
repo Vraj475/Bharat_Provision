@@ -3,7 +3,8 @@ import 'package:flutter/material.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 
 import '../../features/settings/providers/auth_provider.dart';
-import '../../features/settings/screens/role_selection_screen.dart';
+import 'package:go_router/go_router.dart';
+import '../../routing/app_router.dart';
 import '../auth/role_provider.dart';
 import '../localization/app_strings.dart';
 
@@ -134,10 +135,7 @@ class AppScaffold extends ConsumerWidget {
 
   static void _logout(BuildContext context, WidgetRef ref) {
     ref.read(authSessionProvider.notifier).logout();
-    Navigator.of(context).pushAndRemoveUntil(
-      MaterialPageRoute(builder: (_) => const RoleSelectionScreen()),
-      (route) => false,
-    );
+    context.go(AppRouter.roleSelection);
   }
 
   List<_NavItem> _navItems(bool isAdmin) {

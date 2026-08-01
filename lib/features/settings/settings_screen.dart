@@ -1,16 +1,10 @@
-import 'dart:io';
-
-import 'package:file_picker/file_picker.dart';
 import 'package:flutter/material.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
-import 'package:path/path.dart' as p;
-import 'package:path_provider/path_provider.dart';
 import 'package:shared_preferences/shared_preferences.dart';
 
 import '../../core/localization/app_strings.dart';
 import '../../core/widgets/confirm_dialog.dart';
 import '../../core/widgets/primary_button.dart';
-import '../../core/database/database_helper.dart';
 import '../../data/providers.dart';
 import '../inventory/inventory_providers.dart';
 import '../khata/khata_providers.dart';
@@ -84,27 +78,17 @@ class _SettingsScreenState extends ConsumerState<SettingsScreen> {
 
   Future<void> _exportData() async {
     try {
-      final json = await DatabaseHelper.instance.exportToJson();
-      String path;
-      if (Platform.isAndroid || Platform.isIOS) {
-        final dir = await getApplicationDocumentsDirectory();
-        path = p.join(
-          dir.path,
-          'kirana_backup_${DateTime.now().millisecondsSinceEpoch}.json',
-        );
-      } else {
-        final dir = await getApplicationSupportDirectory();
-        path = p.join(
-          dir.path,
-          'kirana_backup_${DateTime.now().millisecondsSinceEpoch}.json',
-        );
-      }
-      final file = File(path);
-      await file.writeAsString(json);
+      final path = await ref.read(backupServiceProvider).createBackup();
       if (mounted) {
-        ScaffoldMessenger.of(context).showSnackBar(
-          SnackBar(content: Text('${AppStrings.exportSuccess}\n$path')),
-        );
+        if (path != null) {
+          ScaffoldMessenger.of(context).showSnackBar(
+            SnackBar(content: Text('${AppStrings.exportSuccess}\n$path')),
+          );
+        } else {
+          ScaffoldMessenger.of(context).showSnackBar(
+            const SnackBar(content: Text('બેકઅપ નિષ્ફળ')),
+          );
+        }
       }
     } catch (e) {
       if (mounted) {
@@ -126,18 +110,7 @@ class _SettingsScreenState extends ConsumerState<SettingsScreen> {
     if (ok != true || !mounted) return;
 
     try {
-      final result = await FilePicker.platform.pickFiles(
-        type: FileType.custom,
-        allowedExtensions: ['json'],
-      );
-      if (result == null || result.files.isEmpty || !mounted) return;
-
-      final path = result.files.single.path;
-      if (path == null) return;
-
-      final file = File(path);
-      final json = await file.readAsString();
-      await DatabaseHelper.instance.importFromJson(json);
+      await ref.read(backupServiceProvider).restoreBackup();
 
       ref.invalidate(itemListProvider);
       ref.invalidate(customerListProvider);

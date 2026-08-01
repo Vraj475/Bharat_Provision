@@ -8,6 +8,7 @@ import 'repositories/khata_repository.dart';
 import 'repositories/report_repository.dart';
 import 'repositories/settings_repository.dart';
 import 'repositories/user_repository.dart';
+import '../core/services/backup_service.dart';
 
 final databaseProvider = Provider<Database>((ref) {
   throw UnimplementedError('databaseProvider must be overridden');
@@ -39,4 +40,8 @@ final settingsRepositoryProvider = Provider<SettingsRepository>((ref) {
 
 final userRepositoryProvider = Provider<UserRepository>((ref) {
   return UserRepository(ref.watch(databaseProvider));
+});
+
+final backupServiceProvider = Provider<BackupService>((ref) {
+  return BackupService(ref.watch(databaseProvider));
 });

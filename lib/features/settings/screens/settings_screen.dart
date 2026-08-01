@@ -1,17 +1,11 @@
 // ignore_for_file: dead_code, dead_null_aware_expression
 
-import 'dart:io';
-
-import 'package:blue_thermal_printer/blue_thermal_printer.dart';
 import 'package:flutter/material.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 import 'package:go_router/go_router.dart';
 import 'package:intl/intl.dart';
-import 'package:path_provider/path_provider.dart';
-import 'package:share_plus/share_plus.dart';
 import 'package:shared_preferences/shared_preferences.dart';
 
-import '../../../core/database/database_helper.dart';
 import '../../../core/errors/error_handler.dart';
 import '../../../data/providers.dart';
 import '../../../routing/app_router.dart';
@@ -573,7 +567,13 @@ class _DataManagementTab extends ConsumerWidget {
             _ActionSettingField(
               label: 'Export as JSON Backup',
               onPressed: () async {
-                await _SettingsActions.exportBackup(context);
+                await _SettingsActions.exportBackup(context, ref);
+              },
+            ),
+            _ActionSettingField(
+              label: 'Restore from JSON Backup',
+              onPressed: () async {
+                await _SettingsActions.restoreBackup(context, ref);
               },
             ),
             _ActionSettingField(
@@ -723,21 +723,20 @@ class _SettingsActions {
     }
   }
 
-  static Future<void> exportBackup(BuildContext context) async {
+  static Future<void> exportBackup(BuildContext context, WidgetRef ref) async {
     try {
-      final json = await DatabaseHelper.instance.exportToJson();
-      final dir = await getApplicationDocumentsDirectory();
-      final stamp = DateFormat('yyyyMMdd_HHmmss').format(DateTime.now());
-      final path =
-          '${dir.path}${Platform.pathSeparator}KiranaBackup_$stamp.json';
-      final file = File(path);
-      await file.writeAsString(json);
-      await Share.shareXFiles([XFile(path)], text: 'Kirana backup');
-
+      final path = await ref.read(backupServiceProvider).createBackup();
+      
       if (!context.mounted) return;
-      ScaffoldMessenger.of(
-        context,
-      ).showSnackBar(const SnackBar(content: Text('ડેટા નિકાસ થઈ ગયો')));
+      if (path != null) {
+        ScaffoldMessenger.of(
+          context,
+        ).showSnackBar(SnackBar(content: Text('ડેટા નિકાસ થઈ ગયો: $path')));
+      } else {
+        ScaffoldMessenger.of(
+          context,
+        ).showSnackBar(const SnackBar(content: Text('બેકઅપ નિષ્ફળ')));
+      }
     } catch (e, st) {
       if (!context.mounted) return;
       ErrorHandler.handleAndShowSnackbar(
@@ -745,6 +744,25 @@ class _SettingsActions {
         e,
         st,
         contextDescription: 'Settings.exportBackup',
+      );
+    }
+  }
+
+  static Future<void> restoreBackup(BuildContext context, WidgetRef ref) async {
+    try {
+      await ref.read(backupServiceProvider).restoreBackup();
+      
+      if (!context.mounted) return;
+      ScaffoldMessenger.of(
+        context,
+      ).showSnackBar(const SnackBar(content: Text('બેકઅપ સફળતાપૂર્વક પુનઃસ્થાપિત થયો')));
+    } catch (e, st) {
+      if (!context.mounted) return;
+      ErrorHandler.handleAndShowSnackbar(
+        context,
+        e,
+        st,
+        contextDescription: 'Settings.restoreBackup',
       );
     }
   }

@@ -943,9 +943,8 @@ class DatabaseHelper {
     }, 'DatabaseHelper.runInTransaction');
   }
 
-  Future<String> exportToJson() async {
+  Future<String> exportToJson(Database db) async {
     return _withErrorHandling(() async {
-      final db = await database;
       const tables = [
         'settings',
         'users',
@@ -975,9 +974,8 @@ class DatabaseHelper {
     }, 'DatabaseHelper.exportToJson');
   }
 
-  Future<void> importFromJson(String jsonStr) async {
+  Future<void> importFromJson(Database db, String jsonStr) async {
     return _withErrorHandling(() async {
-      final db = await database;
       final data = jsonDecode(jsonStr) as Map<String, dynamic>;
       await db.transaction((txn) async {
         const tables = [
@@ -1000,7 +998,14 @@ class DatabaseHelper {
           'replace_transactions',
           'reminder_log',
         ];
+        
+        // 1. Delete all existing data from child to parent to avoid foreign key violations
         for (final t in tables.reversed) {
+          await txn.delete(t);
+        }
+        
+        // 2. Insert new data from parent to child
+        for (final t in tables) {
           final rows = data[t] as List<dynamic>?;
           if (rows == null || rows.isEmpty) continue;
           for (final row in rows) {

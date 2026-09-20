@@ -1,16 +1,12 @@
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 
-import '../../core/database/database_helper.dart';
 import '../../core/errors/error_handler.dart';
 import '../../data/repositories/udhaar_repository.dart';
 import '../../shared/models/bill_item_model.dart';
 import '../../shared/models/customer_model.dart';
 
-// ─── Core repository provider ─────────────────────────────────────────────────
-
-final udhaarRepositoryProvider = Provider<UdhaarRepository>(
-  (ref) => UdhaarRepository(DatabaseHelper.instance),
-);
+import '../../data/providers.dart';
+export '../../data/providers.dart' show udhaarRepositoryProvider;
 
 // ─── Master Udhaar Provider - Single Source of Truth for Credit Data ─────────
 

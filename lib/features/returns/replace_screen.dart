@@ -2,6 +2,7 @@ import 'dart:async';
 
 import 'package:flutter/material.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
+import 'package:go_router/go_router.dart';
 import 'package:intl/intl.dart';
 
 import '../../core/theme/app_colors.dart';
@@ -11,7 +12,6 @@ import '../../shared/models/bill_item_model.dart';
 import '../../shared/models/bill_model.dart';
 import '../../shared/models/product_model.dart';
 import 'returns_providers.dart';
-import 'package:go_router/go_router.dart';
 
 class ReplaceScreen extends ConsumerStatefulWidget {
   const ReplaceScreen({super.key});
@@ -58,15 +58,15 @@ class _ReplaceScreenState extends ConsumerState<ReplaceScreen> {
       _query.isNotEmpty || _status != 'all' || _hasDateFilter;
 
   BillListQueryParams get _queryParams => BillListQueryParams(
-    query: _query,
-    status: _status,
-    from: _hasDateFilter ? _fromDate : null,
-    to: _hasDateFilter ? _toDate : null,
-  );
+        query: _query,
+        status: _status,
+        from: _fromDate,
+        to: _toDate,
+      );
 
   void _scheduleSearch() {
     _searchDebounce?.cancel();
-    _searchDebounce = Timer(const Duration(milliseconds: 100), () {
+    _searchDebounce = Timer(const Duration(milliseconds: 300), () {
       if (!mounted) return;
       setState(() {
         _query = _searchCtrl.text.trim();
@@ -79,10 +79,15 @@ class _ReplaceScreenState extends ConsumerState<ReplaceScreen> {
       context: context,
       initialDate: _fromDate ?? DateTime.now(),
       firstDate: DateTime(2020),
-      lastDate: DateTime.now().add(const Duration(days: 1)),
+      lastDate: DateTime(2100),
     );
     if (picked != null) {
-      setState(() => _fromDate = picked);
+      setState(() {
+        _fromDate = picked;
+        if (_toDate != null && _toDate!.isBefore(picked)) {
+          _toDate = picked;
+        }
+      });
     }
   }
 
@@ -90,11 +95,13 @@ class _ReplaceScreenState extends ConsumerState<ReplaceScreen> {
     final picked = await showDatePicker(
       context: context,
       initialDate: _toDate ?? _fromDate ?? DateTime.now(),
-      firstDate: DateTime(2020),
-      lastDate: DateTime.now().add(const Duration(days: 1)),
+      firstDate: _fromDate ?? DateTime(2020),
+      lastDate: DateTime(2100),
     );
     if (picked != null) {
-      setState(() => _toDate = picked);
+      setState(() {
+        _toDate = picked;
+      });
     }
   }
 
@@ -108,18 +115,25 @@ class _ReplaceScreenState extends ConsumerState<ReplaceScreen> {
   Future<void> _openBill(Bill bill) async {
     setState(() {
       _selectedBill = bill;
-      _error = null;
+      _selectedReturnItem = null;
+      _billItems = [];
+      _selectedReplacementProduct = null;
+      _productSearchResults = [];
     });
-    await _loadBillItems(bill.id!);
+    if (bill.id != null) {
+      await _loadBillItems(bill.id!);
+    }
   }
 
   void _backToBillList() {
     setState(() {
       _selectedBill = null;
-      _billItems = [];
       _selectedReturnItem = null;
+      _billItems = [];
       _selectedReplacementProduct = null;
       _productSearchResults = [];
+      _returnQtyCtrl.clear();
+      _replacementQtyCtrl.clear();
     });
   }
 
@@ -127,10 +141,6 @@ class _ReplaceScreenState extends ConsumerState<ReplaceScreen> {
     setState(() {
       _isLoading = true;
       _error = null;
-      _billItems = [];
-      _selectedReturnItem = null;
-      _productSearchResults = [];
-      _selectedReplacementProduct = null;
     });
     try {
       final repo = ref.read(returnRepositoryProvider);
@@ -153,70 +163,90 @@ class _ReplaceScreenState extends ConsumerState<ReplaceScreen> {
     }
   }
 
-  Future<void> _searchProducts(String query) async {
-    final repo = ref.read(returnRepositoryProvider);
-    final results = await repo.getProducts(query: query);
-    if (!mounted) return;
-    setState(() {
-      _productSearchResults = results;
-    });
+  Future<void> _searchProducts(String val) async {
+    if (val.trim().isEmpty) {
+      setState(() {
+        _productSearchResults = [];
+      });
+      return;
+    }
+    try {
+      final repo = ref.read(returnRepositoryProvider);
+      final list = await repo.getProducts(query: val);
+      if (!mounted) return;
+      setState(() {
+        _productSearchResults = list;
+      });
+    } catch (e) {
+      // ignore search errors
+    }
+  }
+
+  bool _isKgUnit(String? unitType) {
+    if (unitType == null) return false;
+    final u = unitType.trim().toLowerCase();
+    return u.contains('કિલો') || u == 'kg' || u.contains('kilo');
+  }
+
+  double get _returnQtyInBaseUnit {
+    final raw = double.tryParse(_returnQtyCtrl.text) ?? 0.0;
+    if (_selectedReturnItem == null) return 0.0;
+    if (_isKgUnit(_selectedReturnItem!.unitTypeSnapshot)) {
+      // Input is in grams for kg items
+      return raw / 1000.0;
+    }
+    return raw;
   }
 
   double get _returnValue {
-    if (_selectedReturnItem == null) return 0;
-    final qty = double.tryParse(_returnQtyCtrl.text) ?? 0;
-    return qty * (_selectedReturnItem!.sellPriceSnapshot ?? 0);
+    if (_selectedReturnItem == null) return 0.0;
+    final price = _selectedReturnItem!.sellPriceSnapshot ?? 0.0;
+    return _returnQtyInBaseUnit * price;
   }
 
-  double get _replacementQtyCalculated {
-    if (_selectedReturnItem == null || _selectedReplacementProduct == null) {
-      return 0;
+  double get _replacementQtyCalculatedInBaseUnit {
+    if (_selectedReplacementProduct == null) return 0.0;
+    final sellPrice = _selectedReplacementProduct!.sellPrice;
+    if (sellPrice <= 0) return 0.0;
+    return _returnValue / sellPrice;
+  }
+
+  double get _replacementQtyCalculatedDisplay {
+    if (_selectedReplacementProduct == null) return 0.0;
+    final baseQty = _replacementQtyCalculatedInBaseUnit;
+    if (_isKgUnit(_selectedReplacementProduct!.unitType)) {
+      return baseQty * 1000.0; // convert kg to grams for display/input
     }
-    if (_selectedReplacementProduct!.sellPrice <= 0) return 0;
-    final returnValue = _returnValue;
-    return (returnValue / _selectedReplacementProduct!.sellPrice) * 1000;
+    return baseQty;
   }
 
-  double get _replacementQtyGiven {
-    return double.tryParse(_replacementQtyCtrl.text) ??
-        _replacementQtyCalculated;
+  double get _replacementQtyGivenInBaseUnit {
+    final raw = double.tryParse(_replacementQtyCtrl.text) ?? 0.0;
+    if (_selectedReplacementProduct == null) return 0.0;
+    if (_isKgUnit(_selectedReplacementProduct!.unitType)) {
+      return raw / 1000.0;
+    }
+    return raw;
   }
 
   double get _priceDifference {
-    final returnValue = _returnValue;
-    final replacementCost =
-        (_replacementQtyGiven / 1000) *
-        (_selectedReplacementProduct?.sellPrice ?? 0);
-    return replacementCost - returnValue;
+    if (_selectedReplacementProduct == null) return 0.0;
+    final sellPrice = _selectedReplacementProduct!.sellPrice;
+    final replacementCost = _replacementQtyGivenInBaseUnit * sellPrice;
+    return replacementCost - _returnValue;
   }
 
   Future<void> _confirmReplace() async {
     if (_selectedBill == null ||
         _selectedReturnItem == null ||
         _selectedReplacementProduct == null) {
-      ScaffoldMessenger.of(context).showSnackBar(
-        const SnackBar(
-          content: Text('સૌ પ્રથમ બિલ, પાછું અને બદલોપટા પસંદ કરો'),
-        ),
-      );
       return;
     }
 
-    final qtyReturned = double.tryParse(_returnQtyCtrl.text) ?? 0;
-    if (qtyReturned <= 0) {
+    final returnQtyBase = _returnQtyInBaseUnit;
+    if (returnQtyBase <= 0) {
       ScaffoldMessenger.of(context).showSnackBar(
-        const SnackBar(
-          content: Text('મહેરબાની કરીને પાછું માટે માન્ય માત્રા દાખલ કરો'),
-        ),
-      );
-      return;
-    }
-
-    final replacementQtyGiven =
-        double.tryParse(_replacementQtyCtrl.text) ?? _replacementQtyCalculated;
-    if (replacementQtyGiven <= 0) {
-      ScaffoldMessenger.of(context).showSnackBar(
-        const SnackBar(content: Text('બદલી માટે માન્ય માત્રા દાખલ કરો')),
+        const SnackBar(content: Text('મહેરબાની કરીને માન્ય માત્રા દાખલ કરો')),
       );
       return;
     }
@@ -224,18 +254,18 @@ class _ReplaceScreenState extends ConsumerState<ReplaceScreen> {
     final returnLine = ReturnLine(
       billItemId: _selectedReturnItem!.id!,
       productId: _selectedReturnItem!.productId,
-      qtyReturned: qtyReturned,
-      sellPriceSnapshot: _selectedReturnItem!.sellPriceSnapshot ?? 0,
+      qtyReturned: returnQtyBase,
+      sellPriceSnapshot: _selectedReturnItem!.sellPriceSnapshot ?? 0.0,
     );
 
     final replacementInput = ReplacementInput(
       returnedProductId: _selectedReturnItem!.productId,
-      returnedQty: qtyReturned,
-      returnedPricePerKg: _selectedReturnItem!.sellPriceSnapshot ?? 0,
+      returnedQty: returnQtyBase,
+      returnedPricePerKg: _selectedReturnItem!.sellPriceSnapshot ?? 0.0,
       replacementProductId: _selectedReplacementProduct!.id!,
       replacementPricePerKg: _selectedReplacementProduct!.sellPrice,
-      replacementQtyCalculated: _replacementQtyCalculated,
-      replacementQtyGiven: replacementQtyGiven,
+      replacementQtyCalculated: _replacementQtyCalculatedInBaseUnit,
+      replacementQtyGiven: _replacementQtyGivenInBaseUnit,
       priceDifference: _priceDifference,
       differenceMode: ref.read(returnModeProvider),
     );
@@ -243,35 +273,15 @@ class _ReplaceScreenState extends ConsumerState<ReplaceScreen> {
     final confirm = await showDialog<bool>(
       context: context,
       builder: (ctx) {
-        final diff = _priceDifference;
-        final diffText = diff.abs() < 0.01
-            ? 'કોઈ ભાવ ભેદ નથી'
-            : diff > 0
-            ? 'ગ્રાહક ₹${diff.toStringAsFixed(2)} વધુ ચૂકવીશે'
-            : 'દુકાનદારે ₹${(-diff).toStringAsFixed(2)} પરત આપશે';
-
         return AlertDialog(
-          title: const Text('બદલો પુષ્ટિકરણ'),
-          content: Column(
-            mainAxisSize: MainAxisSize.min,
-            crossAxisAlignment: CrossAxisAlignment.start,
-            children: [
-              Text(
-                'પાછું: ${_selectedReturnItem!.productNameSnapshot} ${qtyReturned.toStringAsFixed(2)}g',
-              ),
-              Text(
-                'બદલી: ${_selectedReplacementProduct!.nameGujarati} ${replacementQtyGiven.toStringAsFixed(2)}g',
-              ),
-              const SizedBox(height: 8),
-              Text(diffText),
-              const SizedBox(height: 8),
-              const Text('પ્રગટાવવામાં આવશે વધુ ઉપાય'),
-            ],
+          title: const Text('બદલીની ખાતરી કરો'),
+          content: Text(
+            'શું તમે ખરેખર ${_selectedReturnItem!.productNameSnapshot} ને ${_selectedReplacementProduct!.nameGujarati} સાથે બદલવા માંગો છો?',
           ),
           actions: [
             TextButton(
               onPressed: () => ctx.pop(false),
-              child: const Text('રદ'),
+              child: const Text('કેન્સલ'),
             ),
             ElevatedButton(
               onPressed: () => ctx.pop(true),
@@ -308,6 +318,7 @@ class _ReplaceScreenState extends ConsumerState<ReplaceScreen> {
       setState(() {
         _selectedReplacementProduct = null;
         _productSearchResults = [];
+        _replacementQtyCtrl.clear();
       });
     } catch (e) {
       if (!mounted) return;
@@ -507,6 +518,9 @@ class _ReplaceScreenState extends ConsumerState<ReplaceScreen> {
       );
     }
 
+    final isSelectedKg = _selectedReturnItem != null &&
+        _isKgUnit(_selectedReturnItem!.unitTypeSnapshot);
+
     return Column(
       crossAxisAlignment: CrossAxisAlignment.stretch,
       children: [
@@ -528,15 +542,21 @@ class _ReplaceScreenState extends ConsumerState<ReplaceScreen> {
           style: const TextStyle(fontWeight: FontWeight.w700),
         ),
         const SizedBox(height: 12),
-        const Text('પાછું લેવારું આઇટમ પસંદ કરો'),
+        const Text('પાછું લેવાનું આઇટમ પસંદ કરો:'),
         const SizedBox(height: 8),
         Expanded(
+          flex: 2,
           child: ListView.builder(
             itemCount: _billItems.length,
             itemBuilder: (context, index) {
               final item = _billItems[index];
               final isSelected = _selectedReturnItem?.id == item.id;
               final alreadyReturned = item.isReturned;
+              final isKg = _isKgUnit(item.unitTypeSnapshot);
+              final displayQty = isKg
+                  ? '${(item.qty * 1000).toStringAsFixed(0)} g (${item.qty.toStringAsFixed(2)} kg)'
+                  : '${item.qty.toStringAsFixed(0)} ${item.unitTypeSnapshot ?? ''}';
+
               return Card(
                 color: alreadyReturned ? Colors.grey.shade100 : null,
                 child: ListTile(
@@ -548,20 +568,30 @@ class _ReplaceScreenState extends ConsumerState<ReplaceScreen> {
                           : null,
                     ),
                   ),
-                  subtitle: Text('Qty: ${item.qty.toStringAsFixed(2)}'),
+                  subtitle: Text('માત્રા: $displayQty'),
                   trailing: Row(
                     mainAxisSize: MainAxisSize.min,
                     children: [
                       if (alreadyReturned) const _GreyReturnedLabel(),
-                      if (isSelected) const Icon(Icons.check_circle),
+                      if (isSelected) const Icon(Icons.check_circle, color: AppColors.primary),
                     ],
                   ),
-                  onTap: () {
-                    setState(() {
-                      _selectedReturnItem = item;
-                      _returnQtyCtrl.text = item.qty.toStringAsFixed(2);
-                    });
-                  },
+                  onTap: alreadyReturned
+                      ? null
+                      : () {
+                          setState(() {
+                            _selectedReturnItem = item;
+                            if (isKg) {
+                              _returnQtyCtrl.text =
+                                  (item.qty * 1000).toStringAsFixed(0);
+                            } else {
+                              _returnQtyCtrl.text =
+                                  item.qty.toStringAsFixed(0);
+                            }
+                            _selectedReplacementProduct = null;
+                            _replacementQtyCtrl.clear();
+                          });
+                        },
                 ),
               );
             },
@@ -570,42 +600,52 @@ class _ReplaceScreenState extends ConsumerState<ReplaceScreen> {
         if (_selectedReturnItem != null) ...[
           const Divider(),
           Text(
-            'પાછું ખરીદી મંજુર કરો: ${_selectedReturnItem!.productNameSnapshot}',
+            'પાછું ખરીદી: ${_selectedReturnItem!.productNameSnapshot}',
+            style: const TextStyle(fontWeight: FontWeight.bold),
           ),
+          const SizedBox(height: 4),
           TextField(
             controller: _returnQtyCtrl,
             keyboardType: const TextInputType.numberWithOptions(decimal: true),
-            decoration: const InputDecoration(
-              labelText: 'પાછું લાખેલી માત્રા (g)',
+            decoration: InputDecoration(
+              labelText: isSelectedKg ? 'પાછું લાખેલી માત્રા (ગ્રામ)' : 'પાછું લાખેલી માત્રા (નંગ)',
+              border: const OutlineInputBorder(),
             ),
-            onChanged: (_) => setState(() {}),
+            onChanged: (_) => setState(() {
+              if (_selectedReplacementProduct != null) {
+                _replacementQtyCtrl.text =
+                    _replacementQtyCalculatedDisplay.toStringAsFixed(0);
+              }
+            }),
           ),
           const SizedBox(height: 8),
-          const Text('બદલી માટે ઉત્પાદન પસંદ કરો'),
+          const Text('બદલી માટે ઉત્પાદન પસંદ કરો:'),
+          const SizedBox(height: 4),
           TextField(
             decoration: const InputDecoration(
-              labelText: 'સરફ કોર',
-              hintText: 'ઉત્પાદન શોધો',
+              prefixIcon: Icon(Icons.search),
+              hintText: 'ઉત્પાદન શોધો (ગુજરાતી / બારકોડ)',
+              border: OutlineInputBorder(),
             ),
             onChanged: (v) => _searchProducts(v),
           ),
           const SizedBox(height: 8),
           Expanded(
+            flex: 2,
             child: ListView.builder(
-              shrinkWrap: true,
               itemCount: _productSearchResults.length,
               itemBuilder: (context, index) {
                 final prod = _productSearchResults[index];
                 final selected = _selectedReplacementProduct?.id == prod.id;
                 return ListTile(
                   title: Text(prod.nameGujarati),
-                  subtitle: Text('₹${prod.sellPrice.toStringAsFixed(2)}/kg'),
-                  trailing: selected ? const Icon(Icons.check_circle) : null,
+                  subtitle: Text('₹${prod.sellPrice.toStringAsFixed(2)} / ${prod.unitType}'),
+                  trailing: selected ? const Icon(Icons.check_circle, color: AppColors.primary) : null,
                   onTap: () {
                     setState(() {
                       _selectedReplacementProduct = prod;
-                      _replacementQtyCtrl.text = _replacementQtyCalculated
-                          .toStringAsFixed(2);
+                      _replacementQtyCtrl.text =
+                          _replacementQtyCalculatedDisplay.toStringAsFixed(0);
                     });
                   },
                 );
@@ -615,15 +655,20 @@ class _ReplaceScreenState extends ConsumerState<ReplaceScreen> {
           if (_selectedReplacementProduct != null) ...[
             const Divider(),
             Text(
-              'બદલી મળતી માત્રા (ગ્રામ): ${_replacementQtyCalculated.toStringAsFixed(2)}',
+              'બદલી ગણતરી કરેલી માત્રા: ${_replacementQtyCalculatedDisplay.toStringAsFixed(0)} ${_isKgUnit(_selectedReplacementProduct!.unitType) ? "g" : "નંગ"}',
+              style: const TextStyle(fontWeight: FontWeight.w600),
             ),
+            const SizedBox(height: 4),
             TextField(
               controller: _replacementQtyCtrl,
               keyboardType: const TextInputType.numberWithOptions(
                 decimal: true,
               ),
-              decoration: const InputDecoration(
-                labelText: 'બસ મળતી માત્રા (ગ્રામ)',
+              decoration: InputDecoration(
+                labelText: _isKgUnit(_selectedReplacementProduct!.unitType)
+                    ? 'આપેલી માત્રા (ગ્રામ)'
+                    : 'આપેલી માત્રા (નંગ)',
+                border: const OutlineInputBorder(),
               ),
               onChanged: (_) => setState(() {}),
             ),
@@ -631,13 +676,17 @@ class _ReplaceScreenState extends ConsumerState<ReplaceScreen> {
             Row(
               mainAxisAlignment: MainAxisAlignment.spaceBetween,
               children: [
-                const Text('ભાવ ફરક:'),
+                const Text('ભાવ ફરક:', style: TextStyle(fontWeight: FontWeight.bold)),
                 Text(
                   _priceDifference.abs() < 0.01
                       ? '₹0.00'
                       : _priceDifference > 0
-                      ? 'ગ્રાહક ₹${_priceDifference.toStringAsFixed(2)} વધુ આપે'
-                      : 'દુકાનદારે ₹${(-_priceDifference).toStringAsFixed(2)} આપે',
+                          ? 'ગ્રાહક ₹${_priceDifference.toStringAsFixed(2)} વધુ આપે'
+                          : 'દુકાનદારે ₹${(-_priceDifference).toStringAsFixed(2)} આપવાના',
+                  style: TextStyle(
+                    fontWeight: FontWeight.bold,
+                    color: _priceDifference > 0 ? Colors.green : Colors.red,
+                  ),
                 ),
               ],
             ),
@@ -666,7 +715,12 @@ class _ReplaceScreenState extends ConsumerState<ReplaceScreen> {
             const SizedBox(height: 12),
             ElevatedButton(
               onPressed: _isLoading ? null : _confirmReplace,
-              child: const Text('બદલી પ્રક્રિયા કરો'),
+              style: ElevatedButton.styleFrom(
+                backgroundColor: AppColors.primary,
+                foregroundColor: Colors.white,
+                padding: const EdgeInsets.symmetric(vertical: 14),
+              ),
+              child: const Text('બદલી પ્રક્રિયા કરો', style: TextStyle(fontSize: 16)),
             ),
           ],
         ],

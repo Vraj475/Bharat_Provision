@@ -20,3 +20,13 @@ String formatCurrency(double amount) {
   }
   return '₹${amount < 0 ? '-' : ''}$formatted.$decPart';
 }
+
+/// Format stock quantities to max 3 decimal places without trailing zeros (e.g. 10, 1.5, 0.125)
+String formatQuantity(double qty) {
+  if (qty.isNaN || qty.isInfinite) return '0';
+  if (qty == qty.truncateToDouble()) {
+    return qty.toInt().toString();
+  }
+  final str = qty.toStringAsFixed(3);
+  return str.replaceAll(RegExp(r'0+$'), '').replaceAll(RegExp(r'\.$'), '');
+}

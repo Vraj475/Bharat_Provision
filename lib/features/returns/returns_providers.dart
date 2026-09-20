@@ -1,12 +1,9 @@
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 
-import '../../core/database/database_helper.dart';
-import '../../data/repositories/return_repository.dart';
 import '../../shared/models/bill_model.dart';
 
-final returnRepositoryProvider = Provider<ReturnRepository>(
-  (ref) => ReturnRepository(DatabaseHelper.instance),
-);
+import '../../data/providers.dart';
+export '../../data/providers.dart' show returnRepositoryProvider;
 
 class BillListQueryParams {
   const BillListQueryParams({

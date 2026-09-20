@@ -5,7 +5,6 @@ import 'package:go_router/go_router.dart';
 import '../../core/utils/currency_format.dart';
 import '../../data/providers.dart';
 import '../../routing/app_router.dart';
-import '../expenses/expense_repository_provider.dart';
 
 class KhataScreen extends ConsumerStatefulWidget {
   const KhataScreen({super.key});
@@ -224,7 +223,7 @@ class _KhataScreenState extends ConsumerState<KhataScreen>
         context.push(AppRouter.addExpense, extra: expense);
         return;
       case 'payment':
-        final db = ref.read(databaseProvider);
+        final db = await ref.read(databaseHelperProvider).database;
         final rows = await db.query(
           'udhaar_payments',
           columns: ['customer_id'],
@@ -250,7 +249,7 @@ class _KhataScreenState extends ConsumerState<KhataScreen>
   }
 
   Future<List<KhataEntry>> _getCreditEntries() async {
-    final db = ref.read(databaseProvider);
+    final db = await ref.read(databaseHelperProvider).database;
     final results = await db.rawQuery('''
       SELECT 'bill' as source, b.id as source_id, b.date_time as date, 
              COALESCE(c.name_gujarati, 'Walk-in') as account_name, b.total_amount as amount,
@@ -270,7 +269,7 @@ class _KhataScreenState extends ConsumerState<KhataScreen>
   }
 
   Future<List<KhataEntry>> _getDebitEntries() async {
-    final db = ref.read(databaseProvider);
+    final db = await ref.read(databaseHelperProvider).database;
     final results = await db.rawQuery('''
       SELECT 'expense' as source, e.id as source_id, e.date as date,
              ea.name as account_name, e.amount as amount,

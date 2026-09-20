@@ -1,12 +1,12 @@
 import 'package:flutter/material.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
-import '../providers/auth_provider.dart';
-import '../../stock/stock_providers.dart';
-import '../../../shared/models/expense_account_model.dart';
+import 'package:go_router/go_router.dart';
+
 import '../../../core/errors/error_handler.dart';
 import '../../../data/providers.dart';
-import '../../../data/repositories/expense_repository.dart';
-import 'package:go_router/go_router.dart';
+import '../../../shared/models/expense_account_model.dart';
+import '../../stock/stock_providers.dart';
+import '../providers/auth_provider.dart';
 
 class ExpenseAccountsManagerScreen extends ConsumerStatefulWidget {
   const ExpenseAccountsManagerScreen({super.key});
@@ -75,8 +75,7 @@ class _ExpenseAccountsManagerScreenState
                     onEdit: () => _showEditAccountDialog(account),
                     onToggle: (isActive) async {
                       try {
-                        final db = ref.read(databaseProvider);
-                        final repo = ExpenseRepository(db);
+                        final repo = ref.read(expenseRepositoryProvider);
                         await repo.toggleExpenseAccountStatus(
                           account.id!,
                           isActive,
@@ -129,8 +128,7 @@ class _ExpenseAccountsManagerScreenState
       builder: (context) => _AddEditAccountDialog(
         onSave: (gujaratiName, englishName, type, typicalAmount) async {
           try {
-            final db = ref.read(databaseProvider);
-            final repo = ExpenseRepository(db);
+            final repo = ref.read(expenseRepositoryProvider);
             await repo.addExpenseAccount(
               ExpenseAccount(
                 accountNameGujarati: gujaratiName,
@@ -171,8 +169,7 @@ class _ExpenseAccountsManagerScreenState
         initialAmount: account.typicalAmount.toString(),
         onSave: (gujaratiName, englishName, type, typicalAmount) async {
           try {
-            final db = ref.read(databaseProvider);
-            final repo = ExpenseRepository(db);
+            final repo = ref.read(expenseRepositoryProvider);
             await repo.updateExpenseAccount(
               ExpenseAccount(
                 id: account.id,
@@ -221,8 +218,7 @@ class _ExpenseAccountsManagerScreenState
             style: ElevatedButton.styleFrom(backgroundColor: Colors.red),
             onPressed: () async {
               try {
-                final db = ref.read(databaseProvider);
-                final repo = ExpenseRepository(db);
+                final repo = ref.read(expenseRepositoryProvider);
                 await repo.resetExpenseAccountsToDefaults();
                 ref.invalidate(expenseAccountsProvider);
                 if (!context.mounted) return;
@@ -359,7 +355,7 @@ class _AddEditAccountDialogState extends State<_AddEditAccountDialog> {
             ),
             const SizedBox(height: 12),
             DropdownButtonFormField<String>(
-              initialValue: _selectedType,
+              initialValue: _selectedType.toUpperCase(),
               decoration: const InputDecoration(
                 labelText: 'Type',
                 border: OutlineInputBorder(),

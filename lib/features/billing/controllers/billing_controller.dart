@@ -82,12 +82,20 @@ class BillingController extends StateNotifier<BillingState> {
     state = state.copyWith(billLines: [...state.billLines, line]);
   }
 
+  void insertLine(int index, BillLineItem line) {
+    final validIndex = index.clamp(0, state.billLines.length);
+    final newLines = List<BillLineItem>.from(state.billLines)..insert(validIndex, line);
+    state = state.copyWith(billLines: newLines);
+  }
+
   void removeLine(int index) {
+    if (index < 0 || index >= state.billLines.length) return;
     final newLines = List<BillLineItem>.from(state.billLines)..removeAt(index);
     state = state.copyWith(billLines: newLines);
   }
 
   void updateLine(int index, BillLineItem updatedLine) {
+    if (index < 0 || index >= state.billLines.length) return;
     final newLines = List<BillLineItem>.from(state.billLines);
     newLines[index] = updatedLine;
     state = state.copyWith(billLines: newLines);

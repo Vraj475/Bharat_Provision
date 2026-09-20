@@ -1,14 +1,17 @@
-import 'package:sqflite_sqlcipher/sqflite.dart';
+import 'package:sqflite_common/sqflite.dart';
 
-import '../models/khata_entry.dart';
+import '../../core/database/database_helper.dart';
+import '../../domain/models/khata_entry.dart';
 
 class KhataRepository {
-  KhataRepository(this._db);
+  KhataRepository([DatabaseHelper? dbHelper])
+      : _dbHelper = dbHelper ?? DatabaseHelper.instance;
 
-  final Database _db;
+  final DatabaseHelper _dbHelper;
 
   Future<double> getBalance(int customerId) async {
-    final result = await _db.rawQuery(
+    final db = await _dbHelper.database;
+    final result = await db.rawQuery(
       '''
       SELECT balance_after FROM khata_entries
       WHERE customer_id = ?
@@ -21,6 +24,29 @@ class KhataRepository {
     return (result.first['balance_after'] as num?)?.toDouble() ?? 0;
   }
 
+  Future<Map<int, double>> getBulkBalances() async {
+    final db = await _dbHelper.database;
+    final result = await db.rawQuery('''
+      SELECT k1.customer_id, k1.balance_after
+      FROM khata_entries k1
+      INNER JOIN (
+        SELECT customer_id, MAX(id) as max_id
+        FROM khata_entries
+        GROUP BY customer_id
+      ) k2 ON k1.customer_id = k2.customer_id AND k1.id = k2.max_id
+    ''');
+    
+    final map = <int, double>{};
+    for (final row in result) {
+      final cid = row['customer_id'] as int?;
+      final bal = (row['balance_after'] as num?)?.toDouble() ?? 0.0;
+      if (cid != null) {
+        map[cid] = bal;
+      }
+    }
+    return map;
+  }
+
   Future<List<KhataEntry>> getEntries(int customerId, {int? limit}) async {
     var sql = '''
       SELECT * FROM khata_entries
@@ -29,7 +55,8 @@ class KhataRepository {
     ''';
     if (limit != null) sql += ' LIMIT $limit';
 
-    final maps = await _db.rawQuery(sql, [customerId]);
+    final db = await _dbHelper.database;
+    final maps = await db.rawQuery(sql, [customerId]);
     return maps.map((m) => KhataEntry.fromMap(m)).toList();
   }
 
@@ -40,7 +67,8 @@ class KhataRepository {
     int? relatedBillId,
     String? note,
   }) async {
-    await _db.transaction((txn) async {
+    final db = await _dbHelper.database;
+    await db.transaction((txn) async {
       final now = DateTime.now().millisecondsSinceEpoch;
       final currentBalance = await _getBalance(txn, customerId);
       final newBalance = type == 'debit'
@@ -55,6 +83,24 @@ class KhataRepository {
         'amount': amount,
         'note': note,
         'balance_after': newBalance,
+      });
+
+      final finalOutstanding = newBalance < 0 ? 0.0 : newBalance;
+      await txn.rawUpdate(
+        'UPDATE customers SET total_outstanding = ? WHERE id = ?',
+        [finalOutstanding, customerId],
+      );
+
+      final nowIso = DateTime.now().toIso8601String();
+      await txn.insert('udhaar_ledger', {
+        'customer_id': customerId,
+        'bill_id': relatedBillId,
+        'transaction_type': type == 'debit' ? 'credit' : 'payment',
+        'amount': amount,
+        'running_balance': finalOutstanding,
+        'payment_mode': 'cash',
+        'note': note ?? 'ખાતા નોંધણી',
+        'created_at': nowIso,
       });
     });
   }

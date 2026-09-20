@@ -1,11 +1,11 @@
 import 'package:flutter/material.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
+import 'package:go_router/go_router.dart';
 
 import '../../core/localization/app_strings.dart';
-import '../../data/models/category.dart';
+import '../../domain/models/models.dart';
 import '../../data/providers.dart';
 import 'inventory_providers.dart';
-import 'package:go_router/go_router.dart';
 
 class CategoryListScreen extends ConsumerWidget {
   const CategoryListScreen({super.key});
@@ -83,7 +83,7 @@ class CategoryListScreen extends ConsumerWidget {
 
     try {
       final repo = ref.read(itemRepositoryProvider);
-      await repo.insertCategory(Category(nameGu: nameCtrl.text.trim()));
+      await repo.insertCategory(Category(nameGujarati: nameCtrl.text.trim(), createdAt: DateTime.now().toIso8601String()));
       ref.invalidate(categoryListProvider);
       if (context.mounted) {
         ScaffoldMessenger.of(
@@ -129,7 +129,7 @@ class CategoryListScreen extends ConsumerWidget {
 
     try {
       final repo = ref.read(itemRepositoryProvider);
-      await repo.updateCategory(c.copyWith(nameGu: nameCtrl.text.trim()));
+      await repo.updateCategory(c.copyWith(nameGujarati: nameCtrl.text.trim()));
       ref.invalidate(categoryListProvider);
       if (context.mounted) {
         ScaffoldMessenger.of(

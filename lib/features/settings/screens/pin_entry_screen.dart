@@ -133,7 +133,7 @@ class _PinEntryScreenState extends ConsumerState<PinEntryScreen> {
 
     try {
       final prefs = await SharedPreferences.getInstance();
-      final storedPin = prefs.getString('user_pin') ?? '0000';
+      final storedPin = prefs.getString('user_pin') ?? '2401';
       final enteredPin = pin.trim();
 
       final isValid = enteredPin == storedPin;
@@ -181,13 +181,7 @@ class _PinEntryScreenState extends ConsumerState<PinEntryScreen> {
       resizeToAvoidBottomInset: true,
       appBar: AppBar(title: const Text('Enter PIN'), centerTitle: true),
       body: Container(
-        decoration: const BoxDecoration(
-          gradient: LinearGradient(
-            begin: Alignment.topCenter,
-            end: Alignment.bottomCenter,
-            colors: [Color(0xFFF2F7FF), Color(0xFFE6EEF9)],
-          ),
-        ),
+        color: Theme.of(context).colorScheme.surface,
         child: SafeArea(
           child: LayoutBuilder(
             builder: (context, constraints) {
@@ -205,9 +199,12 @@ class _PinEntryScreenState extends ConsumerState<PinEntryScreen> {
                       child: ConstrainedBox(
                         constraints: const BoxConstraints(maxWidth: 480),
                         child: Card(
-                          elevation: 8,
+                          elevation: 0,
                           shape: RoundedRectangleBorder(
                             borderRadius: BorderRadius.circular(20),
+                            side: BorderSide(
+                              color: Theme.of(context).colorScheme.outlineVariant.withValues(alpha: 0.5),
+                            ),
                           ),
                           child: Padding(
                             padding: const EdgeInsets.all(24),

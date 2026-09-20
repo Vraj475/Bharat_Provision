@@ -1,12 +1,13 @@
 import 'package:flutter/material.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
+import 'package:go_router/go_router.dart';
 
 import '../../core/localization/app_strings.dart';
-import '../../shared/models/product_model.dart';
+import '../../core/utils/currency_format.dart';
 import '../../data/providers.dart';
+import '../../shared/models/product_model.dart';
 import 'inventory_providers.dart';
 import 'item_edit_form.dart';
-import 'package:go_router/go_router.dart';
 
 class ItemEditScreen extends ConsumerStatefulWidget {
   const ItemEditScreen({super.key, this.itemId});
@@ -56,8 +57,8 @@ class _ItemEditScreenState extends ConsumerState<ItemEditScreen> {
         _nameController.text = item.nameGujarati;
         _salePriceController.text = item.sellPrice.toString();
         _purchasePriceController.text = item.buyPrice.toString();
-        _stockController.text = item.stockQty.toString();
-        _lowStockController.text = item.minStockQty.toString();
+        _stockController.text = formatQuantity(item.stockQty);
+        _lowStockController.text = formatQuantity(item.minStockQty);
         _barcodeController.text = item.barcode ?? '';
         _categoryId = item.categoryId;
         _unit = item.unitType;
@@ -91,16 +92,18 @@ class _ItemEditScreenState extends ConsumerState<ItemEditScreen> {
 
     final salePrice = double.tryParse(_salePriceController.text) ?? 0;
     final purchasePrice = double.tryParse(_purchasePriceController.text) ?? 0;
-    final stock = double.tryParse(_stockController.text) ?? 0;
-    final lowStock = double.tryParse(_lowStockController.text) ?? 0;
+    final stock = double.parse((double.tryParse(_stockController.text) ?? 0).toStringAsFixed(3));
+    final lowStock = double.parse((double.tryParse(_lowStockController.text) ?? 0).toStringAsFixed(3));
 
     final repo = ref.read(itemRepositoryProvider);
+    final translitKeys = repo.generateTransliterationKeys(name);
 
     try {
       if (_item != null) {
         await repo.update(
           _item!.copyWith(
             nameGujarati: name,
+            transliterationKeys: translitKeys,
             categoryId: _categoryId,
             barcode: _barcodeController.text.trim().isEmpty
                 ? null
@@ -117,7 +120,7 @@ class _ItemEditScreenState extends ConsumerState<ItemEditScreen> {
         await repo.insert(
           Product(
             nameGujarati: name,
-            transliterationKeys: '', // Required field
+            transliterationKeys: translitKeys,
             categoryId: _categoryId,
             barcode: _barcodeController.text.trim().isEmpty
                 ? null
@@ -131,6 +134,7 @@ class _ItemEditScreenState extends ConsumerState<ItemEditScreen> {
           ),
         );
       }
+      ref.invalidate(cachedProductsProvider);
       ref.invalidate(itemListProvider);
       if (mounted) {
         context.pop();

@@ -4,6 +4,7 @@ import 'package:intl/intl.dart';
 
 import '../../shared/models/expense_account_model.dart';
 import '../../shared/models/product_model.dart';
+import '../inventory/inventory_providers.dart';
 import 'stock_providers.dart';
 import 'package:go_router/go_router.dart';
 
@@ -313,6 +314,8 @@ class _AddStockScreenState extends ConsumerState<AddStockScreen> {
         // Invalidate providers so dashboard & history refresh
         ref.invalidate(stockDashboardProductsProvider);
         ref.invalidate(stockSummaryProvider);
+        ref.invalidate(cachedProductsProvider);
+        ref.invalidate(itemListProvider);
         context.pop();
       }
     } catch (e) {

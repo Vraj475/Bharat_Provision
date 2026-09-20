@@ -209,11 +209,10 @@ class _BillLinesPanelState extends ConsumerState<BillLinesPanel> {
         updatedLine = line.copyWith(qtyGrams: newQtyGrams, amount: parsed);
       }
 
+      ref.read(billingControllerProvider.notifier).updateLine(editingIndex, updatedLine);
       setState(() {
-        ref.read(billingControllerProvider).billLines[editingIndex] = updatedLine;
         _clearInlineEditState();
       });
-      ref.read(billingControllerProvider.notifier).syncLines(ref.read(billingControllerProvider).billLines);
     } finally {
       _isCommittingInlineEdit = false;
     }
@@ -247,14 +246,13 @@ class _BillLinesPanelState extends ConsumerState<BillLinesPanel> {
           label: 'Undo',
           onPressed: () {
             if (!mounted) return;
-            setState(() {
-              final insertIndex = index.clamp(0, ref.read(billingControllerProvider).billLines.length);
-              ref.read(billingControllerProvider).billLines.insert(insertIndex, removedLine);
-            });
-            ref.read(billingControllerProvider.notifier).syncLines(ref.read(billingControllerProvider).billLines);
             if (!_lineEditControllers.containsKey(removedKey) ||
                 !_lineEditFocusNodes.containsKey(removedKey)) {
               _registerLineResources(removedKey);
+            }
+            ref.read(billingControllerProvider.notifier).insertLine(index, removedLine);
+            if (mounted) {
+              setState(() {});
             }
           },
         ),

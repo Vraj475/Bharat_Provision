@@ -1,15 +1,23 @@
-import 'package:sqflite_sqlcipher/sqflite.dart';
+import 'package:sqflite_common/sqflite.dart';
 
+import '../../core/database/database_helper.dart';
 import '../../shared/models/bill_model.dart';
 import '../../shared/models/bill_item_model.dart';
 
 class BillRepository {
-  BillRepository(this._db);
+  BillRepository([dynamic dbOrHelper])
+      : _dbHelper = dbOrHelper is DatabaseHelper ? dbOrHelper : null,
+        _rawDb = dbOrHelper is Database ? dbOrHelper : null;
 
-  final Database _db;
+  final DatabaseHelper? _dbHelper;
+  final Database? _rawDb;
+
+  Future<Database> get _db async =>
+      _rawDb ?? await (_dbHelper ?? DatabaseHelper.instance).database;
 
   Future<int> getNextBillNumber() async {
-    return _db.transaction((txn) async {
+    final db = await _db;
+    return db.transaction((txn) async {
       final current = await _nextBillNumberInTransaction(txn);
       await _setBillCounter(txn, current + 1);
       return current;
@@ -37,7 +45,8 @@ class BillRepository {
     final totalAmount = subtotal - discountAmount;
     final udhaarAmount = (totalAmount - paidAmount).clamp(0.0, totalAmount);
 
-    return _db.transaction((txn) async {
+    final db = await _db;
+    return db.transaction((txn) async {
       final billNumber = await _nextBillNumberInTransaction(txn);
       final itemTable = await _resolveItemTable(txn);
       final itemStockColumn = await _firstExistingColumn(txn, itemTable, [
@@ -186,6 +195,12 @@ class BillRepository {
           );
           qtyBefore =
               (stockRow.firstOrNull?[itemStockColumn] as num?)?.toDouble() ?? 0;
+
+          if (qtyBefore < i.qty) {
+            throw ArgumentError(
+              'સ્ટોક અપર્યાપ્ત છે (ઉપલબ્ધ: $qtyBefore, માંગેલ: ${i.qty})',
+            );
+          }
         }
 
         if (itemStockColumn != null) {
@@ -436,7 +451,8 @@ class BillRepository {
   }
 
   Future<Bill?> getById(int id) async {
-    final maps = await _db.query('bills', where: 'id = ?', whereArgs: [id]);
+    final db = await _db;
+    final maps = await db.query('bills', where: 'id = ?', whereArgs: [id]);
     if (maps.isEmpty) return null;
     final normalized = Map<String, dynamic>.from(maps.first);
     // Convert old 'date_time' integer column into a usable ISO string 'created_at' and 'bill_date'
@@ -457,7 +473,8 @@ class BillRepository {
   }
 
   Future<List<BillItem>> getBillItems(int billId) async {
-    final maps = await _db.query(
+    final db = await _db;
+    final maps = await db.query(
       'bill_items',
       where: 'bill_id = ?',
       whereArgs: [billId],
@@ -473,24 +490,30 @@ class BillRepository {
   }
 
   Future<double> getSalesTotal(int startEpoch, int endEpoch) async {
-    final result = await _db.rawQuery(
+    final db = await _db;
+    final startIso = DateTime.fromMillisecondsSinceEpoch(startEpoch).toIso8601String();
+    final endIso = DateTime.fromMillisecondsSinceEpoch(endEpoch).toIso8601String();
+    final result = await db.rawQuery(
       '''
       SELECT COALESCE(SUM(total_amount), 0) as total
       FROM bills
-      WHERE date_time >= ? AND date_time <= ?
+      WHERE created_at >= ? AND created_at <= ?
       ''',
-      [startEpoch, endEpoch],
+      [startIso, endIso],
     );
     return (result.first['total'] as num?)?.toDouble() ?? 0;
   }
 
   Future<int> getBillCount(int startEpoch, int endEpoch) async {
-    final result = await _db.rawQuery(
+    final db = await _db;
+    final startIso = DateTime.fromMillisecondsSinceEpoch(startEpoch).toIso8601String();
+    final endIso = DateTime.fromMillisecondsSinceEpoch(endEpoch).toIso8601String();
+    final result = await db.rawQuery(
       '''
       SELECT COUNT(*) as cnt FROM bills
-      WHERE date_time >= ? AND date_time <= ?
+      WHERE created_at >= ? AND created_at <= ?
       ''',
-      [startEpoch, endEpoch],
+      [startIso, endIso],
     );
     return result.first['cnt'] as int? ?? 0;
   }

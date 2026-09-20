@@ -1,12 +1,16 @@
-import 'package:sqflite_sqlcipher/sqflite.dart';
+import 'package:sqflite_common/sqflite.dart';
+
+import '../../core/database/database_helper.dart';
 
 class SettingsRepository {
-  SettingsRepository(this._db);
+  SettingsRepository([DatabaseHelper? dbHelper])
+      : _dbHelper = dbHelper ?? DatabaseHelper.instance;
 
-  final Database _db;
+  final DatabaseHelper _dbHelper;
 
   Future<String> get(String key) async {
-    final result = await _db.query(
+    final db = await _dbHelper.database;
+    final result = await db.query(
       'settings',
       columns: ['value'],
       where: 'key = ?',
@@ -17,7 +21,8 @@ class SettingsRepository {
   }
 
   Future<void> set(String key, String value) async {
-    await _db.insert('settings', {
+    final db = await _dbHelper.database;
+    await db.insert('settings', {
       'key': key,
       'value': value,
     }, conflictAlgorithm: ConflictAlgorithm.replace);

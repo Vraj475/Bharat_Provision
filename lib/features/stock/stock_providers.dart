@@ -1,17 +1,13 @@
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 
-import '../../core/database/database_helper.dart';
 import '../../core/errors/error_handler.dart';
 import '../../shared/models/expense_account_model.dart';
 import '../../shared/models/product_model.dart';
 import '../../shared/models/stock_log_model.dart';
 import '../../data/repositories/stock_repository.dart';
 
-// ─── Repository provider ──────────────────────────────────────────────────────
-
-final stockRepositoryProvider = Provider<StockRepository>(
-  (ref) => StockRepository(DatabaseHelper.instance),
-);
+import '../../data/providers.dart';
+export '../../data/providers.dart' show stockRepositoryProvider;
 
 // ─── Filter / search state ────────────────────────────────────────────────────
 

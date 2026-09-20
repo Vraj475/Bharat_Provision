@@ -1,19 +1,19 @@
-import 'package:sqflite_sqlcipher/sqflite.dart' hide DatabaseException;
+import '../../core/database/database_helper.dart';
 import '../../shared/models/bill_model.dart';
 import '../../shared/models/bill_item_model.dart';
-import '../../core/database/transaction_helper.dart';
 import '../../core/errors/error_handler.dart';
 
 class BillService {
-  final Database _db;
-  late final TransactionHelper _transactionHelper;
+  final DatabaseHelper _dbHelper;
 
-  BillService(this._db) {
-    _transactionHelper = TransactionHelper(_db);
-  }
+  BillService([DatabaseHelper? dbHelper])
+      : _dbHelper = dbHelper ?? DatabaseHelper.instance;
 
   /// Save a bill with customer, items, and stock updates in a single transaction
   /// Returns: bill ID on success, throws BillException on failure
+  /// Save a bill with customer, items, and stock updates in a single transaction
+  /// DEPRECATED: Use [BillRepository.createBill] instead. This method is disabled to prevent
+  /// schema mismatch errors and corrupting transaction balance records.
   Future<int> saveBill({
     required int? customerId,
     required String? customerName,
@@ -24,94 +24,16 @@ class BillService {
     required int userId,
     bool isPrintEnabled = true,
   }) async {
-    try {
-      if (items.isEmpty) {
-        throw ErrorHandler.handle(
-          ArgumentError('બીલમાં કમ- એક આઇટમ હોવી જોઈએ.'),
-          StackTrace.current,
-          context: 'BillService.saveBill',
-        );
-      }
-
-      // Calculate totals
-      double subtotal = 0;
-      for (final item in items) {
-        subtotal += item.qty * item.sellPriceSnapshot!;
-      }
-      final totalAmount = subtotal - discountAmount;
-
-      if (totalAmount < 0) {
-        throw ErrorHandler.handle(
-          ArgumentError('બીલ રકમ નકારાત્મક હોઈ શકતી નથી.'),
-          StackTrace.current,
-          context: 'BillService.saveBill',
-        );
-      }
-
-      // Execute transaction
-      return await _transactionHelper.executeTransaction((txn) async {
-        final billNumber = await _getNextBillNumber(txn);
-        final now = DateTime.now().millisecondsSinceEpoch;
-
-        // 1. Insert bill
-        final billId = await txn.insert('bills', {
-          'bill_number': billNumber.toString(),
-          'date_time': now,
-          'customer_id': customerId,
-          'customer_name': customerName, // Add for walk-in bills
-          'subtotal': subtotal,
-          'discount_amount': discountAmount,
-          'tax_amount': 0,
-          'total_amount': totalAmount,
-          'paid_amount': paidAmount,
-          'payment_mode': paymentMode,
-          'status': 'completed',
-          'created_by_user_id': userId,
-          'is_print_enabled': isPrintEnabled ? 1 : 0,
-        });
-
-        // 2. Insert bill items
-        for (final item in items) {
-          final lineTotal = item.qty * item.sellPriceSnapshot!;
-          await txn.insert('bill_items', {
-            'bill_id': billId,
-            'item_id': item.productId,
-            'quantity': item.qty,
-            'unit_price': item.sellPriceSnapshot,
-            'line_total': lineTotal,
-          });
-
-          // 3. Update stock
-          await txn.rawUpdate(
-            'UPDATE items SET current_stock = current_stock - ? WHERE id = ?',
-            [item.qty, item.productId],
-          );
-        }
-
-        // 4. If payment mode is cash or udhaar, update payment tracking
-        if (paymentMode == 'cash' || paymentMode == 'upi') {
-          await txn.insert('payments', {
-            'bill_id': billId,
-            'amount': paidAmount,
-            'payment_mode': paymentMode,
-            'date_time': now,
-          });
-        }
-
-        // 5. Increment bill counter
-        await _incrementBillCounter(txn, billNumber);
-
-        return billId;
-      });
-    } catch (e, st) {
-      throw ErrorHandler.handle(e, st, context: 'BillService.saveBill');
-    }
+    throw UnsupportedError(
+      'BillService.saveBill is deprecated and unsafe. Use BillRepository.createBill instead.',
+    );
   }
 
   /// Get a bill by ID with all its items
   Future<BillWithItems?> getBillWithItems(int billId) async {
     try {
-      final billMaps = await _db.query(
+      final db = await _dbHelper.database;
+      final billMaps = await db.query(
         'bills',
         where: 'id = ?',
         whereArgs: [billId],
@@ -119,32 +41,18 @@ class BillService {
 
       if (billMaps.isEmpty) return null;
 
-      final itemMaps = await _db.query(
+      final itemMaps = await db.query(
         'bill_items',
         where: 'bill_id = ?',
         whereArgs: [billId],
       );
 
       final normalizedBill = Map<String, dynamic>.from(billMaps.first);
-      if (normalizedBill['created_at'] == null) {
-        normalizedBill['created_at'] = DateTime.fromMillisecondsSinceEpoch(
-                normalizedBill['date_time'] as int? ?? DateTime.now().millisecondsSinceEpoch)
-            .toIso8601String();
-      }
-      if (normalizedBill['bill_date'] == null) {
-        normalizedBill['bill_date'] = DateTime.tryParse(normalizedBill['created_at'])?.toIso8601String() ?? normalizedBill['created_at'];
-      }
-      normalizedBill['discount'] ??= normalizedBill['discount_amount'];
-      normalizedBill['gst_amount'] ??= normalizedBill['tax_amount'];
 
       return BillWithItems(
         bill: Bill.fromMap(normalizedBill),
         items: itemMaps.map((item) {
           final normalized = Map<String, dynamic>.from(item);
-          normalized['product_id'] ??= normalized['item_id'];
-          normalized['qty'] ??= normalized['quantity'];
-          normalized['sell_price_snapshot'] ??= normalized['unit_price'];
-          normalized['amount'] ??= normalized['line_total'];
           return BillItem.fromMap(normalized);
         }).toList(),
       );
@@ -153,76 +61,55 @@ class BillService {
     }
   }
 
-  /// Reprint a bill (creates no new bill in history)
-  Future<void> reprintBill(int billId) async {
+  /// Mark a bill as printed
+  Future<void> markPrinted(int billId) async {
     try {
-      final billData = await getBillWithItems(billId);
-      if (billData == null) {
-        throw ErrorHandler.handle(
-          ArgumentError('બીલ મળ્યું નથી.'),
-          StackTrace.current,
-          context: 'BillService.reprintBill',
-        );
-      }
-
-      // Just mark as reprinted, don't create duplicate
-      await _db.update(
+      final db = await _dbHelper.database;
+      await db.update(
         'bills',
-        {'last_reprintedAt': DateTime.now().millisecondsSinceEpoch},
+        {'is_printed': 1},
         where: 'id = ?',
         whereArgs: [billId],
       );
     } catch (e, st) {
-      throw ErrorHandler.handle(e, st, context: 'BillService.reprintBill');
+      throw ErrorHandler.handle(e, st, context: 'BillService.markPrinted');
     }
   }
 
-  /// Update bill status (e.g., mark as partial_return)
-  Future<void> updateBillStatus(int billId, String status) async {
+  /// Reprint a bill (deprecated alias for [markPrinted])
+  Future<void> reprintBill(int billId) async => markPrinted(billId);
+
+  /// Update payment status (e.g. paid, udhaar, partial)
+  Future<void> updatePaymentStatus(int billId, String paymentStatus) async {
     try {
-      await _db.update(
+      final db = await _dbHelper.database;
+      await db.update(
         'bills',
-        {'status': status},
+        {'payment_status': paymentStatus},
         where: 'id = ?',
         whereArgs: [billId],
       );
     } catch (e, st) {
-      throw ErrorHandler.handle(e, st, context: 'BillService.updateBillStatus');
+      throw ErrorHandler.handle(e, st, context: 'BillService.updatePaymentStatus');
     }
   }
+
+  /// Update bill status (deprecated alias for [updatePaymentStatus])
+  Future<void> updateBillStatus(int billId, String status) async => updatePaymentStatus(billId, status);
 
   /// Get all bills for today
   Future<List<Bill>> getTodaysBills() async {
     try {
-      final today = DateTime.now();
-      final startOfDay = DateTime(
-        today.year,
-        today.month,
-        today.day,
-      ).millisecondsSinceEpoch;
-      final endOfDay = startOfDay + (24 * 60 * 60 * 1000);
-
-      final maps = await _db.query(
+      final db = await _dbHelper.database;
+      final todayStr = DateTime.now().toIso8601String().substring(0, 10);
+      final maps = await db.query(
         'bills',
-        where: 'date_time >= ? AND date_time < ?',
-        whereArgs: [startOfDay, endOfDay],
-        orderBy: 'date_time DESC',
+        where: 'bill_date = ? OR created_at LIKE ?',
+        whereArgs: [todayStr, '$todayStr%'],
+        orderBy: 'id DESC',
       );
 
-      return maps.map((map) {
-        final normalized = Map<String, dynamic>.from(map);
-        if (normalized['created_at'] == null) {
-          normalized['created_at'] = DateTime.fromMillisecondsSinceEpoch(
-                  normalized['date_time'] as int? ?? DateTime.now().millisecondsSinceEpoch)
-              .toIso8601String();
-        }
-        if (normalized['bill_date'] == null) {
-          normalized['bill_date'] = DateTime.tryParse(normalized['created_at'])?.toIso8601String() ?? normalized['created_at'];
-        }
-        normalized['discount'] ??= normalized['discount_amount'];
-        normalized['gst_amount'] ??= normalized['tax_amount'];
-        return Bill.fromMap(normalized);
-      }).toList();
+      return maps.map((map) => Bill.fromMap(map)).toList();
     } catch (e, st) {
       throw ErrorHandler.handle(e, st, context: 'BillService.getTodaysBills');
     }
@@ -231,14 +118,9 @@ class BillService {
   /// Calculate today's sales summary
   Future<Map<String, dynamic>> getTodaysSalesSummary() async {
     try {
-      final today = DateTime.now();
-      final startOfDay = DateTime(
-        today.year,
-        today.month,
-        today.day,
-      ).millisecondsSinceEpoch;
-
-      final result = await _db.rawQuery(
+      final db = await _dbHelper.database;
+      final todayStr = DateTime.now().toIso8601String().substring(0, 10);
+      final result = await db.rawQuery(
         '''
         SELECT 
           COUNT(*) as bill_count,
@@ -247,12 +129,12 @@ class BillService {
           SUM(CASE WHEN payment_mode = 'cash' THEN total_amount ELSE 0 END) as cash_amount,
           SUM(CASE WHEN payment_mode = 'upi' THEN total_amount ELSE 0 END) as upi_amount
         FROM bills
-        WHERE date_time >= ?
+        WHERE bill_date = ? OR created_at LIKE ?
         ''',
-        [startOfDay],
+        [todayStr, '$todayStr%'],
       );
 
-      if (result.isEmpty) {
+      if (result.isEmpty || result[0]['bill_count'] == null) {
         return {
           'bill_count': 0,
           'total_sales': 0.0,
@@ -264,29 +146,14 @@ class BillService {
 
       return {
         'bill_count': result[0]['bill_count'] ?? 0,
-        'total_sales': result[0]['total_sales'] ?? 0.0,
-        'udhaar_amount': result[0]['udhaar_amount'] ?? 0.0,
-        'cash_amount': result[0]['cash_amount'] ?? 0.0,
-        'upi_amount': result[0]['upi_amount'] ?? 0.0,
+        'total_sales': (result[0]['total_sales'] as num?)?.toDouble() ?? 0.0,
+        'udhaar_amount': (result[0]['udhaar_amount'] as num?)?.toDouble() ?? 0.0,
+        'cash_amount': (result[0]['cash_amount'] as num?)?.toDouble() ?? 0.0,
+        'upi_amount': (result[0]['upi_amount'] as num?)?.toDouble() ?? 0.0,
       };
     } catch (e, st) {
       throw ErrorHandler.handle(e, st, context: 'BillService.getTodaysSalesSummary');
     }
-  }
-
-  Future<int> _getNextBillNumber(Transaction txn) async {
-    final counter = await txn.rawQuery(
-      "SELECT value FROM settings WHERE key = 'bill_counter'",
-    );
-    return counter.isNotEmpty
-        ? int.tryParse(counter.first['value'] as String? ?? '1') ?? 1
-        : 1;
-  }
-
-  Future<void> _incrementBillCounter(Transaction txn, int currentNumber) async {
-    await txn.update('settings', {
-      'value': (currentNumber + 1).toString(),
-    }, where: "key = 'bill_counter'");
   }
 }
 
@@ -298,5 +165,5 @@ class BillWithItems {
   BillWithItems({required this.bill, required this.items});
 
   double get subtotal => items.fold(0, (sum, item) => sum + item.amount);
-  double get total => subtotal - bill.discount;
+  double get total => bill.totalAmount > 0 ? bill.totalAmount : (subtotal - bill.discount);
 }

@@ -135,7 +135,7 @@ class _RoleSelectionScreenState extends ConsumerState<RoleSelectionScreen> {
 
     try {
       final prefs = await SharedPreferences.getInstance();
-      final storedPin = prefs.getString('user_pin') ?? '0000';
+      final storedPin = prefs.getString('user_pin') ?? '2401';
       final enteredPin = _pin.trim();
 
       final isValid = enteredPin == storedPin;
@@ -191,13 +191,7 @@ class _RoleSelectionScreenState extends ConsumerState<RoleSelectionScreen> {
       child: Scaffold(
         resizeToAvoidBottomInset: true,
         body: Container(
-          decoration: const BoxDecoration(
-            gradient: LinearGradient(
-              begin: Alignment.topCenter,
-              end: Alignment.bottomCenter,
-              colors: [Color(0xFF0D47A1), Color(0xFF1976D2), Color(0xFF64B5F6)],
-            ),
-          ),
+          color: Theme.of(context).colorScheme.surface,
           child: SafeArea(
             child: LayoutBuilder(
               builder: (context, constraints) {
@@ -211,9 +205,12 @@ class _RoleSelectionScreenState extends ConsumerState<RoleSelectionScreen> {
                       child: ConstrainedBox(
                         constraints: const BoxConstraints(maxWidth: 500),
                         child: Card(
-                          elevation: 12,
+                          elevation: 0,
                           shape: RoundedRectangleBorder(
                             borderRadius: BorderRadius.circular(24),
+                            side: BorderSide(
+                              color: Theme.of(context).colorScheme.outlineVariant.withValues(alpha: 0.5),
+                            ),
                           ),
                           child: Padding(
                             padding: const EdgeInsets.all(24),
@@ -293,30 +290,21 @@ class _RoleSelectionScreenState extends ConsumerState<RoleSelectionScreen> {
         ),
         const SizedBox(height: 22),
         _RoleTile(
-          title: 'Superadmin',
-          subtitle: '',
-          icon: Icons.admin_panel_settings_rounded,
-          color: const Color(0xFF4A148C),
-          selected: _selectedRole == 'superadmin',
-          onTap: () => _handleRoleTap('superadmin'),
-        ),
-        const SizedBox(height: 12),
-        _RoleTile(
           title: 'Admin',
           subtitle: '',
           icon: Icons.manage_accounts_rounded,
-          color: const Color(0xFF0D47A1),
+          color: const Color(0xFF4F46E5), // Indigo
           selected: _selectedRole == 'admin',
           onTap: () => _handleRoleTap('admin'),
         ),
-        const SizedBox(height: 12),
+        const SizedBox(height: 16),
         _RoleTile(
-          title: 'Employee',
+          title: 'Cashier',
           subtitle: '',
-          icon: Icons.person_rounded,
-          color: const Color(0xFF1B5E20),
-          selected: _selectedRole == 'employee',
-          onTap: () => _handleRoleTap('employee'),
+          icon: Icons.point_of_sale_rounded,
+          color: const Color(0xFF00E676), // Bright green
+          selected: _selectedRole == 'cashier',
+          onTap: () => _handleRoleTap('cashier'),
         ),
       ],
     );
@@ -379,11 +367,11 @@ class _RoleSelectionScreenState extends ConsumerState<RoleSelectionScreen> {
                 height: 62,
                 margin: const EdgeInsets.symmetric(horizontal: 6),
                 decoration: BoxDecoration(
-                  color: Colors.white,
+                  color: hasDigit ? const Color(0xFFD7FF28) : Colors.white,
                   borderRadius: BorderRadius.circular(12),
                   border: Border.all(
                     color: hasDigit
-                        ? Theme.of(context).colorScheme.primary
+                        ? const Color(0xFFC0E61A) // Slightly darker for border
                         : Colors.blueGrey.shade200,
                     width: hasDigit ? 1.8 : 1,
                   ),
@@ -392,11 +380,12 @@ class _RoleSelectionScreenState extends ConsumerState<RoleSelectionScreen> {
                   child: AnimatedOpacity(
                     duration: const Duration(milliseconds: 120),
                     opacity: hasDigit ? 1 : 0,
-                    child: const Text(
+                    child: Text(
                       '●',
                       style: TextStyle(
                         fontSize: 22,
                         fontWeight: FontWeight.w700,
+                        color: Colors.black,
                       ),
                     ),
                   ),
@@ -425,22 +414,27 @@ class _RoleSelectionScreenState extends ConsumerState<RoleSelectionScreen> {
               ? const SizedBox(
                   width: 18,
                   height: 18,
-                  child: CircularProgressIndicator(strokeWidth: 2),
+                  child: CircularProgressIndicator(strokeWidth: 2, color: Colors.black),
                 )
-              : const Icon(Icons.login_rounded),
-          label: Text(_isVerifying ? 'Verifying...' : 'Login'),
+              : const Icon(Icons.login_rounded, color: Colors.black),
+          label: Text(
+            _isVerifying ? 'Verifying...' : 'Login',
+            style: const TextStyle(fontWeight: FontWeight.w700, color: Colors.black, fontSize: 16),
+          ),
           style: ElevatedButton.styleFrom(
+            backgroundColor: const Color(0xFFD7FF28),
+            disabledBackgroundColor: Colors.grey.shade300,
             minimumSize: const Size.fromHeight(54),
             shape: RoundedRectangleBorder(
               borderRadius: BorderRadius.circular(14),
             ),
-            elevation: 4,
+            elevation: 0,
           ),
         ),
         const SizedBox(height: 8),
         TextButton(
           onPressed: _isVerifying ? null : _backToRoleSelection,
-          child: const Text('Back to role selection'),
+          child: const Text('Back to role selection', style: TextStyle(color: Colors.black87)),
         ),
       ],
     );
@@ -474,9 +468,9 @@ class _RoleTile extends StatelessWidget {
         padding: const EdgeInsets.symmetric(horizontal: 14, vertical: 12),
         decoration: BoxDecoration(
           borderRadius: BorderRadius.circular(14),
-          color: selected ? color.withValues(alpha: 0.12) : Colors.white,
+          color: selected ? const Color(0xFFD7FF28).withValues(alpha: 0.2) : Colors.white,
           border: Border.all(
-            color: selected ? color : Colors.grey.shade300,
+            color: selected ? const Color(0xFFC0E61A) : Colors.grey.shade300,
             width: selected ? 2 : 1,
           ),
         ),
@@ -484,8 +478,8 @@ class _RoleTile extends StatelessWidget {
           children: [
             CircleAvatar(
               radius: 22,
-              backgroundColor: color.withValues(alpha: 0.18),
-              child: Icon(icon, color: color),
+              backgroundColor: selected ? const Color(0xFFD7FF28) : color.withValues(alpha: 0.18),
+              child: Icon(icon, color: selected ? Colors.black : color),
             ),
             const SizedBox(width: 12),
             Expanded(
@@ -496,20 +490,23 @@ class _RoleTile extends StatelessWidget {
                     title,
                     style: Theme.of(context).textTheme.titleMedium?.copyWith(
                       fontWeight: FontWeight.w700,
+                      color: Colors.black87,
                     ),
                   ),
-                  Text(
-                    subtitle,
-                    style: Theme.of(context).textTheme.bodySmall?.copyWith(
-                      color: Colors.grey.shade700,
+                  if (subtitle.isNotEmpty)
+                    Text(
+                      subtitle,
+                      style: Theme.of(context).textTheme.bodySmall?.copyWith(
+                        color: Colors.grey.shade700,
+                      ),
                     ),
-                  ),
                 ],
               ),
             ),
             Icon(
               selected ? Icons.check_circle : Icons.radio_button_unchecked,
-              color: selected ? color : Colors.grey.shade500,
+              color: selected ? const Color(0xFFB5D61C) : Colors.grey.shade500,
+              size: 24,
             ),
           ],
         ),

@@ -70,9 +70,9 @@ class _DailyReportScreenState extends ConsumerState<DailyReportScreen> {
   }
 
   Widget _buildSummary() {
-    final repoFuture = ref.watch(reportRepositoryProvider.future);
+    final repo = ref.watch(reportRepositoryProvider);
     return FutureBuilder<DailyReportData>(
-      future: repoFuture.then((repo) => repo.getDailyReport(_selectedDate)),
+      future: repo.getDailyReport(_selectedDate),
       builder: (context, snapshot) {
         if (!snapshot.hasData) return const CircularProgressIndicator();
         final data = snapshot.data!;
@@ -227,9 +227,9 @@ class _DailyReportScreenState extends ConsumerState<DailyReportScreen> {
   }
 
   Widget _buildBillsList() {
-    final repoFuture = ref.watch(reportRepositoryProvider.future);
+    final repo = ref.watch(reportRepositoryProvider);
     return FutureBuilder<DailyReportData>(
-      future: repoFuture.then((repo) => repo.getDailyReport(_selectedDate)),
+      future: repo.getDailyReport(_selectedDate),
       builder: (context, snapshot) {
         if (!snapshot.hasData) return const CircularProgressIndicator();
         final data = snapshot.data!;

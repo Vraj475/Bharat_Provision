@@ -1,12 +1,12 @@
 import 'package:flutter/material.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
+import 'package:go_router/go_router.dart';
 import 'package:url_launcher/url_launcher.dart';
 
 import '../../core/theme/app_colors.dart';
 import '../../core/utils/currency_format.dart';
 import '../../shared/models/customer_model.dart';
 import 'udhaar_providers.dart';
-import 'package:go_router/go_router.dart';
 
 /// Bottom sheet for sending WhatsApp / SMS reminders to a customer.
 /// Only shows reminder types that are enabled in settings.
@@ -81,11 +81,9 @@ class _ReminderBottomSheetState extends ConsumerState<ReminderBottomSheet> {
       String urlStr;
       if (reminderType == 'whatsapp') {
         final encoded = Uri.encodeComponent(message);
-        // International format: 91 prefix for India
         final fullPhone = phone.length == 10 ? '91$phone' : phone;
         urlStr = 'https://wa.me/$fullPhone?text=$encoded';
       } else {
-        // sms:
         final encoded = Uri.encodeComponent(message);
         urlStr = 'sms:+91$phone?body=$encoded';
       }
@@ -99,14 +97,16 @@ class _ReminderBottomSheetState extends ConsumerState<ReminderBottomSheet> {
       if (!mounted) return;
 
       if (launched) {
-        // Log the reminder
-        await ref
-            .read(udhaarRepositoryProvider)
-            .logReminder(
-              widget.customer.id!,
-              reminderType,
-              widget.customer.totalOutstanding,
-            );
+        // Log the reminder with null guard
+        if (widget.customer.id != null) {
+          await ref
+              .read(udhaarRepositoryProvider)
+              .logReminder(
+                widget.customer.id!,
+                reminderType,
+                widget.customer.totalOutstanding,
+              );
+        }
 
         if (!mounted) return;
         ScaffoldMessenger.of(context).showSnackBar(
@@ -210,59 +210,63 @@ class _ReminderBottomSheetState extends ConsumerState<ReminderBottomSheet> {
                 ),
                 const SizedBox(height: 16),
 
-                if (!hasAnyEnabled) ...[
-                  const Text(
-                    'Settings → Reminder Whatsapp / SMS ચાલુ કરો',
-                    style: TextStyle(color: Colors.grey),
-                    textAlign: TextAlign.center,
-                  ),
-                  const SizedBox(height: 16),
-                ] else ...[
-                  // Type toggle chips
-                  Wrap(
-                    spacing: 8,
+                if (!hasAnyEnabled)
+                  Container(
+                    padding: const EdgeInsets.all(12),
+                    decoration: BoxDecoration(
+                      color: Colors.orange.shade50,
+                      borderRadius: BorderRadius.circular(8),
+                      border: Border.all(color: Colors.orange.shade200),
+                    ),
+                    child: const Text(
+                      'રિમાઇન્ડર મોકલો તે માટે સેટિંગ્સમાંથી WhatsApp અથવા SMS શરૂ કરો.',
+                      style: TextStyle(color: Colors.orange),
+                    ),
+                  )
+                else ...[
+                  // Type selection chips
+                  Row(
                     children: [
                       if (whatsappEnabled)
                         ChoiceChip(
                           label: const Row(
                             mainAxisSize: MainAxisSize.min,
                             children: [
-                              Icon(Icons.chat, size: 16),
+                              Icon(
+                                Icons.chat_bubble_outline,
+                                size: 16,
+                                color: Colors.green,
+                              ),
                               SizedBox(width: 4),
                               Text('WhatsApp'),
                             ],
                           ),
                           selected: _activeType == 'whatsapp',
-                          selectedColor: const Color(0xFF25D366),
-                          labelStyle: TextStyle(
-                            color: _activeType == 'whatsapp'
-                                ? Colors.white
-                                : null,
-                          ),
                           onSelected: (_) {
                             setState(() {
                               _activeType = 'whatsapp';
-                              _messageCtrl.text = _buildWhatsAppMessage(
-                                shopName,
-                              );
+                              _messageCtrl.text =
+                                  _buildWhatsAppMessage(shopName);
                             });
                           },
                         ),
+                      if (whatsappEnabled && smsEnabled)
+                        const SizedBox(width: 8),
                       if (smsEnabled)
                         ChoiceChip(
                           label: const Row(
                             mainAxisSize: MainAxisSize.min,
                             children: [
-                              Icon(Icons.sms, size: 16),
+                              Icon(
+                                Icons.sms_outlined,
+                                size: 16,
+                                color: Colors.blue,
+                              ),
                               SizedBox(width: 4),
                               Text('SMS'),
                             ],
                           ),
                           selected: _activeType == 'sms',
-                          selectedColor: AppColors.primary,
-                          labelStyle: TextStyle(
-                            color: _activeType == 'sms' ? Colors.white : null,
-                          ),
                           onSelected: (_) {
                             setState(() {
                               _activeType = 'sms';
@@ -273,26 +277,30 @@ class _ReminderBottomSheetState extends ConsumerState<ReminderBottomSheet> {
                     ],
                   ),
                   const SizedBox(height: 12),
-                  // Message preview / edit
-                  Text('સંદેશ', style: Theme.of(context).textTheme.bodyMedium),
-                  const SizedBox(height: 6),
+
+                  // Message editable box
                   TextField(
-                    controller: _messageCtrl
-                      ..text = _messageCtrl.text.isEmpty
-                          ? message
-                          : _messageCtrl.text,
-                    maxLines: 6,
+                    controller: _messageCtrl,
+                    maxLines: 5,
                     decoration: const InputDecoration(
-                      isDense: true,
+                      labelText: 'મેસેજ',
                       border: OutlineInputBorder(),
                     ),
                   ),
                   const SizedBox(height: 16),
+
                   // Send button
                   ElevatedButton.icon(
                     onPressed: _sending
                         ? null
                         : () => _send(_activeType, _messageCtrl.text, settings),
+                    style: ElevatedButton.styleFrom(
+                      backgroundColor: _activeType == 'whatsapp'
+                          ? Colors.green
+                          : AppColors.primary,
+                      foregroundColor: Colors.white,
+                      padding: const EdgeInsets.symmetric(vertical: 14),
+                    ),
                     icon: _sending
                         ? const SizedBox(
                             width: 18,
@@ -303,29 +311,26 @@ class _ReminderBottomSheetState extends ConsumerState<ReminderBottomSheet> {
                             ),
                           )
                         : Icon(
-                            _activeType == 'whatsapp' ? Icons.chat : Icons.sms,
-                            color: Colors.white,
+                            _activeType == 'whatsapp'
+                                ? Icons.chat
+                                : Icons.send,
                           ),
                     label: Text(
-                      _activeType == 'whatsapp' ? 'WhatsApp ખોલો' : 'SMS ખોલો',
-                      style: const TextStyle(color: Colors.white),
-                    ),
-                    style: ElevatedButton.styleFrom(
-                      backgroundColor: _activeType == 'whatsapp'
-                          ? const Color(0xFF25D366)
-                          : AppColors.primary,
-                      minimumSize: const Size.fromHeight(48),
+                      _sending
+                          ? 'મોકલી રહ્યા છે...'
+                          : _activeType == 'whatsapp'
+                              ? 'WhatsApp પર મોકલો'
+                              : 'SMS પર મોકલો',
                     ),
                   ),
                 ],
-                const SizedBox(height: 8),
               ],
             ),
           ),
         );
       },
-      loading: () => const Padding(
-        padding: EdgeInsets.all(40),
+      loading: () => const SizedBox(
+        height: 120,
         child: Center(child: CircularProgressIndicator()),
       ),
       error: (e, _) =>

@@ -64,7 +64,7 @@ class DatabaseHelper {
             debugPrint('DatabaseHelper: Opening encrypted database at $path');
           }
 
-          final password = _password ?? PinHasher.sha256('1234');
+          final password = _password ?? PinHasher.sha256('2401');
 
           final db = await sqlcipher.openDatabase(
             path,
@@ -100,45 +100,40 @@ class DatabaseHelper {
             debugPrint('DatabaseHelper: Android database open error: $e');
           }
 
-          // Try to recover by deleting corrupted database and recreating
+          // Try to recover by renaming corrupted database and recreating
           if (e.toString().contains('database is encrypted') ||
               e.toString().contains('file is encrypted') ||
               e.toString().contains('malformed') ||
               e.toString().contains('no such table') ||
               e.toString().contains('bad decrypt')) {
             try {
-              if (kDebugMode) {
-                debugPrint('DatabaseHelper: Attempting database recovery...');
-              }
+              final timestamp = DateTime.now().millisecondsSinceEpoch;
               final dbPath = await sqlcipher.getDatabasesPath();
               final path = p.join(dbPath, dbFileName);
               final file = File(path);
 
-              // Also try to delete -wal and -shm files
+              // Also backup -wal and -shm files if they exist
               final walFile = File('$path-wal');
               final shmFile = File('$path-shm');
 
               if (await file.exists()) {
-                await file.delete();
-                if (kDebugMode) {
-                  debugPrint('DatabaseHelper: Deleted corrupted database file');
-                }
+                final backupPath = '$path.corrupt_$timestamp.bak';
+                await file.rename(backupPath);
+                ErrorHandler.handleSilently(
+                  Exception('Database corrupted. Backup saved to $backupPath'),
+                  StackTrace.current,
+                  context: 'DatabaseHelper._openEncrypted.recovery',
+                );
               }
               if (await walFile.exists()) {
-                await walFile.delete();
-                if (kDebugMode) {
-                  debugPrint('DatabaseHelper: Deleted WAL file');
-                }
+                await walFile.rename('$path-wal.corrupt_$timestamp.bak');
               }
               if (await shmFile.exists()) {
-                await shmFile.delete();
-                if (kDebugMode) {
-                  debugPrint('DatabaseHelper: Deleted SHM file');
-                }
+                await shmFile.rename('$path-shm.corrupt_$timestamp.bak');
               }
 
               // Retry opening with fresh database
-              final password = PinHasher.sha256('1234');
+              final password = _password ?? PinHasher.sha256('2401');
               return sqlcipher.openDatabase(
                 path,
                 version: schemaVersion,
@@ -157,10 +152,12 @@ class DatabaseHelper {
                   await _createSchema(db);
                 },
               );
-            } catch (recoveryError) {
-              if (kDebugMode) {
-                debugPrint('DatabaseHelper: Recovery failed: $recoveryError');
-              }
+            } catch (recoveryError, st) {
+              ErrorHandler.handleSilently(
+                recoveryError,
+                st,
+                context: 'DatabaseHelper._openEncrypted.recoveryFailed',
+              );
               rethrow;
             }
           }
@@ -169,7 +166,6 @@ class DatabaseHelper {
       }
 
       // On desktop (Windows/Linux/macOS), use the database path from sqflite and open via ffi
-      sqflite_ffi.sqfliteFfiInit();
       final dbPath = Platform.isAndroid || Platform.isIOS
           ? await sqlcipher.getDatabasesPath()
           : (await getApplicationSupportDirectory()).path;
@@ -493,6 +489,25 @@ class DatabaseHelper {
     );
     await db.execute(
       'CREATE INDEX IF NOT EXISTS idx_khata_ledger_customer_id ON khata_ledger(customer_id);',
+    );
+
+    await db.execute('''
+      CREATE TABLE IF NOT EXISTS khata_entries (
+        id INTEGER PRIMARY KEY AUTOINCREMENT,
+        customer_id INTEGER NOT NULL REFERENCES customers(id),
+        related_bill_id INTEGER REFERENCES bills(id),
+        date_time INTEGER NOT NULL,
+        type TEXT NOT NULL,
+        amount REAL NOT NULL,
+        note TEXT,
+        balance_after REAL NOT NULL
+      );
+    ''');
+    await db.execute(
+      'CREATE INDEX IF NOT EXISTS idx_khata_entries_customer_id ON khata_entries(customer_id);',
+    );
+    await db.execute(
+      'CREATE INDEX IF NOT EXISTS idx_khata_entries_date_time ON khata_entries(date_time);',
     );
 
     await db.execute('''

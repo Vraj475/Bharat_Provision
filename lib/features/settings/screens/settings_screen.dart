@@ -1,5 +1,3 @@
-// ignore_for_file: dead_code, dead_null_aware_expression
-
 import 'dart:io';
 
 import 'package:blue_thermal_printer/blue_thermal_printer.dart';
@@ -114,59 +112,67 @@ class _ShopInfoTab extends ConsumerWidget {
                   label: 'Shop Name',
                   value: data['shop_name']!,
                   onSave: (value) async {
-                    final repo = ref.read(settingsRepositoryProvider);
+                    final messenger = ScaffoldMessenger.of(context);
                     final shopName = value.trim();
-                    await repo.set('shop_name', shopName);
                     final prefs = await SharedPreferences.getInstance();
                     await prefs.setString('shop_name', shopName);
+                    final repo = ref.read(settingsRepositoryProvider);
+                    await repo.set('shop_name', shopName);
                     ref.invalidate(settingsValuesProvider);
-                    if (context.mounted) {
-                      ScaffoldMessenger.of(context).showSnackBar(
-                        const SnackBar(content: Text('Shop Name Saved')),
-                      );
-                    }
+                    messenger.showSnackBar(
+                      const SnackBar(content: Text('Shop Name Saved')),
+                    );
                   },
                 ),
                 _TextSettingField(
                   label: 'Address',
                   value: data['shop_address']!,
                   onSave: (value) async {
-                    final repo = ref.read(settingsRepositoryProvider);
-                    await repo.set('shop_address', value);
-                    ref.invalidate(settingsValuesProvider);
-                    if (context.mounted) {
-                      ScaffoldMessenger.of(context).showSnackBar(
-                        const SnackBar(content: Text('Address Saved')),
-                      );
-                    }
+                    await _SettingsActions.saveStringSetting(
+                      context,
+                      ref,
+                      key: 'shop_address',
+                      value: value,
+                      invalidations: [() => ref.invalidate(settingsValuesProvider)],
+                    );
+                    if (!context.mounted) return;
+                    ScaffoldMessenger.of(context).showSnackBar(
+                      const SnackBar(content: Text('Address Saved')),
+                    );
                   },
                 ),
                 _TextSettingField(
                   label: 'Phone',
                   value: data['shop_phone']!,
                   onSave: (value) async {
-                    final repo = ref.read(settingsRepositoryProvider);
-                    await repo.set('shop_phone', value);
-                    ref.invalidate(settingsValuesProvider);
-                    if (context.mounted) {
-                      ScaffoldMessenger.of(context).showSnackBar(
-                        const SnackBar(content: Text('Phone Saved')),
-                      );
-                    }
+                    await _SettingsActions.saveStringSetting(
+                      context,
+                      ref,
+                      key: 'shop_phone',
+                      value: value,
+                      invalidations: [() => ref.invalidate(settingsValuesProvider)],
+                    );
+                    if (!context.mounted) return;
+                    ScaffoldMessenger.of(context).showSnackBar(
+                      const SnackBar(content: Text('Phone Saved')),
+                    );
                   },
                 ),
                 _TextSettingField(
                   label: 'GST Number',
                   value: data['gstin']!,
                   onSave: (value) async {
-                    final repo = ref.read(settingsRepositoryProvider);
-                    await repo.set('gstin', value);
-                    ref.invalidate(settingsValuesProvider);
-                    if (context.mounted) {
-                      ScaffoldMessenger.of(context).showSnackBar(
-                        const SnackBar(content: Text('GST Number Saved')),
-                      );
-                    }
+                    await _SettingsActions.saveStringSetting(
+                      context,
+                      ref,
+                      key: 'gstin',
+                      value: value,
+                      invalidations: [() => ref.invalidate(settingsValuesProvider)],
+                    );
+                    if (!context.mounted) return;
+                    ScaffoldMessenger.of(context).showSnackBar(
+                      const SnackBar(content: Text('GST Number Saved')),
+                    );
                   },
                 ),
               ],
@@ -197,56 +203,68 @@ class _BillSettingsTab extends ConsumerWidget {
                   label: 'ગ્રાહકનું નામ બિલ પર',
                   value: data['module_customer_name_on_bill']!,
                   onChanged: (value) async {
-                    final repo = ref.read(settingsRepositoryProvider);
-                    await repo.setBool('module_customer_name_on_bill', value);
-                    ref.invalidate(featureToggleProvider);
-                    if (context.mounted) {
-                      ScaffoldMessenger.of(context).showSnackBar(
-                        const SnackBar(content: Text('સેટિંગ સેવ થયું')),
-                      );
-                    }
+                    await _SettingsActions.saveBoolSetting(
+                      context,
+                      ref,
+                      key: 'module_customer_name_on_bill',
+                      value: value,
+                      invalidations: [() => ref.invalidate(featureToggleProvider)],
+                    );
+                    if (!context.mounted) return;
+                    ScaffoldMessenger.of(context).showSnackBar(
+                      const SnackBar(content: Text('સેટિંગ સેવ થયું')),
+                    );
                   },
                 ),
                 _BoolSettingField(
                   label: 'ચૂકવણી પ્રકાર બિલ પર',
                   value: data['module_payment_mode_on_bill']!,
                   onChanged: (value) async {
-                    final repo = ref.read(settingsRepositoryProvider);
-                    await repo.setBool('module_payment_mode_on_bill', value);
-                    ref.invalidate(featureToggleProvider);
-                    if (context.mounted) {
-                      ScaffoldMessenger.of(context).showSnackBar(
-                        const SnackBar(content: Text('સેટિંગ સેવ થયું')),
-                      );
-                    }
+                    await _SettingsActions.saveBoolSetting(
+                      context,
+                      ref,
+                      key: 'module_payment_mode_on_bill',
+                      value: value,
+                      invalidations: [() => ref.invalidate(featureToggleProvider)],
+                    );
+                    if (!context.mounted) return;
+                    ScaffoldMessenger.of(context).showSnackBar(
+                      const SnackBar(content: Text('સેટિંગ સેવ થયું')),
+                    );
                   },
                 ),
                 _BoolSettingField(
                   label: 'વજન બિલ પર',
                   value: data['show_weight_on_bill']!,
                   onChanged: (value) async {
-                    final repo = ref.read(settingsRepositoryProvider);
-                    await repo.setBool('show_weight_on_bill', value);
-                    ref.invalidate(featureToggleProvider);
-                    if (context.mounted) {
-                      ScaffoldMessenger.of(context).showSnackBar(
-                        const SnackBar(content: Text('સેટિંગ સેવ થયું')),
-                      );
-                    }
+                    await _SettingsActions.saveBoolSetting(
+                      context,
+                      ref,
+                      key: 'show_weight_on_bill',
+                      value: value,
+                      invalidations: [() => ref.invalidate(featureToggleProvider)],
+                    );
+                    if (!context.mounted) return;
+                    ScaffoldMessenger.of(context).showSnackBar(
+                      const SnackBar(content: Text('સેટિંગ સેવ થયું')),
+                    );
                   },
                 ),
                 _BoolSettingField(
                   label: 'GST ગણતરી',
                   value: data['gst_enabled']!,
                   onChanged: (value) async {
-                    final repo = ref.read(settingsRepositoryProvider);
-                    await repo.setBool('gst_enabled', value);
-                    ref.invalidate(featureToggleProvider);
-                    if (context.mounted) {
-                      ScaffoldMessenger.of(context).showSnackBar(
-                        const SnackBar(content: Text('સેટિંગ સેવ થયું')),
-                      );
-                    }
+                    await _SettingsActions.saveBoolSetting(
+                      context,
+                      ref,
+                      key: 'gst_enabled',
+                      value: value,
+                      invalidations: [() => ref.invalidate(featureToggleProvider)],
+                    );
+                    if (!context.mounted) return;
+                    ScaffoldMessenger.of(context).showSnackBar(
+                      const SnackBar(content: Text('સેટિંગ સેવ થયું')),
+                    );
                   },
                 ),
               ],
@@ -277,42 +295,51 @@ class _PrintSettingsTab extends ConsumerWidget {
                   label: 'ઉધારે બિલ છાપો',
                   value: data['print_udhaar_receipt']!,
                   onChanged: (value) async {
-                    final repo = ref.read(settingsRepositoryProvider);
-                    await repo.setBool('print_udhaar_receipt', value);
-                    ref.invalidate(featureToggleProvider);
-                    if (context.mounted) {
-                      ScaffoldMessenger.of(context).showSnackBar(
-                        const SnackBar(content: Text('સેટિંગ સેવ થયું')),
-                      );
-                    }
+                    await _SettingsActions.saveBoolSetting(
+                      context,
+                      ref,
+                      key: 'print_udhaar_receipt',
+                      value: value,
+                      invalidations: [() => ref.invalidate(featureToggleProvider)],
+                    );
+                    if (!context.mounted) return;
+                    ScaffoldMessenger.of(context).showSnackBar(
+                      const SnackBar(content: Text('સેટિંગ સેવ થયું')),
+                    );
                   },
                 ),
                 _BoolSettingField(
                   label: 'ચૂકવણી રસીદ છાપો',
                   value: data['print_payment_receipt']!,
                   onChanged: (value) async {
-                    final repo = ref.read(settingsRepositoryProvider);
-                    await repo.setBool('print_payment_receipt', value);
-                    ref.invalidate(featureToggleProvider);
-                    if (context.mounted) {
-                      ScaffoldMessenger.of(context).showSnackBar(
-                        const SnackBar(content: Text('સેટિંગ સેવ થયું')),
-                      );
-                    }
+                    await _SettingsActions.saveBoolSetting(
+                      context,
+                      ref,
+                      key: 'print_payment_receipt',
+                      value: value,
+                      invalidations: [() => ref.invalidate(featureToggleProvider)],
+                    );
+                    if (!context.mounted) return;
+                    ScaffoldMessenger.of(context).showSnackBar(
+                      const SnackBar(content: Text('સેટિંગ સેવ થયું')),
+                    );
                   },
                 ),
                 _BoolSettingField(
                   label: 'અંતિમ ચૂકવણી રસીદ',
                   value: data['print_final_receipt']!,
                   onChanged: (value) async {
-                    final repo = ref.read(settingsRepositoryProvider);
-                    await repo.setBool('print_final_receipt', value);
-                    ref.invalidate(featureToggleProvider);
-                    if (context.mounted) {
-                      ScaffoldMessenger.of(context).showSnackBar(
-                        const SnackBar(content: Text('સેટિંગ સેવ થયું')),
-                      );
-                    }
+                    await _SettingsActions.saveBoolSetting(
+                      context,
+                      ref,
+                      key: 'print_final_receipt',
+                      value: value,
+                      invalidations: [() => ref.invalidate(featureToggleProvider)],
+                    );
+                    if (!context.mounted) return;
+                    ScaffoldMessenger.of(context).showSnackBar(
+                      const SnackBar(content: Text('સેટિંગ સેવ થયું')),
+                    );
                   },
                 ),
               ],
@@ -360,45 +387,60 @@ class _ReminderSettingsTab extends ConsumerWidget {
                   label: 'WhatsApp રીમાઇન્ડર',
                   value: data['reminder_whatsapp']!,
                   onChanged: (value) async {
-                    final repo = ref.read(settingsRepositoryProvider);
-                    await repo.setBool('reminder_whatsapp', value);
-                    ref.invalidate(featureToggleProvider);
-                    ref.invalidate(moduleSettingsProvider);
-                    if (context.mounted) {
-                      ScaffoldMessenger.of(context).showSnackBar(
-                        const SnackBar(content: Text('સેટિંગ સેવ થયું')),
-                      );
-                    }
+                    await _SettingsActions.saveBoolSetting(
+                      context,
+                      ref,
+                      key: 'reminder_whatsapp',
+                      value: value,
+                      invalidations: [
+                        () => ref.invalidate(featureToggleProvider),
+                        () => ref.invalidate(moduleSettingsProvider),
+                      ],
+                    );
+                    if (!context.mounted) return;
+                    ScaffoldMessenger.of(context).showSnackBar(
+                      const SnackBar(content: Text('સેટિંગ સેવ થયું')),
+                    );
                   },
                 ),
                 _BoolSettingField(
                   label: 'SMS રીમાઇન્ડર',
                   value: data['reminder_sms']!,
                   onChanged: (value) async {
-                    final repo = ref.read(settingsRepositoryProvider);
-                    await repo.setBool('reminder_sms', value);
-                    ref.invalidate(featureToggleProvider);
-                    ref.invalidate(moduleSettingsProvider);
-                    if (context.mounted) {
-                      ScaffoldMessenger.of(context).showSnackBar(
-                        const SnackBar(content: Text('સેટિંગ સેવ થયું')),
-                      );
-                    }
+                    await _SettingsActions.saveBoolSetting(
+                      context,
+                      ref,
+                      key: 'reminder_sms',
+                      value: value,
+                      invalidations: [
+                        () => ref.invalidate(featureToggleProvider),
+                        () => ref.invalidate(moduleSettingsProvider),
+                      ],
+                    );
+                    if (!context.mounted) return;
+                    ScaffoldMessenger.of(context).showSnackBar(
+                      const SnackBar(content: Text('સેટિંગ સેવ થયું')),
+                    );
                   },
                 ),
                 _BoolSettingField(
                   label: 'PDF સ્ટેટમેન્ટ',
                   value: data['reminder_pdf']!,
                   onChanged: (value) async {
-                    final repo = ref.read(settingsRepositoryProvider);
-                    await repo.setBool('reminder_pdf', value);
-                    ref.invalidate(featureToggleProvider);
-                    ref.invalidate(moduleSettingsProvider);
-                    if (context.mounted) {
-                      ScaffoldMessenger.of(context).showSnackBar(
-                        const SnackBar(content: Text('સેટિંગ સેવ થયું')),
-                      );
-                    }
+                    await _SettingsActions.saveBoolSetting(
+                      context,
+                      ref,
+                      key: 'reminder_pdf',
+                      value: value,
+                      invalidations: [
+                        () => ref.invalidate(featureToggleProvider),
+                        () => ref.invalidate(moduleSettingsProvider),
+                      ],
+                    );
+                    if (!context.mounted) return;
+                    ScaffoldMessenger.of(context).showSnackBar(
+                      const SnackBar(content: Text('સેટિંગ સેવ થયું')),
+                    );
                   },
                 ),
               ],
@@ -449,28 +491,34 @@ class _SecuritySettingsTab extends ConsumerWidget {
                   label: 'Session Timeout (minutes)',
                   value: data['session_timeout_minutes'] as int,
                   onChanged: (value) async {
-                    final repo = ref.read(settingsRepositoryProvider);
-                    await repo.set('session_timeout_minutes', value.toString());
-                    ref.invalidate(securitySettingsProvider);
-                    if (context.mounted) {
-                      ScaffoldMessenger.of(context).showSnackBar(
-                        const SnackBar(content: Text('સેટિંગ સેવ થયું')),
-                      );
-                    }
+                    await _SettingsActions.saveStringSetting(
+                      context,
+                      ref,
+                      key: 'session_timeout_minutes',
+                      value: value.toString(),
+                      invalidations: [() => ref.invalidate(securitySettingsProvider)],
+                    );
+                    if (!context.mounted) return;
+                    ScaffoldMessenger.of(context).showSnackBar(
+                      const SnackBar(content: Text('સેટિંગ સેવ થયું')),
+                    );
                   },
                 ),
                 _BoolSettingField(
                   label: 'Require PIN on Open',
                   value: data['require_pin_on_open'] as bool,
                   onChanged: (value) async {
-                    final repo = ref.read(settingsRepositoryProvider);
-                    await repo.setBool('require_pin_on_open', value);
-                    ref.invalidate(securitySettingsProvider);
-                    if (context.mounted) {
-                      ScaffoldMessenger.of(context).showSnackBar(
-                        const SnackBar(content: Text('સેટિંગ સેવ થયું')),
-                      );
-                    }
+                    await _SettingsActions.saveBoolSetting(
+                      context,
+                      ref,
+                      key: 'require_pin_on_open',
+                      value: value,
+                      invalidations: [() => ref.invalidate(securitySettingsProvider)],
+                    );
+                    if (!context.mounted) return;
+                    ScaffoldMessenger.of(context).showSnackBar(
+                      const SnackBar(content: Text('સેટિંગ સેવ થયું')),
+                    );
                   },
                 ),
               ],
@@ -522,13 +570,16 @@ class _DisplaySettingsTab extends ConsumerWidget {
                   value: largeText,
                   onChanged: (value) async {
                     ref.read(largeTextProvider.notifier).state = value;
-                    final repo = ref.read(settingsRepositoryProvider);
-                    await repo.setBool('large_text', value);
-                    if (context.mounted) {
-                      ScaffoldMessenger.of(context).showSnackBar(
-                        const SnackBar(content: Text('સેટિંગ સેવ થયું')),
-                      );
-                    }
+                    await _SettingsActions.saveBoolSetting(
+                      context,
+                      ref,
+                      key: 'large_text',
+                      value: value,
+                    );
+                    if (!context.mounted) return;
+                    ScaffoldMessenger.of(context).showSnackBar(
+                      const SnackBar(content: Text('સેટિંગ સેવ થયું')),
+                    );
                   },
                 ),
               ],
@@ -604,6 +655,34 @@ class _DataManagementTab extends ConsumerWidget {
 
 class _SettingsActions {
   static final BlueThermalPrinter _printer = BlueThermalPrinter.instance;
+
+  static Future<void> saveStringSetting(
+    BuildContext context,
+    WidgetRef ref, {
+    required String key,
+    required String value,
+    List<VoidCallback> invalidations = const [],
+  }) async {
+    final repo = ref.read(settingsRepositoryProvider);
+    await repo.set(key, value);
+    for (final invalidate in invalidations) {
+      invalidate();
+    }
+  }
+
+  static Future<void> saveBoolSetting(
+    BuildContext context,
+    WidgetRef ref, {
+    required String key,
+    required bool value,
+    List<VoidCallback> invalidations = const [],
+  }) async {
+    final repo = ref.read(settingsRepositoryProvider);
+    await repo.setBool(key, value);
+    for (final invalidate in invalidations) {
+      invalidate();
+    }
+  }
 
   static Future<void> connectBluetoothPrinter(BuildContext context) async {
     if (Platform.isWindows) {
@@ -776,7 +855,7 @@ class _SettingsActions {
     WidgetRef ref,
   ) async {
     try {
-      final db = ref.read(databaseProvider);
+      final db = await ref.read(databaseHelperProvider).database;
       final products = await _readCount(db, ['products', 'items']);
       final bills = await _readCount(db, ['bills']);
       final customers = await _readCount(db, ['customers']);

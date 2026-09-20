@@ -4,6 +4,7 @@ import 'package:shared_preferences/shared_preferences.dart';
 
 import '../../../core/utils/app_data.dart';
 import '../../../routing/app_router.dart';
+import '../services/pin_storage_service.dart';
 
 class SplashScreen extends StatefulWidget {
   const SplashScreen({super.key});
@@ -21,11 +22,8 @@ class _SplashScreenState extends State<SplashScreen> {
 
   Future<void> navigate() async {
     try {
+      await const PinStorageService().initializeDefaults();
       final prefs = await SharedPreferences.getInstance();
-      final existingPin = prefs.getString('user_pin');
-      if (existingPin == null || existingPin.isEmpty) {
-        await prefs.setString('user_pin', '0000');
-      }
       await prefs.remove('logged_in');
 
       await Future<void>.delayed(const Duration(seconds: 2));

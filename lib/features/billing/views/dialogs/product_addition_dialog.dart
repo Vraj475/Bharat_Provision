@@ -1,10 +1,11 @@
 import 'package:flutter/material.dart';
 import 'package:flutter/services.dart';
-import '../../../../core/utils/weight_calculator.dart';
-import '../../../../core/utils/currency_format.dart';
-import '../../../../core/constants/app_strings.dart' as strings;
-import '../../../../shared/models/product_model.dart';
 import 'package:go_router/go_router.dart';
+
+import '../../../../core/constants/app_strings.dart' as strings;
+import '../../../../core/utils/currency_format.dart';
+import '../../../../core/utils/weight_calculator.dart';
+import '../../../../shared/models/product_model.dart';
 
 class ProductAdditionDialog extends StatefulWidget {
   final Product item;
@@ -34,20 +35,33 @@ class ProductAdditionDialog extends StatefulWidget {
 class _ProductAdditionDialogState extends State<ProductAdditionDialog> {
   String _mode = 'weight';
   double _amountPaid = 0.0;
-  final _weightEntryController = TextEditingController();
-  final _weightEntryFocusNode = FocusNode();
+  final _entryController = TextEditingController();
+  final _entryFocusNode = FocusNode();
   bool _focusScheduled = false;
+
+  bool get _isWeightProduct {
+    final u = widget.item.unitType.trim().toLowerCase();
+    return u.contains('કિલો') ||
+        u == 'kg' ||
+        u.contains('kilo') ||
+        u.contains('ગ્રામ') ||
+        u == 'g' ||
+        u.contains('gram');
+  }
 
   @override
   void initState() {
     super.initState();
     _amountPaid = widget.item.sellPrice;
+    if (!_isWeightProduct) {
+      _mode = 'quantity';
+    }
   }
 
   @override
   void dispose() {
-    _weightEntryController.dispose();
-    _weightEntryFocusNode.dispose();
+    _entryController.dispose();
+    _entryFocusNode.dispose();
     super.dispose();
   }
 
@@ -63,28 +77,43 @@ class _ProductAdditionDialogState extends State<ProductAdditionDialog> {
     double finalAmount;
     double finalQty;
 
-    if (_mode == 'amount') {
-      finalQty = WeightCalculator.calculateWeightFromAmount(
-        amountPaid: _amountPaid,
-        sellPricePerKg: item.sellPrice,
-      );
-      finalAmount = _amountPaid;
-    } else {
-      final rawKg = _weightEntryController.text.trim();
-      final parsedKg = double.tryParse(rawKg);
-      if (rawKg.isEmpty || parsedKg == null || parsedKg <= 0) {
-        ScaffoldMessenger.of(context).showSnackBar(
-          const SnackBar(content: Text('વજન દાખલ કરો')),
+    if (_isWeightProduct) {
+      if (_mode == 'amount') {
+        finalQty = WeightCalculator.calculateWeightFromAmount(
+          amountPaid: _amountPaid,
+          sellPricePerKg: item.sellPrice,
         );
-        FocusScope.of(context).requestFocus(_weightEntryFocusNode);
+        finalAmount = _amountPaid;
+      } else {
+        final raw = _entryController.text.trim();
+        final parsed = double.tryParse(raw);
+        if (raw.isEmpty || parsed == null || parsed <= 0) {
+          ScaffoldMessenger.of(context).showSnackBar(
+            const SnackBar(content: Text('વજન દાખલ કરો')),
+          );
+          FocusScope.of(context).requestFocus(_entryFocusNode);
+          return;
+        }
+        final grams = parsed * 1000.0;
+        finalAmount = WeightCalculator.calculateAmountFromWeight(
+          weightGrams: grams,
+          sellPricePerKg: item.sellPrice,
+        );
+        finalQty = grams;
+      }
+    } else {
+      // Non-weight items (piece/packet/unit) - number of items only
+      final raw = _entryController.text.trim();
+      final parsed = double.tryParse(raw);
+      if (raw.isEmpty || parsed == null || parsed <= 0) {
+        ScaffoldMessenger.of(context).showSnackBar(
+          const SnackBar(content: Text('નંગ / સંખ્યા દાખલ કરો')),
+        );
+        FocusScope.of(context).requestFocus(_entryFocusNode);
         return;
       }
-      final grams = parsedKg * 1000.0;
-      finalAmount = WeightCalculator.calculateAmountFromWeight(
-        weightGrams: grams,
-        sellPricePerKg: item.sellPrice,
-      );
-      finalQty = grams;
+      finalQty = parsed;
+      finalAmount = finalQty * item.sellPrice;
     }
 
     final hasStock = await widget.checkStock(item.id!, finalQty);
@@ -96,7 +125,7 @@ class _ProductAdditionDialogState extends State<ProductAdditionDialog> {
           content: Text('સ્ટોક અવેલેબલ નથી કૃપા કરી ખરીદી ની યાદી માં એડ કરો'),
         ),
       );
-      FocusScope.of(context).requestFocus(_weightEntryFocusNode);
+      FocusScope.of(context).requestFocus(_entryFocusNode);
       return;
     }
 
@@ -108,26 +137,33 @@ class _ProductAdditionDialogState extends State<ProductAdditionDialog> {
     double? calculatedWeight;
     double? calculatedAmount;
 
-    if (_mode == 'amount') {
-      calculatedWeight = WeightCalculator.calculateWeightFromAmount(
-        amountPaid: _amountPaid,
-        sellPricePerKg: widget.item.sellPrice,
-      );
-    } else {
-      final parsedKg = double.tryParse(_weightEntryController.text.trim());
-      if (parsedKg != null && parsedKg > 0) {
-        calculatedAmount = WeightCalculator.calculateAmountFromWeight(
-          weightGrams: parsedKg * 1000.0,
+    if (_isWeightProduct) {
+      if (_mode == 'amount') {
+        calculatedWeight = WeightCalculator.calculateWeightFromAmount(
+          amountPaid: _amountPaid,
           sellPricePerKg: widget.item.sellPrice,
         );
+      } else {
+        final parsedKg = double.tryParse(_entryController.text.trim());
+        if (parsedKg != null && parsedKg > 0) {
+          calculatedAmount = WeightCalculator.calculateAmountFromWeight(
+            weightGrams: parsedKg * 1000.0,
+            sellPricePerKg: widget.item.sellPrice,
+          );
+        }
+      }
+    } else {
+      final parsedQty = double.tryParse(_entryController.text.trim());
+      if (parsedQty != null && parsedQty > 0) {
+        calculatedAmount = parsedQty * widget.item.sellPrice;
       }
     }
 
-    if (_mode == 'weight' && !_focusScheduled) {
+    if (_mode != 'amount' && !_focusScheduled) {
       _focusScheduled = true;
       WidgetsBinding.instance.addPostFrameCallback((_) {
         if (!mounted) return;
-        _weightEntryFocusNode.requestFocus();
+        _entryFocusNode.requestFocus();
       });
     }
 
@@ -142,33 +178,37 @@ class _ProductAdditionDialogState extends State<ProductAdditionDialog> {
             mainAxisSize: MainAxisSize.min,
             crossAxisAlignment: CrossAxisAlignment.stretch,
             children: [
-              Wrap(
-                alignment: WrapAlignment.center,
-                spacing: 8,
-                children: [
-                  ChoiceChip(
-                    label: const Text('₹ રૂપિયાથી'),
-                    selected: _mode == 'amount',
-                    onSelected: (_) => setState(() => _mode = 'amount'),
-                  ),
-                  ChoiceChip(
-                    label: const Text('⚖ વજનથી'),
-                    selected: _mode == 'weight',
-                    onSelected: (_) {
-                      setState(() => _mode = 'weight');
-                      WidgetsBinding.instance.addPostFrameCallback((_) {
-                        if (!mounted) return;
-                        _weightEntryFocusNode.requestFocus();
-                      });
-                    },
-                  ),
-                ],
-              ),
-              const SizedBox(height: 12),
-              if (_mode == 'amount') ...[
+              if (_isWeightProduct) ...[
+                Wrap(
+                  alignment: WrapAlignment.center,
+                  spacing: 8,
+                  children: [
+                    ChoiceChip(
+                      label: const Text('₹ રૂપિયાથી'),
+                      selected: _mode == 'amount',
+                      onSelected: (_) => setState(() => _mode = 'amount'),
+                    ),
+                    ChoiceChip(
+                      label: const Text('⚖ વજનથી'),
+                      selected: _mode == 'weight',
+                      onSelected: (_) {
+                        setState(() => _mode = 'weight');
+                        WidgetsBinding.instance.addPostFrameCallback((_) {
+                          if (!mounted) return;
+                          _entryFocusNode.requestFocus();
+                        });
+                      },
+                    ),
+                  ],
+                ),
+                const SizedBox(height: 12),
+              ],
+
+              if (_isWeightProduct && _mode == 'amount') ...[
                 TextField(
                   autofocus: true,
-                  keyboardType: const TextInputType.numberWithOptions(decimal: true),
+                  keyboardType:
+                      const TextInputType.numberWithOptions(decimal: true),
                   textInputAction: TextInputAction.done,
                   decoration: const InputDecoration(
                     labelText: '₹ રકમ દાખલ કરો',
@@ -195,7 +235,7 @@ class _ProductAdditionDialogState extends State<ProductAdditionDialog> {
                 Focus(
                   onKeyEvent: (node, event) {
                     if (event is KeyDownEvent &&
-                        _weightEntryFocusNode.hasFocus &&
+                        _entryFocusNode.hasFocus &&
                         (event.logicalKey == LogicalKeyboardKey.enter ||
                             event.logicalKey == LogicalKeyboardKey.numpadEnter)) {
                       _submit();
@@ -204,17 +244,26 @@ class _ProductAdditionDialogState extends State<ProductAdditionDialog> {
                     return KeyEventResult.ignored;
                   },
                   child: TextField(
-                    controller: _weightEntryController,
-                    focusNode: _weightEntryFocusNode,
+                    controller: _entryController,
+                    focusNode: _entryFocusNode,
                     autofocus: true,
-                    keyboardType: const TextInputType.numberWithOptions(decimal: true),
+                    keyboardType:
+                        const TextInputType.numberWithOptions(decimal: true),
                     textInputAction: TextInputAction.done,
                     inputFormatters: [
-                      FilteringTextInputFormatter.allow(RegExp(r'^\d*\.?\d{0,3}')),
+                      FilteringTextInputFormatter.allow(
+                        _isWeightProduct
+                            ? RegExp(r'^\d*\.?\d{0,3}')
+                            : RegExp(r'^\d*\.?\d{0,2}'),
+                      ),
                     ],
-                    decoration: const InputDecoration(
-                      labelText: 'વજન (કિલો)',
-                      hintText: 'કિલોમાં દાખલ કરો જેમ કે 1.500',
+                    decoration: InputDecoration(
+                      labelText: _isWeightProduct
+                          ? 'વજન (કિલો)'
+                          : 'નંગ / સંખ્યા (${widget.item.unitType})',
+                      hintText: _isWeightProduct
+                          ? 'કિલોમાં દાખલ કરો જેમ કે 1.500'
+                          : 'નંગ દાખલ કરો જેમ કે 1, 2, 5',
                     ),
                     onChanged: (_) => setState(() {}),
                     onSubmitted: (_) => _submit(),

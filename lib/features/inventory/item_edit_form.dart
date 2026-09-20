@@ -3,7 +3,7 @@ import 'package:flutter_riverpod/flutter_riverpod.dart';
 
 import '../../core/localization/app_strings.dart';
 import '../../core/widgets/primary_button.dart';
-import '../../data/models/category.dart';
+import '../../domain/models/models.dart';
 
 class ItemEditForm extends StatelessWidget {
   const ItemEditForm({

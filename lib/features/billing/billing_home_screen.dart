@@ -1,18 +1,13 @@
 import 'dart:async';
 import 'dart:io';
-import 'dart:ui' as ui;
 
-import 'package:blue_thermal_printer/blue_thermal_printer.dart';
 import 'package:flutter/material.dart';
-import 'package:flutter/rendering.dart';
-import 'package:flutter/services.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 
 import '../../core/constants/app_strings.dart' as strings;
 import '../../core/errors/error_logger.dart';
 import '../../core/errors/error_types.dart';
 
-import '../../shared/widgets/errors/error_dialogue.dart';
 import '../../shared/widgets/errors/error_dialog.dart';
 import '../../shared/widgets/customer_search_field.dart';
 import '../../shared/models/bill_item_model.dart';
@@ -29,6 +24,7 @@ import '../../features/settings/settings_providers.dart';
 import '../../data/providers.dart';
 import '../../data/services/bill_service_provider.dart';
 import '../../features/reports/reports_providers.dart';
+import 'services/billing_print_service.dart';
 import 'views/bill_summary_panel.dart';
 import 'views/bill_lines_panel.dart';
 import 'views/billing_product_panel.dart';
@@ -47,7 +43,7 @@ class BillingHomeScreen extends ConsumerStatefulWidget {
 class _BillingHomeScreenState extends ConsumerState<BillingHomeScreen> {
   final _billBoundaryDesktopKey = GlobalKey();
   final _billBoundaryMobileKey = GlobalKey();
-  final BlueThermalPrinter _bluePrinter = BlueThermalPrinter.instance;
+  final BillingPrintService _billingPrintService = BillingPrintService();
   final _customerController = TextEditingController();
   final _searchController = TextEditingController();
   final _shopNameDialogController = TextEditingController();
@@ -91,6 +87,7 @@ class _BillingHomeScreenState extends ConsumerState<BillingHomeScreen> {
 
   void _setShopName() async {
     _shopNameDialogController.text = _shopName ?? '';
+    final navigator = Navigator.of(context);
     await showDialog<void>(
       context: context,
       builder: (ctx) => AlertDialog(
@@ -124,8 +121,7 @@ class _BillingHomeScreenState extends ConsumerState<BillingHomeScreen> {
                 ref.invalidate(settingsValuesProvider);
               }
 
-              if (!ctx.mounted) return;
-              ctx.pop();
+              navigator.pop();
             },
             child: const Text(strings.AppStrings.saveButton),
           ),
@@ -209,7 +205,7 @@ class _BillingHomeScreenState extends ConsumerState<BillingHomeScreen> {
     final linesSnapshot = ref.read(billingControllerProvider).billLines;
     final discountSnapshot = ref.read(billingControllerProvider).discount;
     final customerIdSnapshot = selectedCustomerId;
-    final customerNameSnapshot = _customerName?.trim();
+    final customerNameSnapshot = _normalizedCustomerName(_customerName);
     final productIds = linesSnapshot
         .map((l) => l.item.id)
         .whereType<int>()
@@ -226,22 +222,15 @@ class _BillingHomeScreenState extends ConsumerState<BillingHomeScreen> {
             : customerNameSnapshot,
         items: billItems,
         discountAmount: discountSnapshot,
-        paidAmount:
-            linesSnapshot.fold(0.0, (s, l) => s + l.amount) - discountSnapshot,
+        paidAmount: transactionType == 'udhaar'
+            ? 0.0
+            : (linesSnapshot.fold(0.0, (s, l) => s + l.amount) - discountSnapshot),
         paymentMode: transactionType,
         userId: null,
       );
 
       if (mounted) {
-        ref.invalidate(reportRepositoryProvider);
-        ref.invalidate(salesReportProvider);
-        ref.invalidate(billingItemsProvider);
-        ref.invalidate(itemListProvider);
-        ref.invalidate(stockDashboardProductsProvider);
-        ref.invalidate(todaysBillsProvider);
-        ref.invalidate(billsProvider);
-        ref.invalidate(billHistoryProvider);
-        ref.invalidate(billHistoryPreviewProvider);
+        _refreshBillingRelatedData();
       }
 
       try {
@@ -321,6 +310,24 @@ class _BillingHomeScreenState extends ConsumerState<BillingHomeScreen> {
     return 'admin';
   }
 
+  String? _normalizedCustomerName(String? value) {
+    final trimmed = value?.trim();
+    if (trimmed == null || trimmed.isEmpty) return null;
+    return trimmed;
+  }
+
+  void _refreshBillingRelatedData() {
+    ref.invalidate(reportRepositoryProvider);
+    ref.invalidate(salesReportProvider);
+    ref.invalidate(billingItemsProvider);
+    ref.invalidate(itemListProvider);
+    ref.invalidate(stockDashboardProductsProvider);
+    ref.invalidate(todaysBillsProvider);
+    ref.invalidate(billsProvider);
+    ref.invalidate(billHistoryProvider);
+    ref.invalidate(billHistoryPreviewProvider);
+  }
+
   Future<double> _getLatestStockKg(int itemId) async {
     final repo = ref.read(itemRepositoryProvider);
     final latestItem = await repo.getById(itemId);
@@ -347,8 +354,9 @@ class _BillingHomeScreenState extends ConsumerState<BillingHomeScreen> {
   }
 
   Future<void> _printBill() async {
+    final messenger = ScaffoldMessenger.of(context);
     if (ref.read(billingControllerProvider).billLines.isEmpty) {
-      ScaffoldMessenger.of(context).showSnackBar(
+      messenger.showSnackBar(
         const SnackBar(content: Text('બિલ ખાલી છે. કૃપયા આઇટમ ઉમેરો.')),
       );
       return;
@@ -361,82 +369,16 @@ class _BillingHomeScreenState extends ConsumerState<BillingHomeScreen> {
       return;
     }
 
-    await _attemptPrintSavedBill(billId, allowRetry: true);
-  }
-
-  Future<Uint8List?> _captureBillImageBytes() async {
-    final boundary =
-        (_billBoundaryDesktopKey.currentContext?.findRenderObject()
-            as RenderRepaintBoundary?) ??
-        (_billBoundaryMobileKey.currentContext?.findRenderObject()
-            as RenderRepaintBoundary?);
-    if (boundary == null || !boundary.attached) return null;
-
-    final ui.Image image = await boundary.toImage(pixelRatio: 2.0);
-    final byteData = await image.toByteData(format: ui.ImageByteFormat.png);
-    return byteData?.buffer.asUint8List();
-  }
-
-  Future<void> _attemptPrintSavedBill(
-    int billId, {
-    required bool allowRetry,
-  }) async {
-    try {
-      final billRepo = ref.read(billRepositoryProvider);
-      final savedBill = await billRepo.getById(billId);
-      final savedBillItems = await billRepo.getBillItems(billId);
-      if (savedBill == null || savedBillItems.isEmpty) {
-        throw StateError('PRINT_001');
-      }
-
-      final connected = await _bluePrinter.isConnected ?? false;
-      if (!connected) {
-        throw StateError('PRINT_001');
-      }
-
-      final billImageBytes = await _captureBillImageBytes();
-      if (billImageBytes == null) {
-        throw StateError('PRINT_001');
-      }
-
-      await _bluePrinter.writeBytes(billImageBytes);
-      if (!mounted) return;
-      _clearCurrentBillDraft();
-      ScaffoldMessenger.of(
-        context,
-      ).showSnackBar(const SnackBar(content: Text('બિલ પ્રિન્ટ થઈ ગયું.')));
-    } catch (error, stack) {
-      final appError = AppError(
-        code: 'PRINT_001',
-        category: ErrorCategory.printing,
-        technicalMessage: error.toString(),
-        userMessage: 'પ્રિન્ટર કનેક્ટ નથી અથવા ભૂલ આવી. બિલ સેવ થઈ ગયું છે.',
-        isCritical: false,
-        timestamp: DateTime.now(),
-        stackTrace: stack,
-      );
-      await ErrorLogger.log(
-        appError,
-        currentScreen: 'BillingHomeScreen._attemptPrintSavedBill',
-      );
-
-      if (!mounted) return;
-
-      if (!allowRetry) {
-        _clearCurrentBillDraft();
-        return;
-      }
-
-      ErrorDialogue.showSnackbar(
-        context,
-        message: 'પ્રિન્ટર કનેક્ટ નથી અથવા ભૂલ આવી. બિલ સેવ થઈ ગયું છે.',
-        code: 'PRINT_001',
-        type: ErrorDialogueType.error,
-        retryCallback: () {
-          _attemptPrintSavedBill(billId, allowRetry: false);
-        },
-      );
-    }
+    await _billingPrintService.attemptPrintSavedBill(
+      messenger,
+      ref,
+      billId: billId,
+      allowRetry: true,
+      desktopKey: _billBoundaryDesktopKey,
+      mobileKey: _billBoundaryMobileKey,
+      isMounted: () => mounted,
+      onClearDraft: _clearCurrentBillDraft,
+    );
   }
 
   String _currentRoleGujaratiLabel() {

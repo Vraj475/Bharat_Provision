@@ -4,29 +4,25 @@ import 'package:file_picker/file_picker.dart';
 import 'package:flutter/foundation.dart';
 import 'package:path/path.dart' as p;
 import 'package:path_provider/path_provider.dart';
-import 'package:sqflite_common/sqflite.dart';
 import 'package:intl/intl.dart';
 
 import '../database/database_helper.dart';
 import '../errors/error_handler.dart';
 
 class BackupService {
-  final Database _db;
+  final DatabaseHelper _dbHelper;
 
-  BackupService(this._db);
+  BackupService([DatabaseHelper? dbHelper])
+      : _dbHelper = dbHelper ?? DatabaseHelper.instance;
 
   /// Exports the current database and saves it as a JSON file.
   /// Returns the path to the saved file if successful, or null if it failed.
   Future<String?> createBackup() async {
     try {
-      final jsonStr = await DatabaseHelper.instance.exportToJson(_db);
+      final db = await _dbHelper.database;
+      final jsonStr = await DatabaseHelper.instance.exportToJson(db);
       
-      Directory dir;
-      if (Platform.isWindows || Platform.isLinux || Platform.isMacOS) {
-        dir = await getApplicationDocumentsDirectory();
-      } else {
-        dir = await getApplicationDocumentsDirectory(); 
-      }
+      final dir = await getApplicationDocumentsDirectory();
 
       final stamp = DateFormat('yyyyMMdd_HHmmss').format(DateTime.now());
       final path = p.join(dir.path, 'KiranaBackup_$stamp.json');
@@ -63,7 +59,8 @@ class BackupService {
       final file = File(path);
       final jsonStr = await file.readAsString();
       
-      await DatabaseHelper.instance.importFromJson(_db, jsonStr);
+      final db = await _dbHelper.database;
+      await DatabaseHelper.instance.importFromJson(db, jsonStr);
       
       if (kDebugMode) {
         debugPrint('Backup restored successfully from $path');

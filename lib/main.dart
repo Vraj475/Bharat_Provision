@@ -25,8 +25,8 @@ void main() {
         sqfliteFfiInit();
       }
 
-      // Initialize the database synchronously for providers
-      final db = await DatabaseHelper.instance.database;
+      // Ensure database is initialized
+      await DatabaseHelper.instance.database;
 
       FlutterError.onError = (details) {
         final String message = details.exceptionAsString();
@@ -44,11 +44,8 @@ void main() {
       };
 
       runApp(
-        ProviderScope(
-          overrides: [
-            databaseProvider.overrideWithValue(db),
-          ],
-          child: const KiranaApp(),
+        const ProviderScope(
+          child: KiranaApp(),
         ),
       );
     },

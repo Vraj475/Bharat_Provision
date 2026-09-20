@@ -166,16 +166,33 @@ class UdhaarRepository {
         'UPDATE bills SET customer_id = ? WHERE customer_id = ?',
         [toCustomerId, fromCustomerId],
       );
-      final balRows =
-          await txn.rawQuery(
-                'SELECT running_balance FROM udhaar_ledger '
-                'WHERE customer_id = ? ORDER BY created_at DESC, id DESC LIMIT 1',
-                [toCustomerId],
-              )
-              as List;
-      final newBalance = balRows.isNotEmpty
-          ? (balRows.first['running_balance'] as num?)?.toDouble() ?? 0.0
-          : 0.0;
+      await txn.rawUpdate(
+        'UPDATE khata_entries SET customer_id = ? WHERE customer_id = ?',
+        [toCustomerId, fromCustomerId],
+      );
+      await txn.rawUpdate(
+        'UPDATE khata_ledger SET customer_id = ? WHERE customer_id = ?',
+        [toCustomerId, fromCustomerId],
+      );
+      await txn.rawUpdate(
+        'UPDATE bill_payments SET customer_id = ? WHERE customer_id = ?',
+        [toCustomerId, fromCustomerId],
+      );
+      await txn.rawUpdate(
+        'UPDATE returns SET customer_id = ? WHERE customer_id = ?',
+        [toCustomerId, fromCustomerId],
+      );
+      await txn.rawUpdate(
+        'UPDATE reminder_log SET customer_id = ? WHERE customer_id = ?',
+        [toCustomerId, fromCustomerId],
+      );
+
+      final unpaidRows = await txn.rawQuery(
+        'SELECT COALESCE(SUM(udhaar_amount), 0) as total FROM bills WHERE customer_id = ? AND payment_status IN (\'udhaar\', \'partial\')',
+        [toCustomerId],
+      );
+      final newBalance = (unpaidRows.first['total'] as num?)?.toDouble() ?? 0.0;
+
       await txn.rawUpdate(
         'UPDATE customers SET total_outstanding = ? WHERE id = ?',
         [newBalance, toCustomerId],
@@ -364,6 +381,20 @@ class UdhaarRepository {
           now,
         ],
       );
+
+      final khataBalRows = await txn.rawQuery(
+        'SELECT balance_after FROM khata_entries WHERE customer_id = ? ORDER BY date_time DESC, id DESC LIMIT 1',
+        [customerId],
+      );
+      final currentKhataBal = khataBalRows.isNotEmpty
+          ? (khataBalRows.first['balance_after'] as num?)?.toDouble() ?? 0.0
+          : 0.0;
+      final newKhataBal = (currentKhataBal - amount).clamp(0.0, double.maxFinite);
+
+      await txn.rawInsert(
+        'INSERT INTO khata_entries (customer_id, date_time, type, amount, note, balance_after) VALUES (?, ?, ?, ?, ?, ?)',
+        [customerId, DateTime.now().millisecondsSinceEpoch, 'credit', amount, note ?? 'એકંદર ચૂકવણી', newKhataBal],
+      );
     });
   }
 
@@ -464,6 +495,20 @@ class UdhaarRepository {
           today,
           now,
         ],
+      );
+
+      final khataBalRows = await txn.rawQuery(
+        'SELECT balance_after FROM khata_entries WHERE customer_id = ? ORDER BY date_time DESC, id DESC LIMIT 1',
+        [customerId],
+      );
+      final currentKhataBal = khataBalRows.isNotEmpty
+          ? (khataBalRows.first['balance_after'] as num?)?.toDouble() ?? 0.0
+          : 0.0;
+      final newKhataBal = (currentKhataBal - actualAmount).clamp(0.0, double.maxFinite);
+
+      await txn.rawInsert(
+        'INSERT INTO khata_entries (customer_id, related_bill_id, date_time, type, amount, note, balance_after) VALUES (?, ?, ?, ?, ?, ?, ?)',
+        [customerId, billId, DateTime.now().millisecondsSinceEpoch, 'credit', actualAmount, note ?? 'બિલ #${bill.billNumber}', newKhataBal],
       );
     });
   }

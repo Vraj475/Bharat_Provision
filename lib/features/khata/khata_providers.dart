@@ -1,7 +1,7 @@
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 
 import '../../shared/models/customer_model.dart';
-import '../../data/models/khata_entry.dart';
+import '../../domain/models/khata_entry.dart';
 import '../../data/providers.dart';
 
 final customerSearchProvider = StateProvider<String>((ref) => '');
@@ -41,10 +41,26 @@ final customersProvider =
       () => CustomersNotifier(),
     );
 
+final bulkCustomerBalancesProvider = FutureProvider<Map<int, double>>((ref) async {
+  final khataRepo = ref.watch(khataRepositoryProvider);
+  return khataRepo.getBulkBalances();
+});
+
 final customerListProvider = FutureProvider<List<Customer>>((ref) async {
-  final repo = ref.watch(customerRepositoryProvider);
-  final query = ref.watch(customerSearchProvider);
-  return repo.search(query);
+  final query = ref.watch(customerSearchProvider).trim().toLowerCase();
+  final allCustomers = await ref.watch(customersProvider.future);
+  
+  if (query.isEmpty) return allCustomers;
+  
+  return allCustomers.where((c) {
+    final nameGujarati = c.nameGujarati.toLowerCase();
+    final nameEnglish = (c.nameEnglish ?? '').toLowerCase();
+    final phone = (c.phone ?? '').toLowerCase();
+    
+    return nameGujarati.contains(query) || 
+           nameEnglish.contains(query) || 
+           phone.contains(query);
+  }).toList();
 });
 
 final customerWithBalanceProvider =

@@ -1,21 +1,23 @@
-import 'package:sqflite_sqlcipher/sqflite.dart';
-
+import '../../core/database/database_helper.dart';
 import '../../shared/models/customer_model.dart';
 
 class CustomerRepository {
-  CustomerRepository(this._db);
+  CustomerRepository([DatabaseHelper? dbHelper])
+      : _dbHelper = dbHelper ?? DatabaseHelper.instance;
 
-  final Database _db;
+  final DatabaseHelper _dbHelper;
 
   Future<List<Customer>> getAll() async {
-    final maps = await _db.query('customers', orderBy: 'name_gujarati ASC');
+    final db = await _dbHelper.database;
+    final maps = await db.query('customers', orderBy: 'name_gujarati ASC');
     return maps.map((m) => Customer.fromMap(m)).toList();
   }
 
   Future<List<Customer>> search(String query) async {
     if (query.trim().isEmpty) return getAll();
+    final db = await _dbHelper.database;
     final q = '%${query.trim()}%';
-    final maps = await _db.query(
+    final maps = await db.query(
       'customers',
       where: 'name_gujarati LIKE ? OR name_english LIKE ? OR phone LIKE ?',
       whereArgs: [q, q, q],
@@ -25,13 +27,15 @@ class CustomerRepository {
   }
 
   Future<Customer?> getById(int id) async {
-    final maps = await _db.query('customers', where: 'id = ?', whereArgs: [id]);
+    final db = await _dbHelper.database;
+    final maps = await db.query('customers', where: 'id = ?', whereArgs: [id]);
     if (maps.isEmpty) return null;
     return Customer.fromMap(maps.first);
   }
 
   Future<int> insert(Customer c) async {
-    return _db.insert('customers', {
+    final db = await _dbHelper.database;
+    return db.insert('customers', {
       'name_gujarati': c.nameGujarati,
       'name_english': c.nameEnglish,
       'phone': c.phone,
@@ -46,7 +50,8 @@ class CustomerRepository {
 
   Future<int> update(Customer c) async {
     if (c.id == null) return 0;
-    return _db.update(
+    final db = await _dbHelper.database;
+    return db.update(
       'customers',
       {
         'name_gujarati': c.nameGujarati,
@@ -64,6 +69,7 @@ class CustomerRepository {
   }
 
   Future<int> delete(int id) async {
-    return _db.delete('customers', where: 'id = ?', whereArgs: [id]);
+    final db = await _dbHelper.database;
+    return db.delete('customers', where: 'id = ?', whereArgs: [id]);
   }
 }

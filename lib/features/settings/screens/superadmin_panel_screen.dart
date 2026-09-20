@@ -289,7 +289,7 @@ class _UserManagerTab extends ConsumerWidget {
                   width: double.infinity,
                   child: ElevatedButton(
                     onPressed: () async {
-                      final db = ref.read(databaseProvider);
+                      final db = await ref.read(databaseHelperProvider).database;
                       final columns = await db.rawQuery(
                         'PRAGMA table_info(users)',
                       );
@@ -547,7 +547,7 @@ class _ShopConfigTabState extends ConsumerState<_ShopConfigTab> {
                           final pinOk = await _showSuperadminPinDialog();
                           if (!pinOk || !context.mounted) return;
 
-                          final db = ref.read(databaseProvider);
+                          final db = await ref.read(databaseHelperProvider).database;
                           await db.transaction((txn) async {
                             await txn.execute('PRAGMA foreign_keys = OFF');
                             final tables = await txn.rawQuery(

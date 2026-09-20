@@ -129,11 +129,9 @@ class _PLReportScreenState extends ConsumerState<PLReportScreen> {
   }
 
   Widget _buildSummary(int startEpoch, int endEpoch) {
-    final repoFuture = ref.watch(reportRepositoryProvider.future);
+    final repo = ref.watch(reportRepositoryProvider);
     return FutureBuilder<PLSummary>(
-      future: repoFuture.then(
-        (repo) => repo.getPLSummary(startEpoch, endEpoch),
-      ),
+      future: repo.getPLSummary(startEpoch, endEpoch),
       builder: (context, snapshot) {
         if (!snapshot.hasData) return const CircularProgressIndicator();
         final summary = snapshot.data!;
@@ -204,11 +202,9 @@ class _PLReportScreenState extends ConsumerState<PLReportScreen> {
   }
 
   Widget _buildSalesBreakdown(int startEpoch, int endEpoch) {
-    final repoFuture = ref.watch(reportRepositoryProvider.future);
+    final repo = ref.watch(reportRepositoryProvider);
     return FutureBuilder<PLSummary>(
-      future: repoFuture.then(
-        (repo) => repo.getPLSummary(startEpoch, endEpoch),
-      ),
+      future: repo.getPLSummary(startEpoch, endEpoch),
       builder: (context, snapshot) {
         if (!snapshot.hasData) return const SizedBox.shrink();
         final summary = snapshot.data!;
@@ -243,11 +239,9 @@ class _PLReportScreenState extends ConsumerState<PLReportScreen> {
   }
 
   Widget _buildExpensesBreakdown(int startEpoch, int endEpoch) {
-    final repoFuture = ref.watch(reportRepositoryProvider.future);
+    final repo = ref.watch(reportRepositoryProvider);
     return FutureBuilder<PLSummary>(
-      future: repoFuture.then(
-        (repo) => repo.getPLSummary(startEpoch, endEpoch),
-      ),
+      future: repo.getPLSummary(startEpoch, endEpoch),
       builder: (context, snapshot) {
         if (!snapshot.hasData) return const SizedBox.shrink();
         final summary = snapshot.data!;
@@ -277,9 +271,9 @@ class _PLReportScreenState extends ConsumerState<PLReportScreen> {
   }
 
   Widget _buildDailyChart(int startEpoch, int endEpoch) {
-    final repoFuture = ref.watch(reportRepositoryProvider.future);
+    final repo = ref.watch(reportRepositoryProvider);
     return FutureBuilder<List<DailyPL>>(
-      future: repoFuture.then((repo) => repo.getDailyPL(startEpoch, endEpoch)),
+      future: repo.getDailyPL(startEpoch, endEpoch),
       builder: (context, snapshot) {
         if (!snapshot.hasData) return const CircularProgressIndicator();
         final data = snapshot.data!;

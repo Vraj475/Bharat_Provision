@@ -1,15 +1,16 @@
-import 'package:sqflite_sqlcipher/sqflite.dart';
-
+import '../../core/database/database_helper.dart';
 import '../../shared/models/expense_account_model.dart';
 import '../../shared/models/expense_model.dart';
 
 class ExpenseRepository {
-  ExpenseRepository(this._db);
+  ExpenseRepository([DatabaseHelper? dbHelper])
+      : _dbHelper = dbHelper ?? DatabaseHelper.instance;
 
-  final Database _db;
+  final DatabaseHelper _dbHelper;
 
   Future<List<ExpenseAccount>> getExpenseAccounts() async {
-    final results = await _db.query(
+    final db = await _dbHelper.database;
+    final results = await db.query(
       'expense_accounts',
       where: 'is_active = ?',
       whereArgs: [1],
@@ -18,7 +19,8 @@ class ExpenseRepository {
   }
 
   Future<int> addExpense(Expense expense) async {
-    return _db.transaction((txn) async {
+    final db = await _dbHelper.database;
+    return db.transaction((txn) async {
       final expenseId = await txn.insert('expenses', expense.toMap());
 
       String accountName = expense.accountNameSnapshot ?? 'ખર્ચ';
@@ -37,19 +39,17 @@ class ExpenseRepository {
         }
       }
 
-      final entryDate = expense.expenseDate.split('T').first;
-      final createdAt = DateTime.now().toIso8601String();
       await txn.insert('khata_ledger', {
-        'entry_type': 'debit',
+        'entry_type': 'expense',
         'account_name': accountName,
         'customer_id': null,
         'amount': expense.amount,
-        'payment_mode': null,
+        'payment_mode': 'cash',
         'reference_type': 'expense',
         'reference_id': expenseId,
         'note': expense.description,
-        'entry_date': entryDate,
-        'created_at': createdAt,
+        'entry_date': expense.expenseDate.split('T').first,
+        'created_at': DateTime.now().toIso8601String(),
       });
 
       return expenseId;
@@ -57,14 +57,16 @@ class ExpenseRepository {
   }
 
   Future<Expense?> getExpenseById(int id) async {
-    final rows = await _db.query('expenses', where: 'id = ?', whereArgs: [id]);
+    final db = await _dbHelper.database;
+    final rows = await db.query('expenses', where: 'id = ?', whereArgs: [id]);
     if (rows.isEmpty) return null;
     return Expense.fromMap(rows.first);
   }
 
   Future<void> updateExpense(Expense expense) async {
     if (expense.id == null) return;
-    await _db.transaction((txn) async {
+    final db = await _dbHelper.database;
+    await db.transaction((txn) async {
       await txn.update(
         'expenses',
         expense.toMap(),
@@ -103,12 +105,14 @@ class ExpenseRepository {
   }
 
   Future<int> addExpenseAccount(ExpenseAccount account) async {
-    return _db.insert('expense_accounts', account.toMap());
+    final db = await _dbHelper.database;
+    return db.insert('expense_accounts', account.toMap());
   }
 
   Future<void> updateExpenseAccount(ExpenseAccount account) async {
     if (account.id == null) return;
-    await _db.update(
+    final db = await _dbHelper.database;
+    await db.update(
       'expense_accounts',
       account.toMap(),
       where: 'id = ?',
@@ -117,7 +121,8 @@ class ExpenseRepository {
   }
 
   Future<void> toggleExpenseAccountStatus(int id, bool isActive) async {
-    await _db.update(
+    final db = await _dbHelper.database;
+    await db.update(
       'expense_accounts',
       {'is_active': isActive ? 1 : 0},
       where: 'id = ?',
@@ -127,7 +132,8 @@ class ExpenseRepository {
 
   Future<void> resetExpenseAccountsToDefaults() async {
     final now = DateTime.now().toIso8601String();
-    await _db.transaction((txn) async {
+    final db = await _dbHelper.database;
+    await db.transaction((txn) async {
       await txn.delete('expense_accounts');
       const defaults = [
         {
@@ -186,12 +192,12 @@ class ExpenseRepository {
     String where = '';
     List<dynamic> whereArgs = [];
     if (startDate != null) {
-      where += 'date >= ?';
+      where += 'expense_date >= ?';
       whereArgs.add(startDate.toIso8601String());
     }
     if (endDate != null) {
       if (where.isNotEmpty) where += ' AND ';
-      where += 'date < ?';
+      where += 'expense_date < ?';
       whereArgs.add(endDate.toIso8601String());
     }
     if (accountId != null) {
@@ -200,16 +206,18 @@ class ExpenseRepository {
       whereArgs.add(accountId);
     }
 
-    final results = await _db.query(
+    final db = await _dbHelper.database;
+    final results = await db.query(
       'expenses',
       where: where.isEmpty ? null : where,
       whereArgs: whereArgs.isEmpty ? null : whereArgs,
-      orderBy: 'date DESC',
+      orderBy: 'expense_date DESC',
     );
     return results.map((row) => Expense.fromMap(row)).toList();
   }
 
   Future<void> deleteExpense(int id) async {
-    await _db.delete('expenses', where: 'id = ?', whereArgs: [id]);
+    final db = await _dbHelper.database;
+    await db.delete('expenses', where: 'id = ?', whereArgs: [id]);
   }
 }

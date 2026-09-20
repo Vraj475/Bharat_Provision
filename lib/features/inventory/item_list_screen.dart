@@ -6,9 +6,12 @@ import '../../core/localization/app_strings.dart';
 import '../../core/theme/app_colors.dart';
 import '../../core/utils/currency_format.dart';
 import '../../core/widgets/confirm_dialog.dart';
+import '../../core/utils/debouncer.dart';
 import '../../shared/models/product_model.dart';
 import '../../data/providers.dart';
 import '../../routing/app_router.dart';
+import '../../core/widgets/hover_effects.dart';
+import '../../core/widgets/dialogs_and_snackbars.dart';
 import 'inventory_providers.dart';
 
 class ItemListScreen extends ConsumerStatefulWidget {
@@ -20,17 +23,21 @@ class ItemListScreen extends ConsumerStatefulWidget {
 
 class _ItemListScreenState extends ConsumerState<ItemListScreen> {
   final _searchController = TextEditingController();
+  final _debouncer = Debouncer(milliseconds: 300);
 
   @override
   void initState() {
     super.initState();
     _searchController.addListener(() {
-      ref.read(itemListSearchProvider.notifier).state = _searchController.text;
+      _debouncer.run(() {
+        ref.read(itemListSearchProvider.notifier).state = _searchController.text;
+      });
     });
   }
 
   @override
   void dispose() {
+    _debouncer.dispose();
     _searchController.dispose();
     super.dispose();
   }
@@ -94,7 +101,7 @@ class _ItemListScreenState extends ConsumerState<ItemListScreen> {
                   itemCount: items.length,
                   itemBuilder: (ctx, i) {
                     final item = items[i];
-                    return Card(
+                    return HoverableCard(
                       child: ListTile(
                         leading: CircleAvatar(
                           backgroundColor: _stockColor(item),
@@ -105,7 +112,7 @@ class _ItemListScreenState extends ConsumerState<ItemListScreen> {
                         ),
                         title: Text(item.nameGujarati),
                         subtitle: Text(
-                          '${formatCurrency(item.sellPrice)} • ${item.stockQty} ${item.unitType}',
+                          '${formatCurrency(item.sellPrice)} • ${formatQuantity(item.stockQty)} ${item.unitType}',
                         ),
                         trailing: PopupMenuButton<String>(
                           onSelected: (v) {
@@ -174,17 +181,21 @@ class _ItemListScreenState extends ConsumerState<ItemListScreen> {
     if (ok != true || !mounted) return;
 
     String message;
+    bool isError = false;
     try {
       final repo = ref.read(itemRepositoryProvider);
       await repo.delete(item.id!);
       ref.invalidate(itemListProvider);
       message = 'ઉત્પાદ સફળતાપૂર્વક કાઢી નાખ્યું';
     } catch (e) {
+      isError = true;
       message = '${AppStrings.errorGeneric} $e';
     }
     if (!mounted) return;
-    ScaffoldMessenger.of(
-      context,
-    ).showSnackBar(SnackBar(content: Text(message)));
+    if (isError) {
+      EnhancedSnackbar.showError(context, message);
+    } else {
+      EnhancedSnackbar.showSuccess(context, message);
+    }
   }
 }

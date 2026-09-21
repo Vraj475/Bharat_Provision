@@ -102,9 +102,9 @@ class _ProductAdditionDialogState extends State<ProductAdditionDialog> {
         finalQty = grams;
       }
     } else {
-      // Non-weight items (piece/packet/unit) - number of items only
+      // Non-weight items (piece/packet/unit) - whole number of items only
       final raw = _entryController.text.trim();
-      final parsed = double.tryParse(raw);
+      final parsed = int.tryParse(raw);
       if (raw.isEmpty || parsed == null || parsed <= 0) {
         ScaffoldMessenger.of(context).showSnackBar(
           const SnackBar(content: Text('નંગ / સંખ્યા દાખલ કરો')),
@@ -112,7 +112,7 @@ class _ProductAdditionDialogState extends State<ProductAdditionDialog> {
         FocusScope.of(context).requestFocus(_entryFocusNode);
         return;
       }
-      finalQty = parsed;
+      finalQty = parsed.toDouble();
       finalAmount = finalQty * item.sellPrice;
     }
 
@@ -153,7 +153,7 @@ class _ProductAdditionDialogState extends State<ProductAdditionDialog> {
         }
       }
     } else {
-      final parsedQty = double.tryParse(_entryController.text.trim());
+      final parsedQty = int.tryParse(_entryController.text.trim());
       if (parsedQty != null && parsedQty > 0) {
         calculatedAmount = parsedQty * widget.item.sellPrice;
       }
@@ -247,14 +247,15 @@ class _ProductAdditionDialogState extends State<ProductAdditionDialog> {
                     controller: _entryController,
                     focusNode: _entryFocusNode,
                     autofocus: true,
-                    keyboardType:
-                        const TextInputType.numberWithOptions(decimal: true),
+                    keyboardType: _isWeightProduct
+                        ? const TextInputType.numberWithOptions(decimal: true)
+                        : TextInputType.number,
                     textInputAction: TextInputAction.done,
                     inputFormatters: [
                       FilteringTextInputFormatter.allow(
                         _isWeightProduct
                             ? RegExp(r'^\d*\.?\d{0,3}')
-                            : RegExp(r'^\d*\.?\d{0,2}'),
+                            : RegExp(r'^\d+'),
                       ),
                     ],
                     decoration: InputDecoration(

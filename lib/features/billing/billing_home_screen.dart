@@ -20,7 +20,6 @@ import '../../core/services/notification_service.dart';
 import '../../features/inventory/inventory_providers.dart';
 import '../../features/stock/stock_providers.dart';
 import '../../features/settings/providers/auth_provider.dart';
-import '../../features/settings/settings_providers.dart';
 import '../../data/providers.dart';
 import '../../data/services/bill_service_provider.dart';
 import '../../features/reports/reports_providers.dart';
@@ -46,14 +45,11 @@ class _BillingHomeScreenState extends ConsumerState<BillingHomeScreen> {
   final BillingPrintService _billingPrintService = BillingPrintService();
   final _customerController = TextEditingController();
   final _searchController = TextEditingController();
-  final _shopNameDialogController = TextEditingController();
   final _productSearchFocusNode = FocusNode();
   
   String? _bannerMessage;
   String? _customerName;
-  String? _shopName;
   int? _customerId;
-  bool _isDisposed = false;
 
   @override
   void initState() {
@@ -62,72 +58,15 @@ class _BillingHomeScreenState extends ConsumerState<BillingHomeScreen> {
       if (!mounted) return;
       ref.read(billingSearchProvider.notifier).state = '';
       ref.invalidate(billingItemsProvider);
-      _loadShopProfileFromSettings();
-    });
-  }
-
-  Future<void> _loadShopProfileFromSettings() async {
-    final repo = ref.read(settingsRepositoryProvider);
-    final savedShopName = (await repo.get('shop_name')).trim();
-    if (!mounted) return;
-    setState(() {
-      _shopName = savedShopName.isEmpty ? null : savedShopName;
     });
   }
 
   @override
   void dispose() {
-    _isDisposed = true;
-    _shopNameDialogController.dispose();
     _customerController.dispose();
     _searchController.dispose();
     _productSearchFocusNode.dispose();
     super.dispose();
-  }
-
-  void _setShopName() async {
-    _shopNameDialogController.text = _shopName ?? '';
-    final navigator = Navigator.of(context);
-    await showDialog<void>(
-      context: context,
-      builder: (ctx) => AlertDialog(
-        title: const Text('દુકાનનું નામ દાખલ કરો'),
-        content: TextField(
-          controller: _shopNameDialogController,
-          autofocus: true,
-          decoration: const InputDecoration(
-            labelText: 'દુકાનનું નામ',
-            hintText: 'દુકાનનું નામ દાખલ કરો...',
-          ),
-        ),
-        actions: [
-          TextButton(
-            onPressed: () => ctx.pop(),
-            child: const Text(strings.AppStrings.cancelButton),
-          ),
-          ElevatedButton(
-            onPressed: () async {
-              final newShopName = _shopNameDialogController.text.trim().isEmpty
-                  ? null
-                  : _shopNameDialogController.text.trim();
-
-              if (!mounted || _isDisposed) return;
-              setState(() => _shopName = newShopName);
-
-              if (newShopName != null) {
-                final repo = ref.read(settingsRepositoryProvider);
-                await repo.set('shop_name', newShopName);
-                ref.invalidate(shopNameProvider);
-                ref.invalidate(settingsValuesProvider);
-              }
-
-              navigator.pop();
-            },
-            child: const Text(strings.AppStrings.saveButton),
-          ),
-        ],
-      ),
-    );
   }
 
   Future<void> _saveBill() async {
@@ -532,7 +471,6 @@ class _BillingHomeScreenState extends ConsumerState<BillingHomeScreen> {
         Expanded(
           flex: 2,
           child: BillingProductPanel(
-            customerName: _customerName,
             checkStock: _hasEnoughStockForDraft,
             productSearchFocusNode: _productSearchFocusNode,
             searchController: _searchController,
@@ -556,7 +494,6 @@ class _BillingHomeScreenState extends ConsumerState<BillingHomeScreen> {
         Expanded(
           flex: 2,
           child: BillingProductPanel(
-            customerName: _customerName,
             checkStock: _hasEnoughStockForDraft,
             productSearchFocusNode: _productSearchFocusNode,
             searchController: _searchController,
@@ -587,57 +524,25 @@ class _BillingHomeScreenState extends ConsumerState<BillingHomeScreen> {
                 'હાલનો બિલ',
                 style: TextStyle(fontSize: 16, fontWeight: FontWeight.bold),
               ),
-              Row(
-                mainAxisSize: MainAxisSize.min,
-                children: [
-                  GestureDetector(
-                    onTap: _setShopName,
-                    child: Container(
-                      padding: const EdgeInsets.symmetric(
-                        horizontal: 8,
-                        vertical: 4,
-                      ),
-                      decoration: BoxDecoration(
-                        border: Border.all(color: Colors.blue),
-                        borderRadius: BorderRadius.circular(4),
-                      ),
-                      child: Row(
-                        mainAxisSize: MainAxisSize.min,
-                        children: [
-                          const Icon(Icons.store, size: 16, color: Colors.blue),
-                          const SizedBox(width: 4),
-                          Text(
-                            _shopName ?? 'દુકાન નામ',
-                            style: TextStyle(
-                              fontSize: 12,
-                              color: _shopName != null
-                                  ? Colors.black
-                                  : Colors.grey,
-                            ),
-                          ),
-                        ],
-                      ),
-                    ),
+              const SizedBox(width: 12),
+              Flexible(
+                child: ConstrainedBox(
+                  constraints: const BoxConstraints(maxWidth: 300),
+                  child: CustomerSearchField(
+                    controller: _customerController,
+                    hintText: 'ગ્રાહક ઉમેરો',
+                    onCustomerSelected: (customerId, customerName) {
+                      ref
+                          .read(billingTabsProvider.notifier)
+                          .setSelectedCustomer(customerId, customerName);
+                      setState(() {
+                        _customerId = customerId;
+                        _customerName = customerName;
+                      });
+                      _productSearchFocusNode.requestFocus();
+                    },
                   ),
-                  const SizedBox(width: 8),
-                  SizedBox(
-                    width: 280,
-                    child: CustomerSearchField(
-                      controller: _customerController,
-                      hintText: 'ગ્રાહક ઉમેરો',
-                      onCustomerSelected: (customerId, customerName) {
-                        ref
-                            .read(billingTabsProvider.notifier)
-                            .setSelectedCustomer(customerId, customerName);
-                        setState(() {
-                          _customerId = customerId;
-                          _customerName = customerName;
-                        });
-                        _productSearchFocusNode.requestFocus();
-                      },
-                    ),
-                  ),
-                ],
+                ),
               ),
             ],
           ),

@@ -17,14 +17,12 @@ import 'package:go_router/go_router.dart';
 enum BillingDropdownType { none, product }
 
 class BillingProductPanel extends ConsumerStatefulWidget {
-  final String? customerName;
   final Future<bool> Function({required int itemId, required double newQtyGrams, int? excludeLineIndex}) checkStock;
   final FocusNode productSearchFocusNode;
   final TextEditingController searchController;
 
   const BillingProductPanel({
     super.key,
-    required this.customerName,
     required this.checkStock,
     required this.productSearchFocusNode,
     required this.searchController,
@@ -408,59 +406,28 @@ class _BillingProductPanelState extends ConsumerState<BillingProductPanel> {
                   ),
                   const SizedBox(height: 12),
                   Container(
-                    padding: const EdgeInsets.symmetric(
-                      horizontal: 12,
-                      vertical: 14,
-                    ),
-                    decoration: BoxDecoration(
-                      border: Border.all(color: Colors.grey),
-                      borderRadius: BorderRadius.circular(4),
-                      color: Colors.white,
-                    ),
-                    child: Row(
-                      children: [
-                        const Icon(Icons.person, size: 16),
-                        const SizedBox(width: 8),
-                        Expanded(
-                          child: Text(
-                            widget.customerName ?? 'ગ્રાહક પસંદ કરો (જરૂરી)',
-                            style: TextStyle(
-                              fontSize: 12,
-                              color: widget.customerName != null
-                                  ? Colors.black
-                                  : Colors.grey,
-                            ),
-                          ),
-                        ),
-                      ],
-                    ),
-                  ),
-                  const SizedBox(height: 8),
-                  IgnorePointer(
-                    child: Container(
-                      key: _productFieldKey,
-                      child: TextField(
-                        controller: widget.searchController,
-                        focusNode: widget.productSearchFocusNode,
-                        decoration: const InputDecoration(
-                          prefixIcon: Icon(Icons.search),
-                          hintText: strings.AppStrings.searchHintProducts,
-                          border: OutlineInputBorder(),
-                        ),
-                        onTap: () {
-                          if (widget.searchController.text.trim().isNotEmpty) {
-                            _openDropdown(BillingDropdownType.product);
-                          }
-                        },
-                        onChanged: (value) {
-                          ref.read(billingSearchProvider.notifier).state = value;
-                          if (value.trim().isEmpty) {
-                            _closeAllDropdowns();
-                          } else {
-                            _openDropdown(BillingDropdownType.product);
-                          }
-                        },
+                    key: _productFieldKey,
+                    child: TextField(
+                      controller: widget.searchController,
+                      focusNode: widget.productSearchFocusNode,
+                      decoration: const InputDecoration(
+                        prefixIcon: Icon(Icons.search),
+                        hintText: strings.AppStrings.searchHintProducts,
+                        border: OutlineInputBorder(),
                       ),
+                      onTap: () {
+                        if (widget.searchController.text.trim().isNotEmpty) {
+                          _openDropdown(BillingDropdownType.product);
+                        }
+                      },
+                      onChanged: (value) {
+                        ref.read(billingSearchProvider.notifier).state = value;
+                        if (value.trim().isEmpty) {
+                          _closeAllDropdowns();
+                        } else {
+                          _openDropdown(BillingDropdownType.product);
+                        }
+                      },
                     ),
                   ),
                 ],

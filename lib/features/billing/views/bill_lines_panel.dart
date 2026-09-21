@@ -59,9 +59,22 @@ class _BillLinesPanelState extends ConsumerState<BillLinesPanel> {
     _editingField = null;
   }
 
-  double _lineSellPricePerKg(BillLineItem line) {
+  bool _isWeightItem(BillLineItem line) {
+    final u = line.item.unitType.trim().toLowerCase();
+    return u.contains('કિલો') ||
+        u == 'kg' ||
+        u.contains('kilo') ||
+        u.contains('ગ્રામ') ||
+        u == 'g' ||
+        u.contains('gram');
+  }
+
+  double _lineUnitPrice(BillLineItem line) {
     if (line.qtyGrams <= 0) return line.item.sellPrice;
-    return (line.amount * 1000.0) / line.qtyGrams;
+    if (_isWeightItem(line)) {
+      return (line.amount * 1000.0) / line.qtyGrams;
+    }
+    return line.amount / line.qtyGrams;
   }
 
   String _kgEditableText(double qtyGrams) {
@@ -70,8 +83,6 @@ class _BillLinesPanelState extends ConsumerState<BillLinesPanel> {
 
   void _startInlineEdit(int index, _DraftEditableField field) {
     if (index < 0 || index >= ref.read(billingControllerProvider).billLines.length) return;
-
-
 
     if (_editingLineKey != null) {
       _commitInlineEdit();
@@ -86,9 +97,11 @@ class _BillLinesPanelState extends ConsumerState<BillLinesPanel> {
     final lineController = _lineEditControllers[lineKey]!;
     final lineFocusNode = _lineEditFocusNodes[lineKey]!;
 
+    final isWeight = _isWeightItem(line);
     final initialValue = switch (field) {
-      _DraftEditableField.quantity => _kgEditableText(line.qtyGrams),
-      _DraftEditableField.price => _lineSellPricePerKg(line).toStringAsFixed(2),
+      _DraftEditableField.quantity =>
+        isWeight ? _kgEditableText(line.qtyGrams) : line.qtyGrams.toInt().toString(),
+      _DraftEditableField.price => _lineUnitPrice(line).toStringAsFixed(2),
       _DraftEditableField.amount => line.amount.toStringAsFixed(2),
     };
 
@@ -139,44 +152,84 @@ class _BillLinesPanelState extends ConsumerState<BillLinesPanel> {
 
       final line = ref.read(billingControllerProvider).billLines[editingIndex];
       final raw = controller.text.trim();
-      final parsed = double.tryParse(raw);
+      final isWeight = _isWeightItem(line);
 
       BillLineItem updatedLine = line;
       if (editingField == _DraftEditableField.quantity) {
-        if (raw.isEmpty || parsed == null || parsed <= 0) {
-          ScaffoldMessenger.of(
-            context,
-          ).showSnackBar(const SnackBar(content: Text('વજન શૂન્ય ન હોઈ શકે')));
-          setState(_clearInlineEditState);
-          return;
-        }
+        if (isWeight) {
+          final parsed = double.tryParse(raw);
+          if (raw.isEmpty || parsed == null || parsed <= 0) {
+            ScaffoldMessenger.of(
+              context,
+            ).showSnackBar(const SnackBar(content: Text('વજન શૂન્ય ન હોઈ શકે')));
+            setState(_clearInlineEditState);
+            return;
+          }
 
-        final newQtyGrams = parsed * 1000.0;
-        final itemId = line.item.id;
-        if (itemId != null) {
-          final hasStock = await widget.checkStock(
-            itemId: itemId,
-            newQtyGrams: newQtyGrams,
-            excludeLineIndex: editingIndex,
-          );
-          if (!mounted) return;
-          if (!hasStock) {
-            ScaffoldMessenger.of(context).showSnackBar(
-              const SnackBar(
-                content: Text(
-                  'સ્ટોક અવેલેબલ નથી કૃપા કરી ખરીદી ની યાદી માં એડ કરો',
+          final newQtyGrams = parsed * 1000.0;
+          final itemId = line.item.id;
+          if (itemId != null) {
+            final hasStock = await widget.checkStock(
+              itemId: itemId,
+              newQtyGrams: newQtyGrams,
+              excludeLineIndex: editingIndex,
+            );
+            if (!mounted) return;
+            if (!hasStock) {
+              ScaffoldMessenger.of(context).showSnackBar(
+                const SnackBar(
+                  content: Text(
+                    'સ્ટોક અવેલેબલ નથી કૃપા કરી ખરીદી ની યાદી માં એડ કરો',
+                  ),
                 ),
-              ),
+              );
+              setState(_clearInlineEditState);
+              return;
+            }
+          }
+
+          final existingUnitPrice = _lineUnitPrice(line);
+          final newAmount = (newQtyGrams / 1000.0) * existingUnitPrice;
+          updatedLine = line.copyWith(qtyGrams: newQtyGrams, amount: newAmount);
+        } else {
+          // Non-weight items - whole numbers only
+          final parsed = int.tryParse(raw);
+          if (raw.isEmpty || parsed == null || parsed <= 0) {
+            ScaffoldMessenger.of(context).showSnackBar(
+              const SnackBar(content: Text('સંખ્યા શૂન્ય ન હોઈ શકે')),
             );
             setState(_clearInlineEditState);
             return;
           }
-        }
 
-        final existingSellPrice = _lineSellPricePerKg(line);
-        final newAmount = (newQtyGrams / 1000.0) * existingSellPrice;
-        updatedLine = line.copyWith(qtyGrams: newQtyGrams, amount: newAmount);
+          final newQtyGrams = parsed.toDouble();
+          final itemId = line.item.id;
+          if (itemId != null) {
+            final hasStock = await widget.checkStock(
+              itemId: itemId,
+              newQtyGrams: newQtyGrams,
+              excludeLineIndex: editingIndex,
+            );
+            if (!mounted) return;
+            if (!hasStock) {
+              ScaffoldMessenger.of(context).showSnackBar(
+                const SnackBar(
+                  content: Text(
+                    'સ્ટોક અવેલેબલ નથી કૃપા કરી ખરીદી ની યાદી માં એડ કરો',
+                  ),
+                ),
+              );
+              setState(_clearInlineEditState);
+              return;
+            }
+          }
+
+          final existingUnitPrice = _lineUnitPrice(line);
+          final newAmount = newQtyGrams * existingUnitPrice;
+          updatedLine = line.copyWith(qtyGrams: newQtyGrams, amount: newAmount);
+        }
       } else if (editingField == _DraftEditableField.price) {
+        final parsed = double.tryParse(raw);
         if (raw.isEmpty || parsed == null || parsed <= 0) {
           ScaffoldMessenger.of(context).showSnackBar(
             const SnackBar(content: Text('કિંમત શૂન્ય ન હોઈ શકે')),
@@ -185,9 +238,12 @@ class _BillLinesPanelState extends ConsumerState<BillLinesPanel> {
           return;
         }
 
-        final newAmount = (line.qtyGrams / 1000.0) * parsed;
+        final newAmount = isWeight
+            ? (line.qtyGrams / 1000.0) * parsed
+            : line.qtyGrams * parsed;
         updatedLine = line.copyWith(amount: newAmount);
       } else {
+        final parsed = double.tryParse(raw);
         if (raw.isEmpty || parsed == null || parsed <= 0) {
           ScaffoldMessenger.of(
             context,
@@ -196,8 +252,8 @@ class _BillLinesPanelState extends ConsumerState<BillLinesPanel> {
           return;
         }
 
-        final sellPrice = _lineSellPricePerKg(line);
-        if (sellPrice <= 0) {
+        final unitPrice = _lineUnitPrice(line);
+        if (unitPrice <= 0) {
           ScaffoldMessenger.of(context).showSnackBar(
             const SnackBar(content: Text('કિંમત શૂન્ય ન હોઈ શકે')),
           );
@@ -205,7 +261,9 @@ class _BillLinesPanelState extends ConsumerState<BillLinesPanel> {
           return;
         }
 
-        final newQtyGrams = (parsed / sellPrice) * 1000.0;
+        final newQtyGrams = isWeight
+            ? (parsed / unitPrice) * 1000.0
+            : (parsed / unitPrice).roundToDouble().clamp(1.0, double.infinity);
         updatedLine = line.copyWith(qtyGrams: newQtyGrams, amount: parsed);
       }
 
@@ -238,10 +296,10 @@ class _BillLinesPanelState extends ConsumerState<BillLinesPanel> {
 
     final messenger = ScaffoldMessenger.of(context);
     messenger.hideCurrentSnackBar();
-    messenger.showSnackBar(
+    final snackBarController = messenger.showSnackBar(
       SnackBar(
         content: const Text('આઇટમ કાઢી નાખવી?'),
-        duration: const Duration(seconds: 3),
+        duration: const Duration(seconds: 4),
         action: SnackBarAction(
           label: 'Undo',
           onPressed: () {
@@ -258,6 +316,10 @@ class _BillLinesPanelState extends ConsumerState<BillLinesPanel> {
         ),
       ),
     );
+
+    Future.delayed(const Duration(seconds: 4), () {
+      snackBarController.close();
+    });
   }
 
   Widget _buildEditableValueChip({
@@ -269,6 +331,7 @@ class _BillLinesPanelState extends ConsumerState<BillLinesPanel> {
     required ValueChanged<String> onSubmitted,
     required TextInputType keyboardType,
     String? prefixText,
+    bool allowDecimal = true,
   }) {
     if (isEditing) {
       return SizedBox(
@@ -279,7 +342,9 @@ class _BillLinesPanelState extends ConsumerState<BillLinesPanel> {
           keyboardType: keyboardType,
           textInputAction: TextInputAction.done,
           inputFormatters: [
-            FilteringTextInputFormatter.allow(RegExp(r'^\d*\.?\d*')),
+            FilteringTextInputFormatter.allow(
+              allowDecimal ? RegExp(r'^\d*\.?\d*') : RegExp(r'^\d+'),
+            ),
           ],
           onSubmitted: onSubmitted,
           onTapOutside: (_) => _commitInlineEdit(),
@@ -331,8 +396,11 @@ class _BillLinesPanelState extends ConsumerState<BillLinesPanel> {
         isEditingRow && _editingField == _DraftEditableField.price;
     final isEditingAmount =
         isEditingRow && _editingField == _DraftEditableField.amount;
-    final qtyDisplay = '${_kgEditableText(line.qtyGrams)} કિલો';
-    final priceDisplay = '₹${_lineSellPricePerKg(line).toStringAsFixed(2)}';
+    final isWeight = _isWeightItem(line);
+    final qtyDisplay = isWeight
+        ? '${_kgEditableText(line.qtyGrams)} કિલો'
+        : '${line.qtyGrams.toInt()} ${line.item.unitType}';
+    final priceDisplay = '₹${_lineUnitPrice(line).toStringAsFixed(2)}';
 
     return Container(
       margin: const EdgeInsets.symmetric(horizontal: 8, vertical: 4),
@@ -366,9 +434,10 @@ class _BillLinesPanelState extends ConsumerState<BillLinesPanel> {
                       onTap: () =>
                           _startInlineEdit(index, _DraftEditableField.quantity),
                       onSubmitted: (_) => _commitInlineEdit(),
-                      keyboardType: const TextInputType.numberWithOptions(
-                        decimal: true,
-                      ),
+                      keyboardType: isWeight
+                          ? const TextInputType.numberWithOptions(decimal: true)
+                          : TextInputType.number,
+                      allowDecimal: isWeight,
                     ),
                     _buildEditableValueChip(
                       isEditing: isEditingPrice,

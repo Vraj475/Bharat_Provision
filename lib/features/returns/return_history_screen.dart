@@ -31,25 +31,37 @@ class _ReturnHistoryScreenState extends ConsumerState<ReturnHistoryScreen> {
     try {
       final repo = ref.read(returnRepositoryProvider);
       final rows = await repo.getReturnHistory();
+      if (!mounted) return;
       setState(() {
         _returns = rows;
       });
     } catch (e) {
+      if (!mounted) return;
       setState(() {
         _error = e.toString();
       });
     } finally {
-      setState(() {
-        _loading = false;
-      });
+      if (mounted) {
+        setState(() {
+          _loading = false;
+        });
+      }
     }
+  }
+
+  String _formatDate(String isoString) {
+    final parsed = DateTime.tryParse(isoString);
+    if (parsed != null) {
+      return '${parsed.day.toString().padLeft(2, '0')}/${parsed.month.toString().padLeft(2, '0')}/${parsed.year} ${parsed.hour.toString().padLeft(2, '0')}:${parsed.minute.toString().padLeft(2, '0')}';
+    }
+    return isoString;
   }
 
   @override
   Widget build(BuildContext context) {
     return Scaffold(
       appBar: AppBar(
-        title: const Text('પાછું આપવાનો ઇતિહાસ'),
+        title: const Text('પાછું આપવાનો ઇતિહાસ (Return History)'),
         actions: [
           IconButton(icon: const Icon(Icons.refresh), onPressed: _loadHistory),
         ],
@@ -57,18 +69,75 @@ class _ReturnHistoryScreenState extends ConsumerState<ReturnHistoryScreen> {
       body: _loading
           ? const Center(child: CircularProgressIndicator())
           : _error != null
-          ? Center(child: Text('Error: $_error'))
+          ? Center(child: Text('ભૂલ: $_error'))
           : _returns.isEmpty
-          ? const Center(child: Text('No returns yet'))
+          ? const Center(child: Text('હજુ સુધી કોઈ પરત નોંધાયેલ નથી'))
           : ListView.builder(
+              padding: const EdgeInsets.all(12),
               itemCount: _returns.length,
               itemBuilder: (context, index) {
                 final r = _returns[index];
-                return ListTile(
-                  leading: const Icon(Icons.undo),
-                  title: Text('Return #${r.id ?? ''}'),
-                  subtitle: Text(
-                    '${r.returnDate.substring(0, 10)} • ₹${r.totalReturnValue.toStringAsFixed(2)} • ${r.returnMode ?? ''}',
+                final modeLabel = r.returnMode == 'cash_refund'
+                    ? 'કેશ રિફંડ'
+                    : (r.returnMode == 'udhaar_credit' ? 'ઉધાર ક્રેડિટ' : (r.returnMode ?? 'અજ્ઞાત'));
+
+                return Card(
+                  margin: const EdgeInsets.symmetric(vertical: 6),
+                  child: Padding(
+                    padding: const EdgeInsets.all(12.0),
+                    child: Column(
+                      crossAxisAlignment: CrossAxisAlignment.start,
+                      children: [
+                        Row(
+                          mainAxisAlignment: MainAxisAlignment.spaceBetween,
+                          children: [
+                            Text(
+                              'રિટર્ન #${r.id ?? ''} (બિલ #${r.originalBillId ?? ''})',
+                              style: const TextStyle(
+                                fontWeight: FontWeight.bold,
+                                fontSize: 15,
+                              ),
+                            ),
+                            Text(
+                              '₹${r.totalReturnValue.toStringAsFixed(2)}',
+                              style: const TextStyle(
+                                fontWeight: FontWeight.bold,
+                                fontSize: 16,
+                                color: Colors.red,
+                              ),
+                            ),
+                          ],
+                        ),
+                        const SizedBox(height: 6),
+                        if (r.notes != null && r.notes!.trim().isNotEmpty) ...[
+                          Text(
+                            'ઉત્પાદન વિગત: ${r.notes}',
+                            style: const TextStyle(
+                              fontWeight: FontWeight.w600,
+                              color: Colors.black87,
+                            ),
+                          ),
+                          const SizedBox(height: 4),
+                        ],
+                        Row(
+                          mainAxisAlignment: MainAxisAlignment.spaceBetween,
+                          children: [
+                            Text(
+                              'તારીખ: ${_formatDate(r.returnDate)}',
+                              style: const TextStyle(fontSize: 12, color: Colors.grey),
+                            ),
+                            Chip(
+                              label: Text(
+                                modeLabel,
+                                style: const TextStyle(fontSize: 11),
+                              ),
+                              padding: EdgeInsets.zero,
+                              visualDensity: VisualDensity.compact,
+                            ),
+                          ],
+                        ),
+                      ],
+                    ),
                   ),
                 );
               },

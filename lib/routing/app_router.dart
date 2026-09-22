@@ -18,8 +18,7 @@ import '../features/khata/khata_screen.dart';
 import '../features/reports/reports_home_screen.dart';
 import '../features/settings/screens/splash_screen.dart';
 import '../features/returns/return_history_screen.dart';
-import '../features/returns/return_screen.dart';
-import '../features/returns/replace_screen.dart';
+import '../features/returns/return_replace_screen.dart';
 import '../features/settings/settings_screen.dart';
 import '../features/settings/screens/pin_verification_screen.dart';
 import '../features/stock/stock_dashboard_screen.dart';
@@ -194,14 +193,14 @@ final appRouter = GoRouter(
       path: AppRouter.returnsNew,
       builder: (context, state) => const RoleGuard(
         allowedRoles: ['admin'],
-        child: ReturnScreen(),
+        child: ReturnReplaceScreen(),
       ),
     ),
     GoRoute(
       path: AppRouter.returnsReplace,
       builder: (context, state) => const RoleGuard(
         allowedRoles: ['admin'],
-        child: ReplaceScreen(),
+        child: ReturnReplaceScreen(),
       ),
     ),
     GoRoute(

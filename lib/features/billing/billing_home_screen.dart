@@ -394,13 +394,10 @@ class _BillingHomeScreenState extends ConsumerState<BillingHomeScreen> {
             onSelected: (value) {
               if (value == 'returns') {
                 context.push(AppRouter.returnsNew);
-              } else if (value == 'replace') {
-                context.push(AppRouter.returnsReplace);
               }
             },
             itemBuilder: (context) => [
-              const PopupMenuItem(value: 'returns', child: Text('પાછું આપવું')),
-              const PopupMenuItem(value: 'replace', child: Text('બદલવું')),
+              const PopupMenuItem(value: 'returns', child: Text('રિટર્ન / બદલો')),
             ],
           ),
           if (!isWide)

@@ -10,12 +10,14 @@ import '../../shared/models/product_model.dart';
 class ReturnLine {
   final int billItemId;
   final int productId;
+  final String? productName;
   final double qtyReturned;
   final double sellPriceSnapshot;
 
   ReturnLine({
     required this.billItemId,
     required this.productId,
+    this.productName,
     required this.qtyReturned,
     required this.sellPriceSnapshot,
   });
@@ -210,6 +212,17 @@ class ReturnRepository {
     final now = DateTime.now().toIso8601String();
     final today = now.substring(0, 10);
 
+    // Build product summary string for clear identification
+    final itemSummaries = <String>[];
+    for (final l in lines) {
+      final pName = l.productName ?? 'ઉત્પાદન #${l.productId}';
+      itemSummaries.add('$pName (${l.qtyReturned})');
+    }
+    final defaultNote = 'પરત: ${itemSummaries.join(', ')}';
+    final computedNotes = (notes != null && notes.trim().isNotEmpty)
+        ? '${notes.trim()} - $defaultNote'
+        : defaultNote;
+
     // Calculate total return value
     double totalReturnValue = 0;
     for (final l in lines) {
@@ -222,7 +235,7 @@ class ReturnRepository {
       'return_date': now,
       'total_return_value': totalReturnValue,
       'return_mode': returnMode,
-      'notes': notes,
+      'notes': computedNotes,
     });
 
     for (final line in lines) {
@@ -233,13 +246,27 @@ class ReturnRepository {
         'value_at_return': line.qtyReturned * line.sellPriceSnapshot,
       });
 
-      // mark bill item as returned
-      await txn.update(
+      // Update bill item remaining quantity and amount
+      final itemRows = await txn.query(
         'bill_items',
-        {'is_returned': 1},
         where: 'id = ?',
         whereArgs: [line.billItemId],
       );
+      if (itemRows.isNotEmpty) {
+        final currentQty = (itemRows.first['qty'] as num?)?.toDouble() ?? line.qtyReturned;
+        final remainingQty = (currentQty - line.qtyReturned).clamp(0.0, double.maxFinite);
+        final newAmount = remainingQty * line.sellPriceSnapshot;
+        await txn.update(
+          'bill_items',
+          {
+            'qty': remainingQty,
+            'amount': newAmount,
+            'is_returned': remainingQty <= 0.001 ? 1 : 0,
+          },
+          where: 'id = ?',
+          whereArgs: [line.billItemId],
+        );
+      }
 
       // stock update + log
       final prodRows = await txn.query(
@@ -250,6 +277,7 @@ class ReturnRepository {
       );
       if (prodRows.isEmpty) continue;
       final unitTypeStr = (prodRows.first['unit_type'] as String?)?.trim().toLowerCase() ?? '';
+      final prodName = (prodRows.first['name_gujarati'] as String?) ?? line.productName ?? 'ઉત્પાદન';
       final isWeightProduct = unitTypeStr == 'weight_kg' ||
           unitTypeStr == 'weight_gram' ||
           unitTypeStr.contains('કિલો') ||
@@ -276,21 +304,22 @@ class ReturnRepository {
         'qty_after': qtyAfter,
         'reference_id': returnId,
         'reference_type': 'return',
-        'note': 'Return for bill $billId',
+        'note': 'Return for bill #$billId: $prodName ($returnQtySanitized)',
         'created_at': now,
       });
     }
 
-    // Update bill status
+    // Update bill total amount and status
     final remaining = await txn.rawQuery(
-      'SELECT COUNT(*) as cnt FROM bill_items WHERE bill_id = ? AND is_returned = 0',
+      'SELECT COUNT(*) as cnt, COALESCE(SUM(amount), 0) as total FROM bill_items WHERE bill_id = ? AND is_returned = 0',
       [billId],
     );
     final remainingCount = (remaining.first['cnt'] as int?) ?? 0;
+    final remainingTotal = (remaining.first['total'] as num?)?.toDouble() ?? 0.0;
     final status = remainingCount == 0 ? 'fully_returned' : 'partial_return';
     await txn.update(
       'bills',
-      {'payment_status': status, 'is_returned': 1},
+      {'total_amount': remainingTotal, 'payment_status': status, 'is_returned': 1},
       where: 'id = ?',
       whereArgs: [billId],
     );
@@ -300,7 +329,7 @@ class ReturnRepository {
       'expense_account_id': null,
       'account_name_snapshot': 'Return adjustment',
       'amount': totalReturnValue,
-      'description': 'Return for bill #$billId',
+      'description': 'Return for bill #$billId: $computedNotes',
       'expense_date': today,
       'created_by': 'return',
       'created_at': now,
@@ -316,7 +345,7 @@ class ReturnRepository {
         'payment_mode': 'cash',
         'reference_type': 'return',
         'reference_id': returnId,
-        'note': 'Cash refund for return',
+        'note': 'Cash refund for return: $computedNotes',
         'entry_date': today,
         'created_at': now,
       });
@@ -339,7 +368,7 @@ class ReturnRepository {
         'amount': -totalReturnValue,
         'running_balance': newBalance,
         'payment_mode': null,
-        'note': 'Return credit',
+        'note': 'Return credit: $computedNotes',
         'created_at': now,
       });
       await txn.rawUpdate(
@@ -575,5 +604,193 @@ class ReturnRepository {
       where: 'id = ?',
       whereArgs: [billId],
     );
+  }
+
+  /// Process full bill replace: updates bill items, calculates inventory delta for each product,
+  /// logs stock changes, updates bill total, and handles price difference in Cash / Udhaar.
+  Future<void> replaceBill({
+    required int billId,
+    required int? customerId,
+    required List<BillItem> newItems,
+    required String paymentMode,
+  }) async {
+    final now = DateTime.now().toIso8601String();
+    final today = now.substring(0, 10);
+
+    await _helper.runInTransaction((txn) async {
+      final billRows = await txn.query('bills', where: 'id = ?', whereArgs: [billId]);
+      if (billRows.isEmpty) throw StateError('Bill not found');
+      final originalTotal = (billRows.first['total_amount'] as num?)?.toDouble() ?? 0.0;
+
+      final originalItems = await txn.query('bill_items', where: 'bill_id = ?', whereArgs: [billId]);
+      final oldProductQtyMap = <int, double>{};
+      for (final r in originalItems) {
+        final pid = r['product_id'] as int;
+        final q = (r['qty'] as num?)?.toDouble() ?? 0.0;
+        oldProductQtyMap[pid] = (oldProductQtyMap[pid] ?? 0.0) + q;
+      }
+
+      final newProductQtyMap = <int, double>{};
+      double newTotal = 0.0;
+      for (final item in newItems) {
+        final pid = item.productId;
+        final q = item.qty;
+        newProductQtyMap[pid] = (newProductQtyMap[pid] ?? 0.0) + q;
+        newTotal += item.amount;
+      }
+
+      final allProductIds = {...oldProductQtyMap.keys, ...newProductQtyMap.keys};
+
+      for (final pid in allProductIds) {
+        final oldQty = oldProductQtyMap[pid] ?? 0.0;
+        final newQty = newProductQtyMap[pid] ?? 0.0;
+        final delta = newQty - oldQty;
+
+        if (delta.abs() < 0.0001) continue;
+
+        final prodRows = await txn.query(
+          'products',
+          columns: ['stock_qty', 'unit_type', 'name_gujarati'],
+          where: 'id = ?',
+          whereArgs: [pid],
+        );
+        if (prodRows.isEmpty) continue;
+
+        final qtyBefore = (prodRows.first['stock_qty'] as num?)?.toDouble() ?? 0.0;
+        final stockChange = -delta;
+        final qtyAfter = qtyBefore + stockChange;
+
+        await txn.update(
+          'products',
+          {'stock_qty': qtyAfter, 'updated_at': now},
+          where: 'id = ?',
+          whereArgs: [pid],
+        );
+
+        await txn.insert('stock_log', {
+          'product_id': pid,
+          'transaction_type': stockChange > 0 ? 'replace_return' : 'replace_out',
+          'qty_change': stockChange,
+          'qty_before': qtyBefore,
+          'qty_after': qtyAfter,
+          'reference_id': billId,
+          'reference_type': 'replace',
+          'note': 'Bill replace update for bill #$billId',
+          'created_at': now,
+        });
+      }
+
+      await txn.delete('bill_items', where: 'bill_id = ?', whereArgs: [billId]);
+      for (final item in newItems) {
+        await txn.insert('bill_items', {
+          'bill_id': billId,
+          'product_id': item.productId,
+          'product_name_snapshot': item.productNameSnapshot,
+          'unit_type_snapshot': item.unitTypeSnapshot,
+          'sell_price_snapshot': item.sellPriceSnapshot,
+          'qty': item.qty,
+          'amount': item.amount,
+          'is_returned': 0,
+        });
+      }
+
+      await txn.update(
+        'bills',
+        {'total_amount': newTotal, 'updated_at': now},
+        where: 'id = ?',
+        whereArgs: [billId],
+      );
+
+      final priceDiff = newTotal - originalTotal;
+      if (priceDiff.abs() > 0.01) {
+        if (priceDiff > 0) {
+          if (paymentMode == 'cash_refund' || paymentMode == 'cash') {
+            await txn.insert('khata_ledger', {
+              'entry_type': 'credit',
+              'account_name': 'Replacement extra',
+              'customer_id': customerId,
+              'amount': priceDiff,
+              'payment_mode': 'cash',
+              'reference_type': 'replace',
+              'reference_id': billId,
+              'note': 'Extra charge for bill replace #$billId',
+              'entry_date': today,
+              'created_at': now,
+            });
+          } else if (customerId != null) {
+            final balRows = await txn.rawQuery(
+              'SELECT running_balance FROM udhaar_ledger WHERE customer_id = ? ORDER BY created_at DESC, id DESC LIMIT 1',
+              [customerId],
+            );
+            final currentBalance = balRows.isNotEmpty
+                ? (balRows.first['running_balance'] as num?)?.toDouble() ?? 0.0
+                : 0.0;
+            final newBalance = currentBalance + priceDiff;
+            await txn.insert('udhaar_ledger', {
+              'customer_id': customerId,
+              'bill_id': billId,
+              'transaction_type': 'credit',
+              'amount': priceDiff,
+              'running_balance': newBalance,
+              'payment_mode': null,
+              'note': 'Bill replace extra charge',
+              'created_at': now,
+            });
+            await txn.rawUpdate(
+              'UPDATE customers SET total_outstanding = total_outstanding + ? WHERE id = ?',
+              [priceDiff, customerId],
+            );
+          }
+        } else {
+          final refundAmount = -priceDiff;
+          if (paymentMode == 'cash_refund' || paymentMode == 'cash') {
+            await txn.insert('expenses', {
+              'expense_account_id': null,
+              'account_name_snapshot': 'Replacement refund',
+              'amount': refundAmount,
+              'description': 'Replace refund for bill #$billId',
+              'expense_date': today,
+              'created_by': 'replace',
+              'created_at': now,
+            });
+            await txn.insert('khata_ledger', {
+              'entry_type': 'debit',
+              'account_name': 'Replacement refund',
+              'customer_id': customerId,
+              'amount': refundAmount,
+              'payment_mode': 'cash',
+              'reference_type': 'replace',
+              'reference_id': billId,
+              'note': 'Cash refund for bill replace #$billId',
+              'entry_date': today,
+              'created_at': now,
+            });
+          } else if (customerId != null) {
+            final balRows = await txn.rawQuery(
+              'SELECT running_balance FROM udhaar_ledger WHERE customer_id = ? ORDER BY created_at DESC, id DESC LIMIT 1',
+              [customerId],
+            );
+            final currentBalance = balRows.isNotEmpty
+                ? (balRows.first['running_balance'] as num?)?.toDouble() ?? 0.0
+                : 0.0;
+            final newBalance = (currentBalance - refundAmount).clamp(0.0, double.maxFinite);
+            await txn.insert('udhaar_ledger', {
+              'customer_id': customerId,
+              'bill_id': billId,
+              'transaction_type': 'payment',
+              'amount': -refundAmount,
+              'running_balance': newBalance,
+              'payment_mode': null,
+              'note': 'Bill replace refund credit',
+              'created_at': now,
+            });
+            await txn.rawUpdate(
+              'UPDATE customers SET total_outstanding = MAX(0, total_outstanding - ?) WHERE id = ?',
+              [refundAmount, customerId],
+            );
+          }
+        }
+      }
+    });
   }
 }

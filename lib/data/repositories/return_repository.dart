@@ -1,4 +1,4 @@
-import 'package:sqflite_sqlcipher/sqflite.dart';
+import 'package:sqflite/sqflite.dart';
 
 import '../../core/database/database_helper.dart';
 import '../../shared/models/bill_item_model.dart';
@@ -244,13 +244,24 @@ class ReturnRepository {
       // stock update + log
       final prodRows = await txn.query(
         'products',
-        columns: ['stock_qty', 'name_gujarati'],
+        columns: ['stock_qty', 'name_gujarati', 'unit_type'],
         where: 'id = ?',
         whereArgs: [line.productId],
       );
       if (prodRows.isEmpty) continue;
+      final unitTypeStr = (prodRows.first['unit_type'] as String?)?.trim().toLowerCase() ?? '';
+      final isWeightProduct = unitTypeStr == 'weight_kg' ||
+          unitTypeStr == 'weight_gram' ||
+          unitTypeStr.contains('કિલો') ||
+          unitTypeStr == 'kg' ||
+          unitTypeStr.contains('kilo') ||
+          unitTypeStr.contains('ગ્રામ') ||
+          unitTypeStr == 'g' ||
+          unitTypeStr.contains('gram');
+
+      final returnQtySanitized = isWeightProduct ? line.qtyReturned : line.qtyReturned.roundToDouble();
       final qtyBefore = (prodRows.first['stock_qty'] as num?)?.toDouble() ?? 0;
-      final qtyAfter = qtyBefore + line.qtyReturned;
+      final qtyAfter = qtyBefore + returnQtySanitized;
       await txn.update(
         'products',
         {'stock_qty': qtyAfter, 'updated_at': now},
@@ -260,7 +271,7 @@ class ReturnRepository {
       await txn.insert('stock_log', {
         'product_id': line.productId,
         'transaction_type': 'return',
-        'qty_change': line.qtyReturned,
+        'qty_change': returnQtySanitized,
         'qty_before': qtyBefore,
         'qty_after': qtyAfter,
         'reference_id': returnId,
@@ -367,17 +378,31 @@ class ReturnRepository {
       // Decrease replacement product stock
       final replacementProdRows = await txn.query(
         'products',
-        columns: ['stock_qty', 'name_gujarati'],
+        columns: ['stock_qty', 'name_gujarati', 'unit_type'],
         where: 'id = ?',
         whereArgs: [replacement.replacementProductId],
       );
       if (replacementProdRows.isEmpty) {
         throw StateError('Replacement product not found');
       }
+      final replaceUnitTypeStr = (replacementProdRows.first['unit_type'] as String?)?.trim().toLowerCase() ?? '';
+      final isReplaceWeightProduct = replaceUnitTypeStr == 'weight_kg' ||
+          replaceUnitTypeStr == 'weight_gram' ||
+          replaceUnitTypeStr.contains('કિલો') ||
+          replaceUnitTypeStr == 'kg' ||
+          replaceUnitTypeStr.contains('kilo') ||
+          replaceUnitTypeStr.contains('ગ્રામ') ||
+          replaceUnitTypeStr == 'g' ||
+          replaceUnitTypeStr.contains('gram');
+
+      final replaceQtyGivenSanitized = isReplaceWeightProduct
+          ? replacement.replacementQtyGiven
+          : replacement.replacementQtyGiven.roundToDouble();
+
       final replaceQtyBefore =
           (replacementProdRows.first['stock_qty'] as num?)?.toDouble() ?? 0;
       final replaceQtyAfter =
-          replaceQtyBefore - replacement.replacementQtyGiven;
+          replaceQtyBefore - replaceQtyGivenSanitized;
       await txn.update(
         'products',
         {'stock_qty': replaceQtyAfter, 'updated_at': now},
@@ -387,7 +412,7 @@ class ReturnRepository {
       await txn.insert('stock_log', {
         'product_id': replacement.replacementProductId,
         'transaction_type': 'replace_out',
-        'qty_change': -replacement.replacementQtyGiven,
+        'qty_change': -replaceQtyGivenSanitized,
         'qty_before': replaceQtyBefore,
         'qty_after': replaceQtyAfter,
         'reference_id': returnId,

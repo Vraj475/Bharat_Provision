@@ -1,5 +1,4 @@
 import 'dart:async';
-import 'dart:io';
 
 import 'package:flutter/material.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
@@ -51,6 +50,9 @@ class _BillingHomeScreenState extends ConsumerState<BillingHomeScreen> {
   String? _customerName;
   int? _customerId;
 
+  /// Tracks which tab is active on mobile (0 = Products, 1 = Cart).
+  int _mobileTabIndex = 0;
+
   @override
   void initState() {
     super.initState();
@@ -83,13 +85,19 @@ class _BillingHomeScreenState extends ConsumerState<BillingHomeScreen> {
 
   double _toStockUnitQuantity(BillLineItem line) {
     final unit = line.item.unitType.trim().toLowerCase();
-    if (unit.contains('કિલો') || unit == 'kg' || unit.contains('kilo')) {
+    if (unit == 'weight_kg' ||
+        unit.contains('કિલો') ||
+        unit == 'kg' ||
+        unit.contains('kilo')) {
       return line.qtyGrams / 1000.0;
     }
-    if (unit.contains('ગ્રામ') || unit == 'g' || unit.contains('gram')) {
+    if (unit == 'weight_gram' ||
+        unit.contains('ગ્રામ') ||
+        unit == 'g' ||
+        unit.contains('gram')) {
       return line.qtyGrams;
     }
-    return line.qtyGrams;
+    return line.qtyGrams.roundToDouble();
   }
 
   List<BillItem> _buildBillItemsFromLines(List<BillLineItem> lines) {
@@ -340,9 +348,10 @@ class _BillingHomeScreenState extends ConsumerState<BillingHomeScreen> {
 
   @override
   Widget build(BuildContext context) {
-    final isWindows = Platform.isWindows;
+    final isWide = MediaQuery.sizeOf(context).width >= 600;
     final roleLabelGu = _currentRoleGujaratiLabel();
     final avatarText = _roleInitialForAvatar(roleLabelGu);
+    final billLineCount = ref.watch(billingControllerProvider).billLines.length;
     return Scaffold(
       resizeToAvoidBottomInset: true,
       appBar: AppBar(
@@ -394,7 +403,7 @@ class _BillingHomeScreenState extends ConsumerState<BillingHomeScreen> {
               const PopupMenuItem(value: 'replace', child: Text('બદલવું')),
             ],
           ),
-          if (!isWindows)
+          if (!isWide)
             PopupMenuButton<String>(
               tooltip: 'એકાઉન્ટ',
               onSelected: (value) {
@@ -458,7 +467,7 @@ class _BillingHomeScreenState extends ConsumerState<BillingHomeScreen> {
               ),
             ),
           Expanded(
-            child: isWindows ? _buildDesktopLayout() : _buildAndroidLayout(),
+            child: isWide ? _buildDesktopLayout() : _buildMobileLayout(billLineCount),
           ),
         ],
       ),
@@ -488,23 +497,55 @@ class _BillingHomeScreenState extends ConsumerState<BillingHomeScreen> {
     );
   }
 
-  Widget _buildAndroidLayout() {
-    return Row(
+  /// ─── Mobile layout: two tabs (Products / Cart) ───
+  Widget _buildMobileLayout(int billLineCount) {
+    final primaryColor = Theme.of(context).colorScheme.primary;
+    return Column(
       children: [
-        Expanded(
-          flex: 2,
-          child: BillingProductPanel(
-            checkStock: _hasEnoughStockForDraft,
-            productSearchFocusNode: _productSearchFocusNode,
-            searchController: _searchController,
+        // ── Tab bar ──
+        Material(
+          elevation: 2,
+          child: Row(
+            children: [
+              Expanded(
+                child: _MobileTab(
+                  label: 'ઉત્પાદનો',
+                  icon: Icons.grid_view_rounded,
+                  isSelected: _mobileTabIndex == 0,
+                  onTap: () => setState(() => _mobileTabIndex = 0),
+                  primaryColor: primaryColor,
+                ),
+              ),
+              Expanded(
+                child: _MobileTab(
+                  label: 'કાર્ટ',
+                  icon: Icons.shopping_cart,
+                  isSelected: _mobileTabIndex == 1,
+                  badgeCount: billLineCount,
+                  onTap: () => setState(() => _mobileTabIndex = 1),
+                  primaryColor: primaryColor,
+                ),
+              ),
+            ],
           ),
         ),
-        const VerticalDivider(width: 1),
+        // ── Tab content ──
         Expanded(
-          flex: 3,
-          child: RepaintBoundary(
-            key: _billBoundaryMobileKey,
-            child: _buildBillPanel(isWindows: false),
+          child: IndexedStack(
+            index: _mobileTabIndex,
+            children: [
+              // Tab 0: Products
+              BillingProductPanel(
+                checkStock: _hasEnoughStockForDraft,
+                productSearchFocusNode: _productSearchFocusNode,
+                searchController: _searchController,
+              ),
+              // Tab 1: Cart / Bill
+              RepaintBoundary(
+                key: _billBoundaryMobileKey,
+                child: _buildBillPanel(isWindows: false),
+              ),
+            ],
           ),
         ),
       ],
@@ -586,6 +627,70 @@ class _BillingHomeScreenState extends ConsumerState<BillingHomeScreen> {
           },
         ),
       ],
+    );
+  }
+}
+
+/// A single tab button used in the mobile billing layout.
+class _MobileTab extends StatelessWidget {
+  const _MobileTab({
+    required this.label,
+    required this.icon,
+    required this.isSelected,
+    required this.onTap,
+    required this.primaryColor,
+    this.badgeCount = 0,
+  });
+
+  final String label;
+  final IconData icon;
+  final bool isSelected;
+  final VoidCallback onTap;
+  final Color primaryColor;
+  final int badgeCount;
+
+  @override
+  Widget build(BuildContext context) {
+    return InkWell(
+      onTap: onTap,
+      child: Container(
+        padding: const EdgeInsets.symmetric(vertical: 10),
+        decoration: BoxDecoration(
+          border: Border(
+            bottom: BorderSide(
+              color: isSelected ? primaryColor : Colors.transparent,
+              width: 3,
+            ),
+          ),
+        ),
+        child: Row(
+          mainAxisAlignment: MainAxisAlignment.center,
+          children: [
+            Badge(
+              isLabelVisible: badgeCount > 0,
+              label: Text(
+                '$badgeCount',
+                style: const TextStyle(fontSize: 10, color: Colors.white),
+              ),
+              backgroundColor: primaryColor,
+              child: Icon(
+                icon,
+                color: isSelected ? primaryColor : Colors.grey,
+                size: 20,
+              ),
+            ),
+            const SizedBox(width: 6),
+            Text(
+              label,
+              style: TextStyle(
+                color: isSelected ? primaryColor : Colors.grey.shade700,
+                fontWeight: isSelected ? FontWeight.w700 : FontWeight.w500,
+                fontSize: 13,
+              ),
+            ),
+          ],
+        ),
+      ),
     );
   }
 }

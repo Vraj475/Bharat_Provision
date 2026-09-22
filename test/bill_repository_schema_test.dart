@@ -1,6 +1,6 @@
 import 'package:flutter_test/flutter_test.dart';
 import 'package:mocktail/mocktail.dart';
-import 'package:sqflite_sqlcipher/sqflite.dart';
+import 'package:sqflite/sqflite.dart';
 import 'package:bharat_provision/data/repositories/bill_repository.dart';
 import 'package:bharat_provision/shared/models/bill_item_model.dart';
 

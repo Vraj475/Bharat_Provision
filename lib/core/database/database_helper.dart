@@ -1,14 +1,12 @@
 import 'dart:convert';
 import 'dart:io';
 
-import 'package:flutter/foundation.dart';
+
 import 'package:path/path.dart' as p;
 import 'package:path_provider/path_provider.dart';
-import 'package:sqflite_common/sqflite.dart';
+import 'package:sqflite/sqflite.dart';
 import 'package:sqflite_common_ffi/sqflite_ffi.dart' as sqflite_ffi;
-import 'package:sqflite_sqlcipher/sqflite.dart' as sqlcipher;
 
-import '../auth/pin_hasher.dart';
 import '../errors/error_handler.dart';
 
 class DatabaseHelper {
@@ -20,155 +18,45 @@ class DatabaseHelper {
   static const String dbFileName = 'kirana.db';
 
   Database? _db;
-  String? _password;
 
   Future<Database> get database async {
     if (_db != null) return _db!;
     try {
-      _db = await _openEncrypted();
+      _db = await _openDb();
       return _db!;
     } catch (e, st) {
       throw ErrorHandler.handle(e, st, context: 'DatabaseHelper.database');
     }
   }
 
-  /// P02: password must be SHA-256(adminPin).
-  /// Call this once you have admin PIN from first launch wizard / login.
-  Future<void> initDatabase({required String adminPin}) async {
-    _password = PinHasher.sha256(adminPin);
+  Future<Database> _openDb() async {
     try {
-      _db = await _openEncrypted();
-    } catch (e, st) {
-      throw ErrorHandler.handle(e, st, context: 'DatabaseHelper.initDatabase');
-    }
-  }
-
-  Future<Database> _openEncrypted() async {
-    try {
-      // On Android/iOS, use sqlcipher plugin with password.
       if (Platform.isAndroid || Platform.isIOS) {
-        try {
-          final dbPath = await sqlcipher.getDatabasesPath();
-
-          // Ensure the directory exists (create if needed)
-          final dbDir = Directory(dbPath);
-          if (!await dbDir.exists()) {
-            await dbDir.create(recursive: true);
-            if (kDebugMode) {
-              debugPrint('DatabaseHelper: Created database directory at $dbPath');
-            }
-          }
-
-          final path = p.join(dbPath, dbFileName);
-          if (kDebugMode) {
-            debugPrint('DatabaseHelper: Opening encrypted database at $path');
-          }
-
-          final password = _password ?? PinHasher.sha256('2401');
-
-          final db = await sqlcipher.openDatabase(
-            path,
-            version: schemaVersion,
-            password: password,
-            onConfigure: (db) async {
-              await db.execute('PRAGMA foreign_keys = ON');
-            },
-            onCreate: (db, version) async {
-              if (kDebugMode) {
-                debugPrint(
-                'DatabaseHelper: Creating new schema (version $version)',
-              );
-              }
-              await _createSchema(db);
-              await _insertDefaultData(db);
-            },
-            onUpgrade: (db, oldVersion, newVersion) async {
-              if (kDebugMode) {
-                debugPrint(
-                'DatabaseHelper: Upgrading schema from $oldVersion to $newVersion',
-              );
-              }
-              await _createSchema(db);
-            },
-          );
-          if (kDebugMode) {
-            debugPrint('DatabaseHelper: Successfully opened database');
-          }
-          return db;
-        } catch (e) {
-          if (kDebugMode) {
-            debugPrint('DatabaseHelper: Android database open error: $e');
-          }
-
-          // Try to recover by renaming corrupted database and recreating
-          if (e.toString().contains('database is encrypted') ||
-              e.toString().contains('file is encrypted') ||
-              e.toString().contains('malformed') ||
-              e.toString().contains('no such table') ||
-              e.toString().contains('bad decrypt')) {
-            try {
-              final timestamp = DateTime.now().millisecondsSinceEpoch;
-              final dbPath = await sqlcipher.getDatabasesPath();
-              final path = p.join(dbPath, dbFileName);
-              final file = File(path);
-
-              // Also backup -wal and -shm files if they exist
-              final walFile = File('$path-wal');
-              final shmFile = File('$path-shm');
-
-              if (await file.exists()) {
-                final backupPath = '$path.corrupt_$timestamp.bak';
-                await file.rename(backupPath);
-                ErrorHandler.handleSilently(
-                  Exception('Database corrupted. Backup saved to $backupPath'),
-                  StackTrace.current,
-                  context: 'DatabaseHelper._openEncrypted.recovery',
-                );
-              }
-              if (await walFile.exists()) {
-                await walFile.rename('$path-wal.corrupt_$timestamp.bak');
-              }
-              if (await shmFile.exists()) {
-                await shmFile.rename('$path-shm.corrupt_$timestamp.bak');
-              }
-
-              // Retry opening with fresh database
-              final password = _password ?? PinHasher.sha256('2401');
-              return sqlcipher.openDatabase(
-                path,
-                version: schemaVersion,
-                password: password,
-                onConfigure: (db) async {
-                  await db.execute('PRAGMA foreign_keys = ON');
-                },
-                onCreate: (db, version) async {
-                  if (kDebugMode) {
-                    debugPrint('DatabaseHelper: Creating schema after recovery');
-                  }
-                  await _createSchema(db);
-                  await _insertDefaultData(db);
-                },
-                onUpgrade: (db, oldVersion, newVersion) async {
-                  await _createSchema(db);
-                },
-              );
-            } catch (recoveryError, st) {
-              ErrorHandler.handleSilently(
-                recoveryError,
-                st,
-                context: 'DatabaseHelper._openEncrypted.recoveryFailed',
-              );
-              rethrow;
-            }
-          }
-          rethrow;
+        final dbPath = await getDatabasesPath();
+        final dbDir = Directory(dbPath);
+        if (!await dbDir.exists()) {
+          await dbDir.create(recursive: true);
         }
+        final path = p.join(dbPath, dbFileName);
+
+        return await openDatabase(
+          path,
+          version: schemaVersion,
+          onConfigure: (db) async {
+            await db.execute('PRAGMA foreign_keys = ON');
+          },
+          onCreate: (db, version) async {
+            await _createSchema(db);
+            await _insertDefaultData(db);
+          },
+          onUpgrade: (db, oldVersion, newVersion) async {
+            await _createSchema(db);
+          },
+        );
       }
 
-      // On desktop (Windows/Linux/macOS), use the database path from sqflite and open via ffi
-      final dbPath = Platform.isAndroid || Platform.isIOS
-          ? await sqlcipher.getDatabasesPath()
-          : (await getApplicationSupportDirectory()).path;
+      // On desktop (Windows/Linux/macOS), use sqflite_ffi
+      final dbPath = (await getApplicationSupportDirectory()).path;
       final path = p.join(dbPath, dbFileName);
       final factory = sqflite_ffi.databaseFactoryFfi;
 
@@ -192,7 +80,7 @@ class DatabaseHelper {
       throw ErrorHandler.handle(
         e,
         st,
-        context: 'DatabaseHelper._openEncrypted',
+        context: 'DatabaseHelper._openDb',
       );
     }
   }
@@ -575,7 +463,7 @@ class DatabaseHelper {
   }
 
   Future<void> insertDefaultSettings(dynamic db) async {
-    final existing = sqlcipher.Sqflite.firstIntValue(
+    final existing = Sqflite.firstIntValue(
       await db.rawQuery('SELECT COUNT(*) FROM settings'),
     );
     if ((existing ?? 0) > 0) return;
@@ -619,7 +507,7 @@ class DatabaseHelper {
   }
 
   Future<void> insertDefaultExpenseAccounts(dynamic db) async {
-    final existing = sqlcipher.Sqflite.firstIntValue(
+    final existing = Sqflite.firstIntValue(
       await db.rawQuery('SELECT COUNT(*) FROM expense_accounts'),
     );
     if ((existing ?? 0) > 0) return;
@@ -676,7 +564,7 @@ class DatabaseHelper {
   }
 
   Future<void> insertTransliterationDictionary(dynamic db) async {
-    final existing = sqlcipher.Sqflite.firstIntValue(
+    final existing = Sqflite.firstIntValue(
       await db.rawQuery('SELECT COUNT(*) FROM transliteration_dictionary'),
     );
     if ((existing ?? 0) > 0) return;

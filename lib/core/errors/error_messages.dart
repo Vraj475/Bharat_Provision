@@ -48,8 +48,8 @@ class ErrorMessages {
     'DB_004': ErrorMessage(
       code: 'DB_004',
       category: ErrorCategory.database,
-      gujarati: 'ડેટાબેઝ ખોલવામાં સમસ્યા. PIN તપાસો અને ફરી પ્રયાસ કરો.',
-      technical: 'SQLCipher database open failed — wrong key or corrupted file',
+      gujarati: 'ડેટાબેઝ ફાઇલ ખોલવામાં સમસ્યા. ફાઇલ કરપ્ટ છે.',
+      technical: 'Database open failed — corrupted file',
       isCritical: true,
     ),
     'DB_005': ErrorMessage(

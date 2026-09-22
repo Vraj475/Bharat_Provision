@@ -185,28 +185,47 @@ class BillRepository {
         if (hasBillItemAmount) billItemValues['amount'] = lineTotal;
         await txn.insert('bill_items', billItemValues);
 
+        final hasUnitType = await _columnExists(txn, itemTable, 'unit_type');
+        String unitTypeStr = '';
         double qtyBefore = 0;
+
         if (hasStockQty) {
+          final columns = [itemStockColumn];
+          if (hasUnitType) columns.add('unit_type');
           final stockRow = await txn.query(
             itemTable,
-            columns: [itemStockColumn],
+            columns: columns,
             where: 'id = ?',
             whereArgs: [i.productId],
           );
-          qtyBefore =
-              (stockRow.firstOrNull?[itemStockColumn] as num?)?.toDouble() ?? 0;
-
-          if (qtyBefore < i.qty) {
-            throw ArgumentError(
-              'સ્ટોક અપર્યાપ્ત છે (ઉપલબ્ધ: $qtyBefore, માંગેલ: ${i.qty})',
-            );
+          final first = stockRow.firstOrNull;
+          qtyBefore = (first?[itemStockColumn] as num?)?.toDouble() ?? 0;
+          if (hasUnitType) {
+            unitTypeStr = (first?['unit_type'] as String?)?.trim().toLowerCase() ?? '';
           }
+        }
+
+        final isWeightProduct = unitTypeStr == 'weight_kg' ||
+            unitTypeStr == 'weight_gram' ||
+            unitTypeStr.contains('કિલો') ||
+            unitTypeStr == 'kg' ||
+            unitTypeStr.contains('kilo') ||
+            unitTypeStr.contains('ગ્રામ') ||
+            unitTypeStr == 'g' ||
+            unitTypeStr.contains('gram');
+
+        final deductQty = isWeightProduct ? i.qty : i.qty.roundToDouble();
+
+        if (hasStockQty && qtyBefore < deductQty) {
+          throw ArgumentError(
+            'સ્ટોક અપર્યાપ્ત છે (ઉપલબ્ધ: $qtyBefore, માંગેલ: $deductQty)',
+          );
         }
 
         if (itemStockColumn != null) {
           await txn.rawUpdate(
             'UPDATE $itemTable SET $itemStockColumn = COALESCE($itemStockColumn, 0) - ? WHERE id = ?',
-            [i.qty, i.productId],
+            [deductQty, i.productId],
           );
         }
 
@@ -258,9 +277,9 @@ class BillRepository {
           if (hasProductId) stockValues['product_id'] = i.productId;
           if (hasItemId) stockValues['item_id'] = i.productId;
           if (hasTransactionType) stockValues['transaction_type'] = 'sale';
-          if (hasQtyChange) stockValues['qty_change'] = -i.qty;
+          if (hasQtyChange) stockValues['qty_change'] = -deductQty;
           if (hasQtyBefore) stockValues['qty_before'] = qtyBefore;
-          if (hasQtyAfter) stockValues['qty_after'] = qtyBefore - i.qty;
+          if (hasQtyAfter) stockValues['qty_after'] = qtyBefore - deductQty;
           if (hasReferenceId) stockValues['reference_id'] = billId;
           if (hasReferenceType) stockValues['reference_type'] = 'bill';
           if (hasNote) stockValues['note'] = 'Bill #$billNumber';

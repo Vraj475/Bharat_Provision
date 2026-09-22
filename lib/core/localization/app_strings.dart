@@ -131,7 +131,7 @@ class AppStrings {
   static const String deleteCustomerMessage =
       'શું તમે ચોક્કસ આ ગ્રાહક કાઢી નાખવા માંગો છો?';
 
-  // Edge case errors - SQLCipher
+  // Edge case errors - Database/Auth
   static const String wrongPinError = 'ખોટો PIN';
   static const String pinLocked = 'PIN લક થઈ ગયો. %s સેકન્ડમાં ફરી પ્રયાસ કરો.';
   static const String pinAttempts = '%d પ્રયાસ બાકી છે.';

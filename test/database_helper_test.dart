@@ -29,7 +29,7 @@ void main() {
   });
 
   test('initDatabase creates tables and inserts defaults', () async {
-    await DatabaseHelper.instance.initDatabase(adminPin: '1234');
+    await DatabaseHelper.instance.database;
     
     // Check settings
     final settings = await DatabaseHelper.instance.query('settings');

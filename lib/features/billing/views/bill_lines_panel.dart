@@ -238,10 +238,14 @@ class _BillLinesPanelState extends ConsumerState<BillLinesPanel> {
           return;
         }
 
+        final roundedQty = line.qtyGrams.roundToDouble().clamp(1.0, double.infinity);
         final newAmount = isWeight
             ? (line.qtyGrams / 1000.0) * parsed
-            : line.qtyGrams * parsed;
-        updatedLine = line.copyWith(amount: newAmount);
+            : roundedQty * parsed;
+        updatedLine = line.copyWith(
+          qtyGrams: isWeight ? line.qtyGrams : roundedQty,
+          amount: newAmount,
+        );
       } else {
         final parsed = double.tryParse(raw);
         if (raw.isEmpty || parsed == null || parsed <= 0) {
@@ -263,7 +267,7 @@ class _BillLinesPanelState extends ConsumerState<BillLinesPanel> {
 
         final newQtyGrams = isWeight
             ? (parsed / unitPrice) * 1000.0
-            : (parsed / unitPrice).roundToDouble().clamp(1.0, double.infinity);
+            : line.qtyGrams.roundToDouble().clamp(1.0, double.infinity);
         updatedLine = line.copyWith(qtyGrams: newQtyGrams, amount: parsed);
       }
 

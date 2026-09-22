@@ -2,7 +2,7 @@ import 'dart:io';
 
 import 'package:flutter/material.dart';
 import 'package:flutter/services.dart';
-import 'package:sqflite_sqlcipher/sqflite.dart' as sqlcipher;
+import 'package:sqflite/sqflite.dart';
 
 import 'error_logger.dart';
 import 'error_messages.dart';
@@ -49,11 +49,9 @@ class ErrorHandler {
   /// Classifies an exception into a known error code.
   static String _classifyCode(dynamic error) {
     try {
-      if (error is sqlcipher.DatabaseException) {
+      if (error is DatabaseException) {
         final msg = error.toString().toLowerCase();
-        if (msg.contains('wrong key') ||
-            msg.contains('file is encrypted') ||
-            msg.contains('malformed')) {
+        if (msg.contains('malformed')) {
           return 'DB_004';
         }
         if (msg.contains('integrity')) {

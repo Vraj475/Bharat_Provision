@@ -6,6 +6,8 @@ import 'package:flutter_riverpod/flutter_riverpod.dart';
 import 'package:go_router/go_router.dart';
 import 'package:intl/intl.dart';
 
+import '../../core/utils/responsive_helper.dart';
+
 import '../../core/auth/role_provider.dart';
 import '../../core/utils/currency_format.dart';
 import '../../routing/app_router.dart';
@@ -77,20 +79,23 @@ class _DashboardBodyState extends ConsumerState<DashboardBody> {
   Widget build(BuildContext context) {
     final role = ref.watch(currentRoleProvider);
 
+    final padding = ResponsiveHelper.contentPadding(context);
+    final spacing = ResponsiveHelper.sectionSpacing(context);
+
     return SingleChildScrollView(
-      padding: const EdgeInsets.all(16),
+      padding: EdgeInsets.all(padding),
       child: Column(
         crossAxisAlignment: CrossAxisAlignment.start,
         children: [
-          if (role == 'employee') ..._buildEmployeeView(),
-          if (role == 'admin') ..._buildAdminView(),
-          if (role == 'superadmin') ..._buildSuperadminView(),
+          if (role == 'employee') ..._buildEmployeeView(spacing),
+          if (role == 'admin') ..._buildAdminView(spacing),
+          if (role == 'superadmin') ..._buildSuperadminView(spacing),
         ],
       ),
     );
   }
 
-  List<Widget> _buildEmployeeView() {
+  List<Widget> _buildEmployeeView(double spacing) {
     return [
       _buildLowStockAlert(),
       const SizedBox(height: 32),
@@ -107,58 +112,68 @@ class _DashboardBodyState extends ConsumerState<DashboardBody> {
     ];
   }
 
-  List<Widget> _buildAdminView() {
+  List<Widget> _buildAdminView(double spacing) {
     return [
       _buildTodaysCards(),
-      const SizedBox(height: 16),
+      SizedBox(height: spacing),
       _buildLowStockAlert(),
-      const SizedBox(height: 16),
+      SizedBox(height: spacing),
       _buildSevenDayChart(),
-      const SizedBox(height: 16),
+      SizedBox(height: spacing),
       _buildQuickActions(),
-      const SizedBox(height: 16),
+      SizedBox(height: spacing),
       _buildBillHistorySection(),
     ];
   }
 
-  List<Widget> _buildSuperadminView() {
+  List<Widget> _buildSuperadminView(double spacing) {
     return [
       _buildTodaysCards(),
-      const SizedBox(height: 16),
+      SizedBox(height: spacing),
       _buildNetProfitCard(),
-      const SizedBox(height: 16),
+      SizedBox(height: spacing),
       _buildUdhaarOutstandingCard(),
-      const SizedBox(height: 16),
+      SizedBox(height: spacing),
       _buildUserActivityCard(),
-      const SizedBox(height: 16),
+      SizedBox(height: spacing),
       _buildLowStockAlert(),
-      const SizedBox(height: 16),
+      SizedBox(height: spacing),
       _buildSevenDayChart(),
-      const SizedBox(height: 16),
+      SizedBox(height: spacing),
       _buildQuickActions(),
-      const SizedBox(height: 16),
+      SizedBox(height: spacing),
       _buildBillHistorySection(),
     ];
   }
 
   Widget _buildTodaysCards() {
+    final isMobile = ResponsiveHelper.isMobile(context);
+    final salesCard = _buildSummaryCard(
+      'Today\'s Sales',
+      todaysSalesProvider,
+      Colors.green,
+    );
+    final expensesCard = _buildSummaryCard(
+      'Today\'s Expenses',
+      todaysExpensesProvider,
+      Colors.red,
+    );
+
+    if (isMobile) {
+      return Column(
+        children: [
+          salesCard,
+          const SizedBox(height: 10),
+          expensesCard,
+        ],
+      );
+    }
+
     return Row(
       children: [
-        Expanded(
-          child: _buildSummaryCard(
-            'Today\'s Sales',
-            todaysSalesProvider,
-            Colors.green,
-          ),
-        ),
+        Expanded(child: salesCard),
         const SizedBox(width: 16),
-        Expanded(
-          child: _buildSummaryCard(
-            'Today\'s Expenses',
-            todaysExpensesProvider,
-            Colors.red,
-          ),
-        ),
+        Expanded(child: expensesCard),
       ],
     );
   }
@@ -280,7 +295,7 @@ class _DashboardBodyState extends ConsumerState<DashboardBody> {
                     ),
                     const SizedBox(height: 16),
                     SizedBox(
-                      height: 200,
+                      height: ResponsiveHelper.isMobile(context) ? 150 : 200,
                       child: BarChart(
                         BarChartData(
                           barGroups: data.map((d) {
@@ -336,9 +351,10 @@ class _DashboardBodyState extends ConsumerState<DashboardBody> {
   }
 
   Widget _buildQuickActions() {
+    final isMobile = ResponsiveHelper.isMobile(context);
     return Card(
       child: Padding(
-        padding: const EdgeInsets.all(16),
+        padding: EdgeInsets.all(isMobile ? 12 : 16),
         child: Column(
           crossAxisAlignment: CrossAxisAlignment.start,
           children: [
@@ -347,8 +363,10 @@ class _DashboardBodyState extends ConsumerState<DashboardBody> {
               style: TextStyle(fontSize: 16, fontWeight: FontWeight.w500),
             ),
             const SizedBox(height: 16),
-            Row(
-              mainAxisAlignment: MainAxisAlignment.spaceEvenly,
+            Wrap(
+              spacing: isMobile ? 16 : 24,
+              runSpacing: 12,
+              alignment: WrapAlignment.spaceEvenly,
               children: [
                 _buildActionButton(
                   'નવું બિલ',
@@ -408,39 +426,7 @@ class _DashboardBodyState extends ConsumerState<DashboardBody> {
               ],
             ),
             const SizedBox(height: 12),
-            Row(
-              children: [
-                Expanded(
-                  child: OutlinedButton.icon(
-                    onPressed: _pickBillFromDate,
-                    icon: const Icon(Icons.date_range),
-                    label: Text(
-                      _billFromDate == null
-                          ? 'તારીખ થી'
-                          : DateFormat('dd/MM/yyyy').format(_billFromDate!),
-                    ),
-                  ),
-                ),
-                const SizedBox(width: 12),
-                Expanded(
-                  child: OutlinedButton.icon(
-                    onPressed: _pickBillToDate,
-                    icon: const Icon(Icons.date_range),
-                    label: Text(
-                      _billToDate == null
-                          ? 'તારીખ સુધી'
-                          : DateFormat('dd/MM/yyyy').format(_billToDate!),
-                    ),
-                  ),
-                ),
-                const SizedBox(width: 8),
-                IconButton(
-                  onPressed: _clearBillDates,
-                  icon: const Icon(Icons.close),
-                  tooltip: 'Clear dates',
-                ),
-              ],
-            ),
+            _buildDateFilterRow(),
             const SizedBox(height: 12),
             TextField(
               controller: _billSearchController,
@@ -528,9 +514,65 @@ class _DashboardBodyState extends ConsumerState<DashboardBody> {
     VoidCallback onPressed,
   ) {
     return Column(
+      mainAxisSize: MainAxisSize.min,
       children: [
         IconButton(icon: Icon(icon, size: 32), onPressed: onPressed),
         Text(label, style: const TextStyle(fontSize: 12)),
+      ],
+    );
+  }
+
+  /// Responsive date-filter row: side-by-side on wide screens, stacked on mobile.
+  Widget _buildDateFilterRow() {
+    final isMobile = ResponsiveHelper.isMobile(context);
+
+    final fromButton = OutlinedButton.icon(
+      onPressed: _pickBillFromDate,
+      icon: const Icon(Icons.date_range),
+      label: Text(
+        _billFromDate == null
+            ? 'તારીખ થી'
+            : DateFormat('dd/MM/yyyy').format(_billFromDate!),
+      ),
+    );
+    final toButton = OutlinedButton.icon(
+      onPressed: _pickBillToDate,
+      icon: const Icon(Icons.date_range),
+      label: Text(
+        _billToDate == null
+            ? 'તારીખ સુધી'
+            : DateFormat('dd/MM/yyyy').format(_billToDate!),
+      ),
+    );
+    final clearButton = IconButton(
+      onPressed: _clearBillDates,
+      icon: const Icon(Icons.close),
+      tooltip: 'Clear dates',
+    );
+
+    if (isMobile) {
+      return Column(
+        children: [
+          Row(
+            children: [
+              Expanded(child: fromButton),
+              const SizedBox(width: 8),
+              clearButton,
+            ],
+          ),
+          const SizedBox(height: 8),
+          SizedBox(width: double.infinity, child: toButton),
+        ],
+      );
+    }
+
+    return Row(
+      children: [
+        Expanded(child: fromButton),
+        const SizedBox(width: 12),
+        Expanded(child: toButton),
+        const SizedBox(width: 8),
+        clearButton,
       ],
     );
   }

@@ -47,6 +47,7 @@ final returnSearchQueryProvider = StateProvider<String>((ref) => '');
 final returnSelectedBillProvider = StateProvider<int?>((ref) => null);
 
 final returnModeProvider = StateProvider<String>((ref) => 'cash_refund');
+final replaceModeProvider = StateProvider<String>((ref) => 'cash_refund');
 
 final returnSelectedItemsProvider = StateProvider<List<int>>((ref) => []);
 

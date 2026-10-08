@@ -23,6 +23,15 @@ void main() {
 
       if (Platform.isWindows || Platform.isLinux) {
         sqfliteFfiInit();
+        final originalDebugPrint = debugPrint;
+        debugPrint = (String? message, {int? wrapWidth}) {
+          if (message != null &&
+              (message.contains('Unable to parse JSON message') ||
+               message.contains('The document is empty.'))) {
+            return;
+          }
+          originalDebugPrint(message, wrapWidth: wrapWidth);
+        };
       }
 
       // Ensure database is initialized

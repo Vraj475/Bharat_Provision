@@ -22,8 +22,8 @@ class ReturnEntry {
       id: map['id'] as int?,
       originalBillId: map['original_bill_id'] as int?,
       customerId: map['customer_id'] as int?,
-      returnDate: map['return_date'] as String,
-      totalReturnValue: (map['total_return_value'] as num).toDouble(),
+      returnDate: (map['return_date'] as String?) ?? DateTime.now().toIso8601String(),
+      totalReturnValue: ((map['total_return_value'] as num?) ?? 0.0).toDouble(),
       returnMode: map['return_mode'] as String?,
       notes: map['notes'] as String?,
     );

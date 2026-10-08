@@ -1,5 +1,6 @@
 import 'package:flutter/material.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
+import 'package:intl/intl.dart';
 
 import '../../core/utils/currency_format.dart';
 import '../../shared/models/bill_model.dart';
@@ -10,6 +11,21 @@ class BillDetailScreen extends ConsumerWidget {
   const BillDetailScreen({super.key, required this.billId});
 
   final int billId;
+
+  String _formatDate(String rawDate) {
+    if (rawDate.isEmpty) return 'N/A';
+    try {
+      final parsed = DateTime.parse(rawDate);
+      return DateFormat('dd/MM/yyyy hh:mm a').format(parsed.toLocal());
+    } catch (_) {
+      final epoch = int.tryParse(rawDate);
+      if (epoch != null) {
+        final parsed = DateTime.fromMillisecondsSinceEpoch(epoch);
+        return DateFormat('dd/MM/yyyy hh:mm a').format(parsed.toLocal());
+      }
+      return rawDate;
+    }
+  }
 
   @override
   Widget build(BuildContext context, WidgetRef ref) {
@@ -37,9 +53,7 @@ class BillDetailScreen extends ConsumerWidget {
                     crossAxisAlignment: CrossAxisAlignment.start,
                     children: [
                       Text('Bill Number: ${bill.billNumber}'),
-                      Text(
-                        'Date: ${DateTime.parse(bill.createdAt).toLocal()}',
-                      ),
+                      Text('Date: ${_formatDate(bill.createdAt)}'),
                       Text('Payment: ${bill.paymentMode?.toUpperCase() ?? "CASH"}'),
                       const SizedBox(height: 8),
                       Text('Subtotal: ${formatCurrency(bill.subtotal)}'),
@@ -61,9 +75,14 @@ class BillDetailScreen extends ConsumerWidget {
               ...items.map(
                 (item) => ListTile(
                   contentPadding: EdgeInsets.zero,
-                  title: Text('Item #${item.productId}'),
+                  title: Text(
+                    item.productNameSnapshot != null &&
+                            item.productNameSnapshot!.isNotEmpty
+                        ? item.productNameSnapshot!
+                        : 'Item #${item.productId}',
+                  ),
                   subtitle: Text(
-                    '${item.qty.toStringAsFixed(2)} x ${formatCurrency(item.sellPriceSnapshot ?? 0)}',
+                    '${item.qty.toStringAsFixed(2)} ${item.unitTypeSnapshot ?? ''} x ${formatCurrency(item.sellPriceSnapshot ?? 0)}'.trim(),
                   ),
                   trailing: Text(formatCurrency(item.amount)),
                 ),

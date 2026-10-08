@@ -79,7 +79,11 @@ class _ReturnHistoryScreenState extends ConsumerState<ReturnHistoryScreen> {
                 final r = _returns[index];
                 final modeLabel = r.returnMode == 'cash_refund'
                     ? 'કેશ રિફંડ'
-                    : (r.returnMode == 'udhaar_credit' ? 'ઉધાર ક્રેડિટ' : (r.returnMode ?? 'અજ્ઞાત'));
+                    : (r.returnMode == 'udhaar_credit'
+                        ? 'ઉધાર ક્રેડિટ'
+                        : (r.returnMode == 'replace'
+                            ? 'બીલ બદલો'
+                            : (r.returnMode ?? 'અજ્ઞાત')));
 
                 return Card(
                   margin: const EdgeInsets.symmetric(vertical: 6),

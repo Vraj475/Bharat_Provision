@@ -39,7 +39,7 @@ class _ReturnReplaceScreenState extends ConsumerState<ReturnReplaceScreen> {
   String _activeMode = 'return';
 
   // --- RETURN MODE STATE ---
-  // Map of billItemId -> committed returnedQty (base unit: kg or pcs)
+  // Map of billItemId -> committed returnedQty (in product base unit: kg, gram, liter, or count)
   final Map<int, double> _returnedQtyMap = {};
 
   // Which item row is currently expanded for inline input
@@ -89,6 +89,7 @@ class _ReturnReplaceScreenState extends ConsumerState<ReturnReplaceScreen> {
         if (_returnInputErrors[itemId] != null) {
           _returnInputErrors[itemId] = null;
         }
+        if (mounted) setState(() {});
       });
       return ctrl;
     });
@@ -220,9 +221,63 @@ class _ReturnReplaceScreenState extends ConsumerState<ReturnReplaceScreen> {
     }
   }
 
-  // ─── Unit helper ───────────────────────────────────────────────────────────
+  // ─── Unit helpers ──────────────────────────────────────────────────────────
 
-  bool _isWeightUnit(String? unitType) => ReturnRepository.isWeightUnit(unitType);
+  String _unitName(String? unit) => ReturnRepository.formatUnitName(unit);
+  bool _isKilo(String? unit) => ReturnRepository.isKiloUnit(unit);
+  bool _isGram(String? unit) => ReturnRepository.isGramUnit(unit);
+  bool _isLiter(String? unit) => ReturnRepository.isLiterUnit(unit);
+  bool _isDecimal(String? unit) => ReturnRepository.isDecimalUnit(unit);
+
+  String _formatQtyWithUnit(double qty, String? unitType) {
+    final u = _unitName(unitType);
+    if (_isKilo(unitType)) {
+      final grams = (qty * 1000).round();
+      if (grams < 1000) {
+        return '$grams ગ્રામ';
+      }
+      if (grams % 1000 == 0) {
+        return '${(grams ~/ 1000)} $u';
+      }
+      return '${qty.toStringAsFixed(3)} $u ($grams ગ્રામ)';
+    }
+    if (_isGram(unitType)) {
+      return '${qty.round()} $u';
+    }
+    if (_isLiter(unitType)) {
+      return qty % 1 == 0 ? '${qty.toInt()} $u' : '${qty.toStringAsFixed(2)} $u';
+    }
+    return qty % 1 == 0 ? '${qty.toInt()} $u' : '${qty.toStringAsFixed(2)} $u';
+  }
+
+  String _formatRateWithUnit(double rate, String? unitType) {
+    final u = _unitName(unitType);
+    return '₹${rate.toStringAsFixed(2)} / $u';
+  }
+
+  /// Parses user's raw input number into base units (kg for kilo, grams for gram, liters for liter, count for discrete)
+  double? _parseReceivedBaseQty(double rawInput, BillItem item) {
+    if (rawInput <= 0) return null;
+    if (_isKilo(item.unitTypeSnapshot)) {
+      // If user typed in grams (e.g. 100g, 250g, 500g, 1000g):
+      if (rawInput >= 10 && (rawInput / 1000.0) <= item.qty + 0.0001) {
+        return rawInput / 1000.0;
+      }
+      // If user typed directly in kg (e.g. 0.25, 0.5, 1, 1.5, 2):
+      if (rawInput <= item.qty + 0.0001) {
+        return rawInput;
+      }
+      return null;
+    }
+    if (_isGram(item.unitTypeSnapshot) || _isLiter(item.unitTypeSnapshot)) {
+      if (rawInput <= item.qty + 0.0001) return rawInput;
+      return null;
+    }
+    // Discrete unit: must be whole number
+    if (rawInput % 1 != 0) return null;
+    if (rawInput <= item.qty + 0.0001) return rawInput;
+    return null;
+  }
 
   // ─── Return computed getters ───────────────────────────────────────────────
 
@@ -253,10 +308,18 @@ class _ReturnReplaceScreenState extends ConsumerState<ReturnReplaceScreen> {
         if (ctrl != null) {
           final committed = _returnedQtyMap[item.id] ?? 0.0;
           if (committed > 0) {
-            final isWeight = _isWeightUnit(item.unitTypeSnapshot);
-            ctrl.text = isWeight
-                ? (committed * 1000).toStringAsFixed(0)
-                : committed.toStringAsFixed(0);
+            if (_isKilo(item.unitTypeSnapshot)) {
+              final grams = (committed * 1000).round();
+              ctrl.text = (committed >= 1 && grams % 1000 == 0)
+                  ? committed.toStringAsFixed(0)
+                  : grams.toString();
+            } else if (_isGram(item.unitTypeSnapshot)) {
+              ctrl.text = committed.round().toString();
+            } else if (_isLiter(item.unitTypeSnapshot)) {
+              ctrl.text = committed % 1 == 0 ? committed.toInt().toString() : committed.toStringAsFixed(2);
+            } else {
+              ctrl.text = committed.toInt().toString();
+            }
           }
           // else leave as-is (user's WIP text)
         }
@@ -267,11 +330,19 @@ class _ReturnReplaceScreenState extends ConsumerState<ReturnReplaceScreen> {
   void _fillFullReturn(BillItem item) {
     final ctrl = _returnInputControllers[item.id!];
     if (ctrl == null) return;
-    final isWeight = _isWeightUnit(item.unitTypeSnapshot);
     setState(() {
-      ctrl.text = isWeight
-          ? (item.qty * 1000).toStringAsFixed(0)
-          : item.qty.toStringAsFixed(0);
+      if (_isKilo(item.unitTypeSnapshot)) {
+        final grams = (item.qty * 1000).round();
+        ctrl.text = (item.qty >= 1 && grams % 1000 == 0)
+            ? item.qty.toStringAsFixed(0)
+            : grams.toString();
+      } else if (_isGram(item.unitTypeSnapshot)) {
+        ctrl.text = item.qty.round().toString();
+      } else if (_isLiter(item.unitTypeSnapshot)) {
+        ctrl.text = item.qty % 1 == 0 ? item.qty.toInt().toString() : item.qty.toStringAsFixed(2);
+      } else {
+        ctrl.text = item.qty.toInt().toString();
+      }
       _returnInputErrors[item.id!] = null;
     });
   }
@@ -300,20 +371,16 @@ class _ReturnReplaceScreenState extends ConsumerState<ReturnReplaceScreen> {
       return;
     }
 
-    final isWeight = _isWeightUnit(item.unitTypeSnapshot);
-
-    if (!isWeight && rawInput % 1 != 0) {
+    final u = _unitName(item.unitTypeSnapshot);
+    if (!_isDecimal(item.unitTypeSnapshot) && rawInput % 1 != 0) {
       setState(() => _returnInputErrors[item.id!] =
-          'નંગ માટે પૂર્ણ સંખ્યા (whole number) દાખલ કરો');
+          '$u માટે પૂર્ણ સંખ્યા (whole number) દાખલ કરો');
       return;
     }
 
-    final receivedBase = isWeight ? rawInput / 1000.0 : rawInput;
-
-    if (receivedBase > item.qty + 0.0001) {
-      final maxDisplay = isWeight
-          ? '${(item.qty * 1000).toStringAsFixed(0)} g'
-          : '${item.qty.toStringAsFixed(0)} pcs';
+    final receivedBase = _parseReceivedBaseQty(rawInput, item);
+    if (receivedBase == null || receivedBase > item.qty + 0.0001) {
+      final maxDisplay = _formatQtyWithUnit(item.qty, item.unitTypeSnapshot);
       setState(() => _returnInputErrors[item.id!] =
           'ખરીદેલ માત્રા ($maxDisplay) થી વધુ ન હોઈ શકે');
       return;
@@ -348,6 +415,7 @@ class _ReturnReplaceScreenState extends ConsumerState<ReturnReplaceScreen> {
           billItemId: item.id!,
           productId: item.productId,
           productName: item.productNameSnapshot,
+          unitType: item.unitTypeSnapshot,
           qtyReturned: retQty,
           sellPriceSnapshot: item.sellPriceSnapshot ?? 0,
         ));
@@ -482,21 +550,44 @@ class _ReturnReplaceScreenState extends ConsumerState<ReturnReplaceScreen> {
 
   void _editReplaceCartItem(int index) {
     final item = _replaceCartItems[index];
-    final isWeight = _isWeightUnit(item.unitTypeSnapshot);
+    final u = _unitName(item.unitTypeSnapshot);
+    final isKilo = _isKilo(item.unitTypeSnapshot);
+    final isGram = _isGram(item.unitTypeSnapshot);
+    final isLiter = _isLiter(item.unitTypeSnapshot);
+    final isDecimal = _isDecimal(item.unitTypeSnapshot);
+
     final qtyCtrl = TextEditingController(
-      text: isWeight
+      text: isKilo
           ? (item.qty * 1000).toStringAsFixed(0)
-          : item.qty.toStringAsFixed(0),
+          : (isDecimal
+              ? (item.qty % 1 == 0 ? item.qty.toInt().toString() : item.qty.toStringAsFixed(2))
+              : item.qty.toInt().toString()),
     );
     final priceCtrl = TextEditingController(
       text: (item.sellPriceSnapshot ?? 0).toStringAsFixed(2),
     );
 
+    final String qtyLabel;
+    final String qtySuffix;
+    if (isKilo) {
+      qtyLabel = 'વજન (ગ્રામ)';
+      qtySuffix = 'ગ્રામ';
+    } else if (isGram) {
+      qtyLabel = 'વજન (ગ્રામ)';
+      qtySuffix = 'ગ્રામ';
+    } else if (isLiter) {
+      qtyLabel = 'માત્રા (લીટર)';
+      qtySuffix = 'લીટર';
+    } else {
+      qtyLabel = 'માત્રા ($u)';
+      qtySuffix = u;
+    }
+
     showDialog(
       context: context,
       builder: (ctx) => StatefulBuilder(
         builder: (ctx2, setDlg) => AlertDialog(
-          title: Text('${item.productNameSnapshot} સુધારો'),
+          title: Text('${item.productNameSnapshot ?? 'ઉત્પાદન'} સુધારો'),
           content: Column(
             mainAxisSize: MainAxisSize.min,
             children: [
@@ -505,8 +596,8 @@ class _ReturnReplaceScreenState extends ConsumerState<ReturnReplaceScreen> {
                 keyboardType:
                     const TextInputType.numberWithOptions(decimal: true),
                 decoration: InputDecoration(
-                  labelText: isWeight ? 'વજન (ગ્રામ)' : 'માત્રા (નંગ)',
-                  suffixText: isWeight ? 'g' : 'pcs',
+                  labelText: qtyLabel,
+                  suffixText: qtySuffix,
                   border: const OutlineInputBorder(),
                 ),
               ),
@@ -515,9 +606,9 @@ class _ReturnReplaceScreenState extends ConsumerState<ReturnReplaceScreen> {
                 controller: priceCtrl,
                 keyboardType:
                     const TextInputType.numberWithOptions(decimal: true),
-                decoration: const InputDecoration(
-                  labelText: 'ભાવ (₹ / kg or pcs)',
-                  border: OutlineInputBorder(),
+                decoration: InputDecoration(
+                  labelText: 'ભાવ (₹ / $u)',
+                  border: const OutlineInputBorder(),
                 ),
               ),
             ],
@@ -535,7 +626,7 @@ class _ReturnReplaceScreenState extends ConsumerState<ReturnReplaceScreen> {
             ElevatedButton(
               onPressed: () {
                 final rawQty = double.tryParse(qtyCtrl.text) ?? 0.0;
-                final finalQty = isWeight ? rawQty / 1000.0 : rawQty;
+                final finalQty = isKilo ? rawQty / 1000.0 : rawQty;
                 final price = double.tryParse(priceCtrl.text) ?? 0.0;
                 if (finalQty <= 0) return;
                 ctx.pop();
@@ -880,19 +971,19 @@ class _ReturnReplaceScreenState extends ConsumerState<ReturnReplaceScreen> {
   Widget _buildReturnItemCard(BillItem item) {
     if (item.id == null) return const SizedBox.shrink();
 
-    final isWeight = _isWeightUnit(item.unitTypeSnapshot);
     final isExpanded = _expandedItemId == item.id;
     final committedQty = _returnedQtyMap[item.id] ?? 0.0;
     final hasCommittedReturn = committedQty > 0;
     final isFullyReturned = item.isReturned;
 
-    // Display strings for the collapsed card
-    final qtyDisplay = isWeight
-        ? '${(item.qty * 1000).toStringAsFixed(0)} g'
-        : '${item.qty.toStringAsFixed(0)} pcs';
-    final priceDisplay = isWeight
-        ? '₹${(item.sellPriceSnapshot ?? 0).toStringAsFixed(0)}/kg'
-        : '₹${(item.sellPriceSnapshot ?? 0).toStringAsFixed(2)}/pcs';
+    final qtyDisplay = _formatQtyWithUnit(item.qty, item.unitTypeSnapshot);
+    final priceDisplay = _formatRateWithUnit(item.sellPriceSnapshot ?? 0, item.unitTypeSnapshot);
+    final displayName = (item.productNameSnapshot != null &&
+            item.productNameSnapshot!.trim().isNotEmpty &&
+            item.productNameSnapshot != '—' &&
+            item.productNameSnapshot != '-')
+        ? item.productNameSnapshot!
+        : 'ઉત્પાદન #${item.productId}';
 
     Color cardColor = Colors.white;
     if (isFullyReturned) {
@@ -936,7 +1027,7 @@ class _ReturnReplaceScreenState extends ConsumerState<ReturnReplaceScreen> {
                       crossAxisAlignment: CrossAxisAlignment.start,
                       children: [
                         Text(
-                          item.productNameSnapshot ?? '—',
+                          displayName,
                           style: TextStyle(
                             fontWeight: FontWeight.w700,
                             fontSize: 14,
@@ -953,9 +1044,7 @@ class _ReturnReplaceScreenState extends ConsumerState<ReturnReplaceScreen> {
                               const Icon(Icons.undo, size: 12, color: AppColors.primary),
                               const SizedBox(width: 2),
                               Text(
-                                isWeight
-                                    ? 'પરત: ${(committedQty * 1000).toStringAsFixed(0)} g'
-                                    : 'પરત: ${committedQty.toStringAsFixed(0)} pcs',
+                                'પરત: ${_formatQtyWithUnit(committedQty, item.unitTypeSnapshot)}',
                                 style: const TextStyle(
                                     fontSize: 11,
                                     color: AppColors.primary,
@@ -1027,32 +1116,54 @@ class _ReturnReplaceScreenState extends ConsumerState<ReturnReplaceScreen> {
 
           // ── Expanded inline input panel ────────────────────────────────
           if (isExpanded && !isFullyReturned)
-            _buildInlineReturnPanel(item, isWeight),
+            _buildInlineReturnPanel(item),
         ],
       ),
     );
   }
 
-  Widget _buildInlineReturnPanel(BillItem item, bool isWeight) {
+  Widget _buildInlineReturnPanel(BillItem item) {
     final ctrl = _returnInputControllers[item.id!];
     final error = _returnInputErrors[item.id];
+    final u = _unitName(item.unitTypeSnapshot);
+    final isKilo = _isKilo(item.unitTypeSnapshot);
+    final isGram = _isGram(item.unitTypeSnapshot);
+    final isLiter = _isLiter(item.unitTypeSnapshot);
 
     // Live calculation from what user has typed
     final rawText = ctrl?.text.trim() ?? '';
     final rawInput = double.tryParse(rawText) ?? 0.0;
-    final receivedBase = isWeight ? rawInput / 1000.0 : rawInput;
-    final isValid = rawInput > 0 && receivedBase <= item.qty + 0.0001;
+    final receivedBase = _parseReceivedBaseQty(rawInput, item);
+    final isValid = receivedBase != null && receivedBase > 0 && receivedBase <= item.qty + 0.0001;
     final remainingBase =
         isValid ? (item.qty - receivedBase).clamp(0.0, double.maxFinite) : item.qty;
     final refundAmount =
         isValid ? receivedBase * (item.sellPriceSnapshot ?? 0) : 0.0;
 
-    final maxDisplay = isWeight
-        ? '${(item.qty * 1000).toStringAsFixed(0)} g  (${item.qty.toStringAsFixed(3)} kg)'
-        : '${item.qty.toStringAsFixed(0)} pcs';
-    final remainingDisplay = isWeight
-        ? '${(remainingBase * 1000).toStringAsFixed(0)} g  (${remainingBase.toStringAsFixed(3)} kg)'
-        : '${remainingBase.toStringAsFixed(0)} pcs';
+    final maxDisplay = _formatQtyWithUnit(item.qty, item.unitTypeSnapshot);
+    final remainingDisplay = _formatQtyWithUnit(remainingBase, item.unitTypeSnapshot);
+
+    final String labelText;
+    final String hintText;
+    final String suffixText;
+
+    if (isKilo) {
+      labelText = 'પરત આપેલ વજન';
+      hintText = 'ગ્રામ અથવા કિલો માં (દા.ત. 500 અથવા 0.5)';
+      suffixText = 'કિલો / ગ્રામ';
+    } else if (isGram) {
+      labelText = 'પરત આપેલ વજન (ગ્રામ)';
+      hintText = 'ગ્રામ માં (દા.ત. 100)';
+      suffixText = 'ગ્રામ';
+    } else if (isLiter) {
+      labelText = 'પરત આપેલ માત્રા (લીટર)';
+      hintText = 'લીટર માં (દા.ત. 1 અથવા 0.5)';
+      suffixText = 'લીટર';
+    } else {
+      labelText = 'પરત આપેલ માત્રા ($u)';
+      hintText = '$u માં (દા.ત. 1)';
+      suffixText = u;
+    }
 
     return Container(
       margin: const EdgeInsets.only(top: 0),
@@ -1090,10 +1201,10 @@ class _ReturnReplaceScreenState extends ConsumerState<ReturnReplaceScreen> {
                       ),
                       const SizedBox(height: 2),
                       Text(
-                        isWeight
-                            ? 'ભાવ:  ₹${(item.sellPriceSnapshot ?? 0).toStringAsFixed(2)}/kg'
-                                '  =  ₹${((item.sellPriceSnapshot ?? 0) / 1000).toStringAsFixed(4)}/g'
-                            : 'ભાવ:  ₹${(item.sellPriceSnapshot ?? 0).toStringAsFixed(2)}/pcs',
+                        isKilo
+                            ? 'ભાવ:  ₹${(item.sellPriceSnapshot ?? 0).toStringAsFixed(2)} / $u'
+                                '  =  ₹${((item.sellPriceSnapshot ?? 0) / 1000).toStringAsFixed(4)} / ગ્રામ'
+                            : 'ભાવ:  ${_formatRateWithUnit(item.sellPriceSnapshot ?? 0, item.unitTypeSnapshot)}',
                         style: TextStyle(
                             fontSize: 11, color: Colors.grey.shade700),
                       ),
@@ -1121,12 +1232,11 @@ class _ReturnReplaceScreenState extends ConsumerState<ReturnReplaceScreen> {
             controller: ctrl,
             keyboardType:
                 const TextInputType.numberWithOptions(decimal: true),
+            onChanged: (_) => setState(() {}),
             decoration: InputDecoration(
-              labelText: isWeight
-                  ? 'ગ્રાહકે આપેલ વજન'
-                  : 'ગ્રાહકે આપેલ નંગ',
-              hintText: isWeight ? 'ગ્રામ માં (દા.ત. 728)' : 'નંગ (દા.ત. 2)',
-              suffixText: isWeight ? 'grams' : 'pcs',
+              labelText: labelText,
+              hintText: hintText,
+              suffixText: suffixText,
               border: const OutlineInputBorder(),
               errorText: error,
               contentPadding: const EdgeInsets.symmetric(
@@ -1152,9 +1262,7 @@ class _ReturnReplaceScreenState extends ConsumerState<ReturnReplaceScreen> {
                     mainAxisAlignment: MainAxisAlignment.spaceBetween,
                     children: [
                       Text(
-                        isWeight
-                            ? 'પરત:  ${rawInput.toStringAsFixed(0)} g'
-                            : 'પરત:  ${rawInput.toStringAsFixed(0)} pcs',
+                        'પરત: ${_formatQtyWithUnit(receivedBase, item.unitTypeSnapshot)}',
                         style: const TextStyle(fontSize: 13),
                       ),
                       Text(
@@ -1347,11 +1455,12 @@ class _ReturnReplaceScreenState extends ConsumerState<ReturnReplaceScreen> {
                   itemCount: _catalogSearchResults.length,
                   itemBuilder: (context, index) {
                     final p = _catalogSearchResults[index];
+                    final u = _unitName(p.unitType);
                     return ListTile(
                       title: Text(p.nameGujarati,
                           style: const TextStyle(fontWeight: FontWeight.w600)),
                       subtitle: Text(
-                          'ભાવ: ₹${p.sellPrice.toStringAsFixed(2)} / ${p.unitType} | સ્ટોક: ${p.stockQty}'),
+                          'ભાવ: ₹${p.sellPrice.toStringAsFixed(2)} / $u | સ્ટોક: ${p.stockQty} $u'),
                       trailing: ElevatedButton.icon(
                         icon: const Icon(Icons.add, size: 16),
                         label: const Text('ઉમેરો'),
@@ -1388,15 +1497,19 @@ class _ReturnReplaceScreenState extends ConsumerState<ReturnReplaceScreen> {
                   itemCount: _replaceCartItems.length,
                   itemBuilder: (context, index) {
                     final item = _replaceCartItems[index];
-                    final isWeight = _isWeightUnit(item.unitTypeSnapshot);
-                    final qtyDisplay = isWeight
-                        ? '${(item.qty * 1000).toStringAsFixed(0)} g'
-                        : '${item.qty.toStringAsFixed(0)} pcs';
+                    final u = _unitName(item.unitTypeSnapshot);
+                    final qtyDisplay = _formatQtyWithUnit(item.qty, item.unitTypeSnapshot);
+                    final displayName = (item.productNameSnapshot != null &&
+                            item.productNameSnapshot!.trim().isNotEmpty &&
+                            item.productNameSnapshot != '—' &&
+                            item.productNameSnapshot != '-')
+                        ? item.productNameSnapshot!
+                        : 'ઉત્પાદન #${item.productId}';
                     return Card(
                       child: ListTile(
-                        title: Text(item.productNameSnapshot ?? ''),
+                        title: Text(displayName),
                         subtitle: Text(
-                            '$qtyDisplay  ×  ₹${(item.sellPriceSnapshot ?? 0).toStringAsFixed(2)}'),
+                            '$qtyDisplay  ×  ₹${(item.sellPriceSnapshot ?? 0).toStringAsFixed(2)} / $u'),
                         trailing: Text(formatCurrency(item.amount),
                             style: const TextStyle(fontWeight: FontWeight.bold)),
                         onTap: () => _editReplaceCartItem(index),

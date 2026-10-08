@@ -11,6 +11,7 @@ class ReturnLine {
   final int billItemId;
   final int productId;
   final String? productName;
+  final String? unitType;
   final double qtyReturned;
   final double sellPriceSnapshot;
 
@@ -18,6 +19,7 @@ class ReturnLine {
     required this.billItemId,
     required this.productId,
     this.productName,
+    this.unitType,
     required this.qtyReturned,
     required this.sellPriceSnapshot,
   });
@@ -146,12 +148,44 @@ class ReturnRepository {
 
   Future<List<BillItem>> getBillItems(int billId) async {
     final db = await _helper.database;
-    final rows = await db.query(
-      'bill_items',
-      where: 'bill_id = ?',
-      whereArgs: [billId],
-    );
-    return rows.map((r) => BillItem.fromMap(r)).toList();
+    final rows = await db.rawQuery('''
+      SELECT
+        bi.*,
+        p.name_gujarati AS prod_name_gu,
+        p.name_english AS prod_name_en,
+        p.unit_type AS prod_unit_type
+      FROM bill_items bi
+      LEFT JOIN products p ON p.id = bi.product_id
+      WHERE bi.bill_id = ?
+      ORDER BY bi.id ASC
+    ''', [billId]);
+
+    return rows.map((r) {
+      final map = Map<String, dynamic>.from(r);
+      final rawName = (map['product_name_snapshot'] as String?)?.trim();
+      final pGu = (map['prod_name_gu'] as String?)?.trim();
+      final pEn = (map['prod_name_en'] as String?)?.trim();
+      if (pGu != null && pGu.isNotEmpty) {
+        map['product_name_snapshot'] = pGu;
+      } else if (pEn != null && pEn.isNotEmpty) {
+        map['product_name_snapshot'] = pEn;
+      } else if (rawName != null && rawName.isNotEmpty && rawName != '—' && rawName != '-') {
+        map['product_name_snapshot'] = rawName;
+      } else {
+        map['product_name_snapshot'] = 'ઉત્પાદન #${map['product_id']}';
+      }
+
+      final rawUnit = (map['unit_type_snapshot'] as String?)?.trim();
+      final pUnit = (map['prod_unit_type'] as String?)?.trim();
+      if (pUnit != null && pUnit.isNotEmpty) {
+        map['unit_type_snapshot'] = pUnit;
+      } else if (rawUnit != null && rawUnit.isNotEmpty) {
+        map['unit_type_snapshot'] = rawUnit;
+      } else {
+        map['unit_type_snapshot'] = 'નંગ';
+      }
+      return BillItem.fromMap(map);
+    }).toList();
   }
 
   Future<List<Product>> getProducts({String? query}) async {
@@ -201,6 +235,18 @@ class ReturnRepository {
     });
   }
 
+  static String formatUnitName(String? unitTypeStr) {
+    if (unitTypeStr == null || unitTypeStr.trim().isEmpty) return 'નંગ';
+    final u = unitTypeStr.trim().toLowerCase();
+    if (u == 'કિલો' || u == 'kg' || u == 'weight_kg' || u.contains('kilo')) return 'કિલો';
+    if (u == 'ગ્રામ' || u == 'gram' || u == 'g' || u == 'weight_gram') return 'ગ્રામ';
+    if (u == 'નંગ' || u == 'unit' || u == 'units' || u == 'piece' || u == 'pieces' || u == 'pcs' || u == 'pc') return 'નંગ';
+    if (u == 'લીટર' || u == 'liter' || u == 'litre' || u == 'l') return 'લીટર';
+    if (u == 'પેકેટ' || u == 'packet' || u == 'pkt') return 'પેકેટ';
+    if (u == 'બોક્સ' || u == 'box') return 'બોક્સ';
+    return unitTypeStr.trim();
+  }
+
   static bool isWeightUnit(String? unitTypeStr) {
     if (unitTypeStr == null) return false;
     final u = unitTypeStr.trim().toLowerCase();
@@ -212,6 +258,28 @@ class ReturnRepository {
         u.contains('ગ્રામ') ||
         u == 'g' ||
         u.contains('gram');
+  }
+
+  static bool isKiloUnit(String? unitTypeStr) {
+    if (unitTypeStr == null) return false;
+    final u = unitTypeStr.trim().toLowerCase();
+    return u == 'weight_kg' || u == 'kg' || u.contains('kilo') || u == 'કિલો';
+  }
+
+  static bool isGramUnit(String? unitTypeStr) {
+    if (unitTypeStr == null) return false;
+    final u = unitTypeStr.trim().toLowerCase();
+    return u == 'weight_gram' || u == 'g' || u == 'gram' || u == 'ગ્રામ';
+  }
+
+  static bool isLiterUnit(String? unitTypeStr) {
+    if (unitTypeStr == null) return false;
+    final u = unitTypeStr.trim().toLowerCase();
+    return u == 'liter' || u == 'litre' || u == 'l' || u == 'લીટર';
+  }
+
+  static bool isDecimalUnit(String? unitTypeStr) {
+    return isWeightUnit(unitTypeStr) || isLiterUnit(unitTypeStr);
   }
 
   Future<int> _createReturnInternal({
@@ -233,7 +301,13 @@ class ReturnRepository {
     final itemSummaries = <String>[];
     for (final l in lines) {
       final pName = l.productName ?? 'ઉત્પાદન #${l.productId}';
-      itemSummaries.add('$pName (${l.qtyReturned})');
+      final uName = formatUnitName(l.unitType);
+      final qtyStr = isKiloUnit(l.unitType)
+          ? '${(l.qtyReturned * 1000).toStringAsFixed(0)} ગ્રામ (${l.qtyReturned.toStringAsFixed(3)} કિલો)'
+          : (l.qtyReturned % 1 == 0
+              ? '${l.qtyReturned.toInt()} $uName'
+              : '${l.qtyReturned.toStringAsFixed(2)} $uName');
+      itemSummaries.add('$pName ($qtyStr)');
     }
     final defaultNote = 'પરત: ${itemSummaries.join(', ')}';
     final computedNotes = (notes != null && notes.trim().isNotEmpty)
@@ -295,9 +369,8 @@ class ReturnRepository {
       if (prodRows.isEmpty) continue;
       final unitTypeStr = (prodRows.first['unit_type'] as String?)?.trim().toLowerCase() ?? '';
       final prodName = (prodRows.first['name_gujarati'] as String?) ?? line.productName ?? 'ઉત્પાદન';
-      final isWeightProduct = isWeightUnit(unitTypeStr);
-
-      final returnQtySanitized = isWeightProduct ? line.qtyReturned : line.qtyReturned.roundToDouble();
+      final isDecimal = isDecimalUnit(unitTypeStr);
+      final returnQtySanitized = isDecimal ? line.qtyReturned : line.qtyReturned.roundToDouble();
       final qtyBefore = (prodRows.first['stock_qty'] as num?)?.toDouble() ?? 0;
       final qtyAfter = qtyBefore + returnQtySanitized;
       await txn.update(
@@ -431,9 +504,9 @@ class ReturnRepository {
         throw StateError('Replacement product not found');
       }
       final replaceUnitTypeStr = (replacementProdRows.first['unit_type'] as String?)?.trim().toLowerCase() ?? '';
-      final isReplaceWeightProduct = isWeightUnit(replaceUnitTypeStr);
+      final isReplaceDecimalProduct = isDecimalUnit(replaceUnitTypeStr);
 
-      final replaceQtyGivenSanitized = isReplaceWeightProduct
+      final replaceQtyGivenSanitized = isReplaceDecimalProduct
           ? replacement.replacementQtyGiven
           : replacement.replacementQtyGiven.roundToDouble();
 

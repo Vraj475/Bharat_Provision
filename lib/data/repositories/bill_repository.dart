@@ -169,6 +169,16 @@ class BillRepository {
         'bill_items',
         'sell_price_snapshot',
       );
+      final hasBillItemProductNameSnapshot = await _columnExists(
+        txn,
+        'bill_items',
+        'product_name_snapshot',
+      );
+      final hasBillItemUnitTypeSnapshot = await _columnExists(
+        txn,
+        'bill_items',
+        'unit_type_snapshot',
+      );
 
       for (final i in items) {
         final lineTotal = i.qty * i.sellPriceSnapshot!;
@@ -183,6 +193,12 @@ class BillRepository {
         }
         if (hasBillItemLineTotal) billItemValues['line_total'] = lineTotal;
         if (hasBillItemAmount) billItemValues['amount'] = lineTotal;
+        if (hasBillItemProductNameSnapshot) {
+          billItemValues['product_name_snapshot'] = i.productNameSnapshot;
+        }
+        if (hasBillItemUnitTypeSnapshot) {
+          billItemValues['unit_type_snapshot'] = i.unitTypeSnapshot;
+        }
         await txn.insert('bill_items', billItemValues);
 
         final hasUnitType = await _columnExists(txn, itemTable, 'unit_type');
@@ -493,17 +509,47 @@ class BillRepository {
 
   Future<List<BillItem>> getBillItems(int billId) async {
     final db = await _db;
-    final maps = await db.query(
-      'bill_items',
-      where: 'bill_id = ?',
-      whereArgs: [billId],
-    );
+    final maps = await db.rawQuery('''
+      SELECT
+        bi.*,
+        p.name_gujarati AS prod_name_gu,
+        p.name_english AS prod_name_en,
+        p.unit_type AS prod_unit_type
+      FROM bill_items bi
+      LEFT JOIN products p ON (p.id = bi.product_id OR p.id = bi.item_id)
+      WHERE bi.bill_id = ?
+      ORDER BY bi.id ASC
+    ''', [billId]);
     return maps.map((m) {
       final normalized = Map<String, dynamic>.from(m);
       normalized['product_id'] ??= normalized['item_id'];
       normalized['qty'] ??= normalized['quantity'];
       normalized['sell_price_snapshot'] ??= normalized['unit_price'];
       normalized['amount'] ??= normalized['line_total'];
+
+      final existingName = (normalized['product_name_snapshot'] as String?)?.trim();
+      final pGu = (normalized['prod_name_gu'] as String?)?.trim();
+      final pEn = (normalized['prod_name_en'] as String?)?.trim();
+      if (pGu != null && pGu.isNotEmpty) {
+        normalized['product_name_snapshot'] = pGu;
+      } else if (pEn != null && pEn.isNotEmpty) {
+        normalized['product_name_snapshot'] = pEn;
+      } else if (existingName != null && existingName.isNotEmpty && existingName != '—' && existingName != '-') {
+        normalized['product_name_snapshot'] = existingName;
+      } else {
+        normalized['product_name_snapshot'] = 'ઉત્પાદન #${normalized['product_id']}';
+      }
+
+      final existingUnit = (normalized['unit_type_snapshot'] as String?)?.trim();
+      final pUnit = (normalized['prod_unit_type'] as String?)?.trim();
+      if (pUnit != null && pUnit.isNotEmpty) {
+        normalized['unit_type_snapshot'] = pUnit;
+      } else if (existingUnit != null && existingUnit.isNotEmpty) {
+        normalized['unit_type_snapshot'] = existingUnit;
+      } else {
+        normalized['unit_type_snapshot'] = 'નંગ';
+      }
+
       return BillItem.fromMap(normalized);
     }).toList();
   }

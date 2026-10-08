@@ -109,6 +109,8 @@ class _BillingHomeScreenState extends ConsumerState<BillingHomeScreen> {
       return BillItem(
         billId: 0, // Placeholder, updated in repository
         productId: line.item.id ?? 0,
+        productNameSnapshot: line.item.nameGujarati,
+        unitTypeSnapshot: line.item.unitType,
         qty: quantityInStockUnit,
         amount: line.amount,
         sellPriceSnapshot: unitPrice,

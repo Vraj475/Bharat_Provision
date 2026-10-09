@@ -10,6 +10,7 @@ import '../../data/repositories/return_repository.dart';
 import '../../shared/models/bill_item_model.dart';
 import '../../shared/models/bill_model.dart';
 import '../../shared/models/product_model.dart';
+import '../billing/views/dialogs/product_addition_dialog.dart';
 import 'returns_providers.dart';
 
 class ReturnReplaceScreen extends ConsumerStatefulWidget {
@@ -317,10 +318,19 @@ class _ReturnReplaceScreenState extends ConsumerState<ReturnReplaceScreen> {
   double get _billGrandTotal =>
       _billItems.fold(0.0, (sum, i) => sum + i.amount);
 
+  bool get _isFullyReturnedBill {
+    if (_selectedBill?.paymentStatus == 'fully_returned') return true;
+    if (_billItems.isNotEmpty &&
+        _billItems.every((i) => i.isReturned || i.qty <= 0)) {
+      return true;
+    }
+    return false;
+  }
+
   // ─── Inline return row logic ───────────────────────────────────────────────
 
   void _toggleExpandRow(BillItem item) {
-    if (item.id == null || item.isReturned) return;
+    if (item.id == null || item.isReturned || _isFullyReturnedBill) return;
     if (_expandedItemId == item.id) {
       setState(() {
         _expandedItemId = null; // collapse
@@ -364,7 +374,7 @@ class _ReturnReplaceScreenState extends ConsumerState<ReturnReplaceScreen> {
   }
 
   void _returnEntireProduct(BillItem item) {
-    if (item.id == null || item.isReturned) return;
+    if (item.id == null || item.isReturned || _isFullyReturnedBill) return;
     final ctrl = _getOrCreateReturnController(item.id!);
     if (_isKilo(item.unitTypeSnapshot)) {
       final grams = (item.qty * 1000).round();
@@ -388,6 +398,7 @@ class _ReturnReplaceScreenState extends ConsumerState<ReturnReplaceScreen> {
   }
 
   void _returnAllProducts() {
+    if (_isFullyReturnedBill) return;
     for (final item in _billItems) {
       if (item.id != null && !item.isReturned && item.qty > 0) {
         final ctrl = _getOrCreateReturnController(item.id!);
@@ -578,37 +589,124 @@ class _ReturnReplaceScreenState extends ConsumerState<ReturnReplaceScreen> {
     }
   }
 
-  void _addCatalogProductToReplace(Product p) {
-    setState(() {
-      final existingIndex =
-          _replaceCartItems.indexWhere((i) => i.productId == p.id);
-      if (existingIndex >= 0) {
-        final existing = _replaceCartItems[existingIndex];
-        final newQty = existing.qty + 1.0;
-        _replaceCartItems[existingIndex] = BillItem(
-          id: existing.id,
-          billId: existing.billId,
-          productId: existing.productId,
-          productNameSnapshot: existing.productNameSnapshot,
-          unitTypeSnapshot: existing.unitTypeSnapshot,
-          sellPriceSnapshot: existing.sellPriceSnapshot,
-          qty: newQty,
-          amount: newQty * (existing.sellPriceSnapshot ?? 0),
-          isReturned: existing.isReturned,
-        );
-      } else {
-        _replaceCartItems.add(BillItem(
-          billId: _selectedBill?.id ?? 0,
-          productId: p.id!,
-          productNameSnapshot: p.nameGujarati,
-          unitTypeSnapshot: p.unitType,
-          sellPriceSnapshot: p.sellPrice,
-          qty: 1.0,
-          amount: p.sellPrice,
-          isReturned: false,
-        ));
+  Future<bool> _checkReplaceStock({
+    required Product item,
+    required double newQtyGrams,
+  }) async {
+    double existingCartQty = 0.0;
+    for (final ci in _replaceCartItems) {
+      if (ci.productId == item.id) {
+        existingCartQty += ci.qty;
       }
-    });
+    }
+
+    final double requestedStock;
+    final unit = item.unitType.trim().toLowerCase();
+    if (unit == 'weight_kg' ||
+        unit.contains('કિલો') ||
+        unit == 'kg' ||
+        unit.contains('kilo')) {
+      requestedStock = newQtyGrams / 1000.0;
+    } else if (unit == 'weight_gram' ||
+        unit.contains('ગ્રામ') ||
+        unit == 'g' ||
+        unit.contains('gram')) {
+      requestedStock = newQtyGrams;
+    } else {
+      requestedStock = newQtyGrams;
+    }
+
+    return (existingCartQty + requestedStock) <= item.stockQty;
+  }
+
+  Future<void> _onSelectProductForReplace(Product item) async {
+    if (item.id == null) return;
+
+    if (item.stockQty <= 0) {
+      ScaffoldMessenger.of(context).showSnackBar(
+        const SnackBar(content: Text('સ્ટોક ઉપલબ્ધ નથી')),
+      );
+      return;
+    }
+
+    if (item.isLowStock) {
+      final shouldContinue = await showDialog<bool>(
+        context: context,
+        builder: (ctx) => AlertDialog(
+          title: const Text('લો સ્ટોક ચેતવણી'),
+          content: Text(
+            '${item.nameGujarati} નો સ્ટોક ઓછો છે.\nહાલ સ્ટોક: ${item.stockQty % 1 == 0 ? item.stockQty.toInt() : item.stockQty.toStringAsFixed(2)} ${item.unitType}',
+          ),
+          actions: [
+            TextButton(
+              onPressed: () => ctx.pop(false),
+              child: const Text('રદ કરો'),
+            ),
+            ElevatedButton(
+              onPressed: () => ctx.pop(true),
+              child: const Text('ઉમેરો'),
+            ),
+          ],
+        ),
+      );
+
+      if (shouldContinue != true) return;
+    }
+
+    if (!mounted) return;
+    final result = await ProductAdditionDialog.show(
+      context,
+      item: item,
+      checkStock: (id, qty) => _checkReplaceStock(item: item, newQtyGrams: qty),
+    );
+
+    if (result != null && mounted) {
+      final qtyGrams = result.$1;
+      final amount = result.$2;
+
+      final double finalQty;
+      final unit = item.unitType.trim().toLowerCase();
+      if (unit == 'weight_kg' ||
+          unit.contains('કિલો') ||
+          unit == 'kg' ||
+          unit.contains('kilo')) {
+        finalQty = qtyGrams / 1000.0;
+      } else {
+        finalQty = qtyGrams;
+      }
+
+      setState(() {
+        final existingIndex =
+            _replaceCartItems.indexWhere((i) => i.productId == item.id);
+        if (existingIndex >= 0) {
+          final existing = _replaceCartItems[existingIndex];
+          final newQty = existing.qty + finalQty;
+          final newAmount = existing.amount + amount;
+          _replaceCartItems[existingIndex] = BillItem(
+            id: existing.id,
+            billId: existing.billId,
+            productId: existing.productId,
+            productNameSnapshot: existing.productNameSnapshot,
+            unitTypeSnapshot: existing.unitTypeSnapshot,
+            sellPriceSnapshot: existing.sellPriceSnapshot,
+            qty: newQty,
+            amount: newAmount,
+            isReturned: existing.isReturned,
+          );
+        } else {
+          _replaceCartItems.add(BillItem(
+            billId: _selectedBill?.id ?? 0,
+            productId: item.id!,
+            productNameSnapshot: item.nameGujarati,
+            unitTypeSnapshot: item.unitType,
+            sellPriceSnapshot: item.sellPrice,
+            qty: finalQty,
+            amount: amount,
+            isReturned: false,
+          ));
+        }
+      });
+    }
   }
 
   void _editReplaceCartItem(int index) {
@@ -847,16 +945,60 @@ class _ReturnReplaceScreenState extends ConsumerState<ReturnReplaceScreen> {
   Widget _buildBillSelectionView(AsyncValue<List<Bill>> billsAsync) {
     return Column(
       children: [
-        TextField(
-          controller: _searchCtrl,
-          decoration: const InputDecoration(
-            prefixIcon: Icon(Icons.search),
-            hintText: 'બિલ નંબર, ગ્રાહકનું નામ, અથવા રકમ શોધો',
-            border: OutlineInputBorder(),
+        Container(
+          decoration: BoxDecoration(
+            color: Colors.white,
+            borderRadius: BorderRadius.circular(12),
+            boxShadow: [
+              BoxShadow(
+                color: Colors.black.withValues(alpha: 0.04),
+                blurRadius: 6,
+                offset: const Offset(0, 2),
+              ),
+            ],
           ),
-          onChanged: (_) => _scheduleSearch(),
+          child: TextField(
+            controller: _searchCtrl,
+            decoration: InputDecoration(
+              prefixIcon: const Icon(Icons.search, color: AppColors.primary),
+              hintText: 'બિલ નંબર, ગ્રાહકનું નામ, અથવા રકમ શોધો...',
+              border: OutlineInputBorder(
+                borderRadius: BorderRadius.circular(12),
+                borderSide: BorderSide(
+                  color: AppColors.primary.withValues(alpha: 0.3),
+                  width: 1.5,
+                ),
+              ),
+              enabledBorder: OutlineInputBorder(
+                borderRadius: BorderRadius.circular(12),
+                borderSide: BorderSide(
+                  color: Colors.grey.shade300,
+                  width: 1.5,
+                ),
+              ),
+              focusedBorder: OutlineInputBorder(
+                borderRadius: BorderRadius.circular(12),
+                borderSide: const BorderSide(
+                  color: AppColors.primary,
+                  width: 2,
+                ),
+              ),
+              contentPadding:
+                  const EdgeInsets.symmetric(horizontal: 14, vertical: 12),
+              suffixIcon: _searchCtrl.text.isNotEmpty
+                  ? IconButton(
+                      icon: const Icon(Icons.clear, size: 20),
+                      onPressed: () {
+                        _searchCtrl.clear();
+                        _scheduleSearch();
+                      },
+                    )
+                  : null,
+            ),
+            onChanged: (_) => _scheduleSearch(),
+          ),
         ),
-        const SizedBox(height: 10),
+        const SizedBox(height: 12),
         _buildStatusChips(),
         const SizedBox(height: 10),
         _buildDateRow(),
@@ -873,24 +1015,35 @@ class _ReturnReplaceScreenState extends ConsumerState<ReturnReplaceScreen> {
       'udhaar': 'ઉધાર',
       'partial': 'આંશિક',
     };
-    return Wrap(
-      spacing: 8,
-      runSpacing: 8,
-      children: statuses.entries.map((entry) {
-        final selected = _status == entry.key;
-        return ChoiceChip(
-          label: Text(entry.value),
-          selected: selected,
-          selectedColor: AppColors.primaryLight,
-          backgroundColor: Colors.white,
-          labelStyle: TextStyle(
-            color: selected ? Colors.white : Colors.black87,
-            fontWeight: FontWeight.w600,
-          ),
-          side: const BorderSide(color: AppColors.divider),
-          onSelected: (_) => setState(() => _status = entry.key),
-        );
-      }).toList(),
+    return SingleChildScrollView(
+      scrollDirection: Axis.horizontal,
+      child: Row(
+        children: statuses.entries.map((entry) {
+          final selected = _status == entry.key;
+          return Padding(
+            padding: const EdgeInsets.only(right: 8.0),
+            child: ChoiceChip(
+              label: Text(entry.value),
+              selected: selected,
+              selectedColor: AppColors.primary,
+              backgroundColor: Colors.white,
+              labelStyle: TextStyle(
+                color: selected ? Colors.white : const Color(0xFF334155),
+                fontWeight: FontWeight.w700,
+                fontSize: 13,
+              ),
+              side: BorderSide(
+                color: selected ? AppColors.primary : const Color(0xFFCBD5E1),
+                width: 1.5,
+              ),
+              shape: RoundedRectangleBorder(
+                borderRadius: BorderRadius.circular(10),
+              ),
+              onSelected: (_) => setState(() => _status = entry.key),
+            ),
+          );
+        }).toList(),
+      ),
     );
   }
 
@@ -906,24 +1059,75 @@ class _ReturnReplaceScreenState extends ConsumerState<ReturnReplaceScreen> {
         Expanded(
           child: OutlinedButton.icon(
             onPressed: _pickFromDate,
-            icon: const Icon(Icons.date_range),
-            label: Text(fromLabel),
+            icon: const Icon(Icons.date_range, size: 18, color: AppColors.primary),
+            label: Text(
+              fromLabel,
+              style: TextStyle(
+                fontWeight:
+                    _fromDate != null ? FontWeight.bold : FontWeight.normal,
+                color: _fromDate != null ? AppColors.primaryDark : null,
+              ),
+            ),
+            style: OutlinedButton.styleFrom(
+              padding: const EdgeInsets.symmetric(vertical: 12, horizontal: 10),
+              side: BorderSide(
+                color: _fromDate != null
+                    ? AppColors.primary
+                    : const Color(0xFFCBD5E1),
+                width: 1.5,
+              ),
+              shape: RoundedRectangleBorder(
+                  borderRadius: BorderRadius.circular(10)),
+              backgroundColor: _fromDate != null
+                  ? AppColors.primaryLight.withValues(alpha: 0.08)
+                  : Colors.white,
+            ),
           ),
         ),
-        const SizedBox(width: 12),
+        const SizedBox(width: 10),
         Expanded(
           child: OutlinedButton.icon(
             onPressed: _pickToDate,
-            icon: const Icon(Icons.date_range),
-            label: Text(toLabel),
+            icon: const Icon(Icons.date_range, size: 18, color: AppColors.primary),
+            label: Text(
+              toLabel,
+              style: TextStyle(
+                fontWeight:
+                    _toDate != null ? FontWeight.bold : FontWeight.normal,
+                color: _toDate != null ? AppColors.primaryDark : null,
+              ),
+            ),
+            style: OutlinedButton.styleFrom(
+              padding: const EdgeInsets.symmetric(vertical: 12, horizontal: 10),
+              side: BorderSide(
+                color: _toDate != null
+                    ? AppColors.primary
+                    : const Color(0xFFCBD5E1),
+                width: 1.5,
+              ),
+              shape: RoundedRectangleBorder(
+                  borderRadius: BorderRadius.circular(10)),
+              backgroundColor: _toDate != null
+                  ? AppColors.primaryLight.withValues(alpha: 0.08)
+                  : Colors.white,
+            ),
           ),
         ),
-        const SizedBox(width: 8),
-        IconButton(
-          onPressed: _clearDates,
-          icon: const Icon(Icons.close),
-          tooltip: 'Clear dates',
-        ),
+        if (_hasDateFilter) ...[
+          const SizedBox(width: 8),
+          IconButton(
+            onPressed: _clearDates,
+            icon: const Icon(Icons.close, color: Colors.red),
+            tooltip: 'Clear dates',
+            style: IconButton.styleFrom(
+              backgroundColor: Colors.red.shade50,
+              shape: RoundedRectangleBorder(
+                borderRadius: BorderRadius.circular(8),
+                side: BorderSide(color: Colors.red.shade200),
+              ),
+            ),
+          ),
+        ],
       ],
     );
   }
@@ -948,13 +1152,58 @@ class _ReturnReplaceScreenState extends ConsumerState<ReturnReplaceScreen> {
             ),
           );
         }
-        return ListView.builder(
-          controller: _scrollController,
-          itemCount: bills.length,
-          itemBuilder: (context, index) {
-            final bill = bills[index];
-            return _BillCard(bill: bill, onTap: () => _openBill(bill));
-          },
+        return Column(
+          crossAxisAlignment: CrossAxisAlignment.stretch,
+          children: [
+            Padding(
+              padding: const EdgeInsets.symmetric(horizontal: 4, vertical: 4),
+              child: Row(
+                children: [
+                  const Icon(Icons.receipt_long,
+                      size: 16, color: Color(0xFF64748B)),
+                  const SizedBox(width: 6),
+                  Text(
+                    'કુલ બિલ: ${bills.length}',
+                    style: const TextStyle(
+                      fontSize: 13,
+                      fontWeight: FontWeight.bold,
+                      color: Color(0xFF475569),
+                    ),
+                  ),
+                  const Spacer(),
+                  if (_hasActiveFilters)
+                    TextButton.icon(
+                      onPressed: () {
+                        setState(() {
+                          _searchCtrl.clear();
+                          _query = '';
+                          _status = 'all';
+                          _fromDate = null;
+                          _toDate = null;
+                        });
+                      },
+                      icon: const Icon(Icons.refresh, size: 14),
+                      label: const Text('રીસેટ ફિલ્ટર',
+                          style: TextStyle(fontSize: 12)),
+                      style: TextButton.styleFrom(
+                        visualDensity: VisualDensity.compact,
+                        foregroundColor: Colors.red,
+                      ),
+                    ),
+                ],
+              ),
+            ),
+            Expanded(
+              child: ListView.builder(
+                controller: _scrollController,
+                itemCount: bills.length,
+                itemBuilder: (context, index) {
+                  final bill = bills[index];
+                  return _BillCard(bill: bill, onTap: () => _openBill(bill));
+                },
+              ),
+            ),
+          ],
         );
       },
     );
@@ -971,15 +1220,26 @@ class _ReturnReplaceScreenState extends ConsumerState<ReturnReplaceScreen> {
               onPressed: _backToBillList,
               icon: const Icon(Icons.arrow_back),
               label: const Text('બિલ યાદી'),
+              style: OutlinedButton.styleFrom(
+                side: const BorderSide(color: AppColors.primary, width: 1.5),
+                shape: RoundedRectangleBorder(
+                    borderRadius: BorderRadius.circular(10)),
+              ),
             ),
             const Spacer(),
             SegmentedButton<String>(
-              segments: const [
-                ButtonSegment(value: 'return', label: Text('↩️ રિટર્ન')),
-                ButtonSegment(value: 'replace', label: Text('🔄 બદલો')),
+              segments: [
+                const ButtonSegment(value: 'return', label: Text('↩️ રિટર્ન')),
+                ButtonSegment(
+                  value: 'replace',
+                  enabled: !_isFullyReturnedBill,
+                  label:
+                      Text('🔄 બદલો${_isFullyReturnedBill ? ' (બંધ)' : ''}'),
+                ),
               ],
               selected: {_activeMode},
               onSelectionChanged: (val) {
+                if (_isFullyReturnedBill) return;
                 final newMode = val.first;
                 setState(() => _activeMode = newMode);
                 if (newMode == 'replace' && _catalogSearchResults.isEmpty) {
@@ -989,6 +1249,8 @@ class _ReturnReplaceScreenState extends ConsumerState<ReturnReplaceScreen> {
             ),
           ],
         ),
+        const SizedBox(height: 10),
+        if (_isFullyReturnedBill) _buildFullyReturnedReadOnlyBanner(),
         const SizedBox(height: 10),
         if (_error != null) ...[
           Text(_error!, style: const TextStyle(color: Colors.red)),
@@ -1001,6 +1263,69 @@ class _ReturnReplaceScreenState extends ConsumerState<ReturnReplaceScreen> {
               : _buildReplaceModeBody(),
         ),
       ],
+    );
+  }
+
+  Widget _buildFullyReturnedReadOnlyBanner() {
+    return Container(
+      margin: const EdgeInsets.only(bottom: 6),
+      padding: const EdgeInsets.symmetric(horizontal: 14, vertical: 10),
+      decoration: BoxDecoration(
+        color: const Color(0xFFF1F5F9),
+        borderRadius: BorderRadius.circular(10),
+        border: Border.all(color: const Color(0xFFCBD5E1), width: 1.5),
+      ),
+      child: Row(
+        children: [
+          const Icon(Icons.lock_clock_outlined,
+              color: Color(0xFF475569), size: 22),
+          const SizedBox(width: 10),
+          Expanded(
+            child: Column(
+              crossAxisAlignment: CrossAxisAlignment.start,
+              children: const [
+                Text(
+                  'આ બિલ સંપૂર્ણ પરત થઈ ગયેલ છે (ફક્ત જોવા માટે)',
+                  style: TextStyle(
+                    fontWeight: FontWeight.bold,
+                    fontSize: 14,
+                    color: Color(0xFF1E293B),
+                  ),
+                ),
+                SizedBox(height: 2),
+                Text(
+                  'આ બિલનું સમગ્ર રિફંડ પ્રક્રિયા પૂર્ણ થયેલ છે. તેથી તેમાં કોઈ સુધારો કે ફેરફાર થઈ શકશે નહીં.',
+                  style: TextStyle(fontSize: 12, color: Color(0xFF64748B)),
+                ),
+              ],
+            ),
+          ),
+          Container(
+            padding: const EdgeInsets.symmetric(horizontal: 10, vertical: 4),
+            decoration: BoxDecoration(
+              color: Colors.white,
+              borderRadius: BorderRadius.circular(20),
+              border: Border.all(color: const Color(0xFF94A3B8)),
+            ),
+            child: const Row(
+              mainAxisSize: MainAxisSize.min,
+              children: [
+                Icon(Icons.visibility_outlined,
+                    size: 14, color: Color(0xFF475569)),
+                SizedBox(width: 4),
+                Text(
+                  'Read-Only',
+                  style: TextStyle(
+                    fontSize: 11,
+                    fontWeight: FontWeight.bold,
+                    color: Color(0xFF475569),
+                  ),
+                ),
+              ],
+            ),
+          ),
+        ],
+      ),
     );
   }
 
@@ -1032,36 +1357,40 @@ class _ReturnReplaceScreenState extends ConsumerState<ReturnReplaceScreen> {
   }
 
   Widget _buildItemListHeader() {
-    final anyReturnable =
+    final anyReturnable = !_isFullyReturnedBill &&
         _billItems.any((e) => e.id != null && !e.isReturned && e.qty > 0);
     final hasAnyReturned = _returnedQtyMap.isNotEmpty;
 
     return Container(
-      padding: const EdgeInsets.symmetric(horizontal: 12, vertical: 8),
+      padding: const EdgeInsets.symmetric(horizontal: 14, vertical: 10),
       decoration: BoxDecoration(
         color: AppColors.primaryLight.withValues(alpha: 0.12),
-        borderRadius: BorderRadius.circular(8),
+        borderRadius: BorderRadius.circular(10),
+        border: Border.all(
+          color: AppColors.primary.withValues(alpha: 0.25),
+          width: 1.5,
+        ),
       ),
       child: Row(
         children: [
           const Expanded(
               flex: 4,
               child: Text('ઉત્પાદન',
-                  style: TextStyle(fontWeight: FontWeight.bold, fontSize: 12))),
+                  style: TextStyle(fontWeight: FontWeight.bold, fontSize: 14))),
           const Expanded(
               flex: 2,
               child: Text('માત્રા',
-                  style: TextStyle(fontWeight: FontWeight.bold, fontSize: 12),
+                  style: TextStyle(fontWeight: FontWeight.bold, fontSize: 14),
                   textAlign: TextAlign.center)),
           const Expanded(
               flex: 2,
               child: Text('ભાવ',
-                  style: TextStyle(fontWeight: FontWeight.bold, fontSize: 12),
+                  style: TextStyle(fontWeight: FontWeight.bold, fontSize: 14),
                   textAlign: TextAlign.center)),
           const Expanded(
               flex: 2,
               child: Text('કુલ',
-                  style: TextStyle(fontWeight: FontWeight.bold, fontSize: 12),
+                  style: TextStyle(fontWeight: FontWeight.bold, fontSize: 14),
                   textAlign: TextAlign.end)),
           const SizedBox(width: 8),
           if (anyReturnable)
@@ -1078,31 +1407,49 @@ class _ReturnReplaceScreenState extends ConsumerState<ReturnReplaceScreen> {
                         }
                       });
                     },
-                    icon: const Icon(Icons.clear_all, size: 14),
+                    icon: const Icon(Icons.clear_all, size: 16),
                     label: const Text('બધા ક્લિયર',
-                        style: TextStyle(fontSize: 11)),
+                        style: TextStyle(
+                            fontSize: 12, fontWeight: FontWeight.bold)),
                     style: TextButton.styleFrom(
                       foregroundColor: Colors.red,
                       padding: const EdgeInsets.symmetric(
-                          horizontal: 6, vertical: 2),
+                          horizontal: 8, vertical: 4),
                       visualDensity: VisualDensity.compact,
                     ),
                   ),
                 OutlinedButton.icon(
                   onPressed: _returnAllProducts,
-                  icon: const Icon(Icons.done_all, size: 14),
+                  icon: const Icon(Icons.done_all, size: 16),
                   label: const Text('બધા પરત',
                       style:
-                          TextStyle(fontSize: 11, fontWeight: FontWeight.bold)),
+                          TextStyle(fontSize: 12, fontWeight: FontWeight.bold)),
                   style: OutlinedButton.styleFrom(
                     foregroundColor: AppColors.primary,
-                    side: const BorderSide(color: AppColors.primary),
+                    side:
+                        const BorderSide(color: AppColors.primary, width: 1.5),
                     padding:
-                        const EdgeInsets.symmetric(horizontal: 8, vertical: 4),
+                        const EdgeInsets.symmetric(horizontal: 10, vertical: 6),
                     visualDensity: VisualDensity.compact,
                   ),
                 ),
               ],
+            )
+          else if (_isFullyReturnedBill)
+            Container(
+              padding: const EdgeInsets.symmetric(horizontal: 10, vertical: 4),
+              decoration: BoxDecoration(
+                color: Colors.grey.shade200,
+                borderRadius: BorderRadius.circular(6),
+                border: Border.all(color: Colors.grey.shade400),
+              ),
+              child: const Text(
+                'પૂર્ણ પરત',
+                style: TextStyle(
+                    fontSize: 12,
+                    fontWeight: FontWeight.bold,
+                    color: Colors.black54),
+              ),
             )
           else
             const SizedBox(width: 80),
@@ -1118,9 +1465,11 @@ class _ReturnReplaceScreenState extends ConsumerState<ReturnReplaceScreen> {
     final committedQty = _returnedQtyMap[item.id] ?? 0.0;
     final hasCommittedReturn = committedQty > 0;
     final isFullyReturned = item.isReturned;
+    final isLocked = _isFullyReturnedBill || isFullyReturned;
 
     final qtyDisplay = _formatQtyWithUnit(item.qty, item.unitTypeSnapshot);
-    final priceDisplay = _formatRateWithUnit(item.sellPriceSnapshot ?? 0, item.unitTypeSnapshot);
+    final priceDisplay =
+        _formatRateWithUnit(item.sellPriceSnapshot ?? 0, item.unitTypeSnapshot);
     final displayName = (item.productNameSnapshot != null &&
             item.productNameSnapshot!.trim().isNotEmpty &&
             item.productNameSnapshot != '—' &&
@@ -1138,7 +1487,7 @@ class _ReturnReplaceScreenState extends ConsumerState<ReturnReplaceScreen> {
     }
 
     return Card(
-      margin: const EdgeInsets.symmetric(vertical: 4),
+      margin: const EdgeInsets.symmetric(vertical: 5),
       color: cardColor,
       elevation: isExpanded ? 3 : 0,
       shape: RoundedRectangleBorder(
@@ -1158,9 +1507,9 @@ class _ReturnReplaceScreenState extends ConsumerState<ReturnReplaceScreen> {
           // ── Collapsed row ──────────────────────────────────────────────
           InkWell(
             borderRadius: BorderRadius.circular(10),
-            onTap: isFullyReturned ? null : () => _toggleExpandRow(item),
+            onTap: isLocked ? null : () => _toggleExpandRow(item),
             child: Padding(
-              padding: const EdgeInsets.symmetric(horizontal: 12, vertical: 10),
+              padding: const EdgeInsets.symmetric(horizontal: 14, vertical: 12),
               child: Row(
                 children: [
                   // Product name + return badge
@@ -1173,7 +1522,7 @@ class _ReturnReplaceScreenState extends ConsumerState<ReturnReplaceScreen> {
                           displayName,
                           style: TextStyle(
                             fontWeight: FontWeight.w700,
-                            fontSize: 14,
+                            fontSize: 16,
                             decoration: isFullyReturned
                                 ? TextDecoration.lineThrough
                                 : null,
@@ -1181,16 +1530,16 @@ class _ReturnReplaceScreenState extends ConsumerState<ReturnReplaceScreen> {
                           ),
                         ),
                         if (hasCommittedReturn && !isFullyReturned) ...[
-                          const SizedBox(height: 2),
+                          const SizedBox(height: 3),
                           Row(
                             children: [
                               const Icon(Icons.undo,
-                                  size: 12, color: AppColors.primary),
-                              const SizedBox(width: 2),
+                                  size: 14, color: AppColors.primary),
+                              const SizedBox(width: 3),
                               Text(
                                 'પરત: ${_formatQtyWithUnit(committedQty, item.unitTypeSnapshot)}',
                                 style: const TextStyle(
-                                    fontSize: 11,
+                                    fontSize: 13,
                                     color: AppColors.primary,
                                     fontWeight: FontWeight.w600),
                               ),
@@ -1198,10 +1547,13 @@ class _ReturnReplaceScreenState extends ConsumerState<ReturnReplaceScreen> {
                           ),
                         ],
                         if (isFullyReturned) ...[
-                          const SizedBox(height: 2),
+                          const SizedBox(height: 3),
                           const Text(
                             'પહેલેથી સંપૂર્ણ પરત',
-                            style: TextStyle(fontSize: 11, color: Colors.grey),
+                            style: TextStyle(
+                                fontSize: 13,
+                                color: Colors.grey,
+                                fontWeight: FontWeight.w500),
                           ),
                         ],
                       ],
@@ -1214,7 +1566,8 @@ class _ReturnReplaceScreenState extends ConsumerState<ReturnReplaceScreen> {
                       qtyDisplay,
                       textAlign: TextAlign.center,
                       style: TextStyle(
-                          fontSize: 13,
+                          fontSize: 15,
+                          fontWeight: FontWeight.w600,
                           color: isFullyReturned ? Colors.grey : null),
                     ),
                   ),
@@ -1225,10 +1578,11 @@ class _ReturnReplaceScreenState extends ConsumerState<ReturnReplaceScreen> {
                       priceDisplay,
                       textAlign: TextAlign.center,
                       style: TextStyle(
-                          fontSize: 12,
+                          fontSize: 14,
+                          fontWeight: FontWeight.w500,
                           color: isFullyReturned
                               ? Colors.grey
-                              : Colors.black54),
+                              : Colors.black87),
                     ),
                   ),
                   // Total amount
@@ -1238,14 +1592,14 @@ class _ReturnReplaceScreenState extends ConsumerState<ReturnReplaceScreen> {
                       formatCurrency(item.amount),
                       textAlign: TextAlign.end,
                       style: TextStyle(
-                        fontWeight: FontWeight.w700,
-                        fontSize: 14,
+                        fontWeight: FontWeight.w800,
+                        fontSize: 16,
                         color: isFullyReturned ? Colors.grey : null,
                       ),
                     ),
                   ),
                   // Entire product return button / committed badge
-                  if (!isFullyReturned) ...[
+                  if (!isLocked) ...[
                     const SizedBox(width: 8),
                     if (hasCommittedReturn)
                       Row(
@@ -1253,7 +1607,7 @@ class _ReturnReplaceScreenState extends ConsumerState<ReturnReplaceScreen> {
                         children: [
                           Container(
                             padding: const EdgeInsets.symmetric(
-                                horizontal: 6, vertical: 3),
+                                horizontal: 8, vertical: 4),
                             decoration: BoxDecoration(
                               color: Colors.green.shade50,
                               borderRadius: BorderRadius.circular(6),
@@ -1264,7 +1618,7 @@ class _ReturnReplaceScreenState extends ConsumerState<ReturnReplaceScreen> {
                                   ? '✓ સંપૂર્ણ પરત'
                                   : '✓ પરત: ${_formatQtyWithUnit(committedQty, item.unitTypeSnapshot)}',
                               style: TextStyle(
-                                fontSize: 11,
+                                fontSize: 13,
                                 fontWeight: FontWeight.bold,
                                 color: Colors.green.shade800,
                               ),
@@ -1272,9 +1626,9 @@ class _ReturnReplaceScreenState extends ConsumerState<ReturnReplaceScreen> {
                           ),
                           IconButton(
                             icon: const Icon(Icons.close,
-                                size: 16, color: Colors.red),
+                                size: 18, color: Colors.red),
                             tooltip: 'પરત રદ કરો',
-                            splashRadius: 16,
+                            splashRadius: 18,
                             padding: EdgeInsets.zero,
                             constraints: const BoxConstraints(),
                             onPressed: () => _clearRowReturn(item),
@@ -1284,27 +1638,27 @@ class _ReturnReplaceScreenState extends ConsumerState<ReturnReplaceScreen> {
                     else
                       ElevatedButton.icon(
                         onPressed: () => _returnEntireProduct(item),
-                        icon: const Icon(Icons.check_circle_outline, size: 14),
+                        icon: const Icon(Icons.check_circle_outline, size: 16),
                         label: const Text('સંપૂર્ણ પરત',
                             style: TextStyle(
-                                fontSize: 11, fontWeight: FontWeight.bold)),
+                                fontSize: 13, fontWeight: FontWeight.bold)),
                         style: ElevatedButton.styleFrom(
                           backgroundColor: AppColors.primaryLight,
                           foregroundColor: Colors.white,
                           padding: const EdgeInsets.symmetric(
-                              horizontal: 8, vertical: 4),
+                              horizontal: 10, vertical: 6),
                           visualDensity: VisualDensity.compact,
                           elevation: 0,
                         ),
                       ),
                   ],
                   // Expand indicator
-                  if (!isFullyReturned) ...[
+                  if (!isLocked) ...[
                     const SizedBox(width: 4),
                     Icon(
                       isExpanded ? Icons.expand_less : Icons.expand_more,
-                      size: 20,
-                      color: Colors.grey.shade500,
+                      size: 22,
+                      color: Colors.grey.shade600,
                     ),
                   ],
                 ],
@@ -1313,7 +1667,7 @@ class _ReturnReplaceScreenState extends ConsumerState<ReturnReplaceScreen> {
           ),
 
           // ── Expanded inline input panel ────────────────────────────────
-          if (isExpanded && !isFullyReturned)
+          if (isExpanded && !isLocked)
             _buildInlineReturnPanel(item),
         ],
       ),
@@ -1365,7 +1719,7 @@ class _ReturnReplaceScreenState extends ConsumerState<ReturnReplaceScreen> {
 
     return Container(
       margin: const EdgeInsets.only(top: 0),
-      padding: const EdgeInsets.fromLTRB(12, 0, 12, 12),
+      padding: const EdgeInsets.fromLTRB(14, 0, 14, 14),
       decoration: BoxDecoration(
         border: Border(
             top: BorderSide(color: Colors.green.shade200, width: 1)),
@@ -1381,7 +1735,7 @@ class _ReturnReplaceScreenState extends ConsumerState<ReturnReplaceScreen> {
 
           // ── Info strip ────────────────────────────────────────────────────
           Container(
-            padding: const EdgeInsets.symmetric(horizontal: 10, vertical: 8),
+            padding: const EdgeInsets.symmetric(horizontal: 12, vertical: 10),
             decoration: BoxDecoration(
               color: Colors.grey.shade100,
               borderRadius: BorderRadius.circular(8),
@@ -1395,31 +1749,31 @@ class _ReturnReplaceScreenState extends ConsumerState<ReturnReplaceScreen> {
                       Text(
                         'ઉપલબ્ધ:  $maxDisplay',
                         style: const TextStyle(
-                            fontSize: 12, fontWeight: FontWeight.w600),
+                            fontSize: 14, fontWeight: FontWeight.w700),
                       ),
-                      const SizedBox(height: 2),
+                      const SizedBox(height: 3),
                       Text(
                         isKilo
                             ? 'ભાવ:  ₹${(item.sellPriceSnapshot ?? 0).toStringAsFixed(2)} / $u'
                                 '  =  ₹${((item.sellPriceSnapshot ?? 0) / 1000).toStringAsFixed(4)} / ગ્રામ'
                             : 'ભાવ:  ${_formatRateWithUnit(item.sellPriceSnapshot ?? 0, item.unitTypeSnapshot)}',
                         style: TextStyle(
-                            fontSize: 11, color: Colors.grey.shade700),
+                            fontSize: 13, color: Colors.grey.shade800),
                       ),
                     ],
                   ),
                 ),
                 ElevatedButton.icon(
                   onPressed: () => _returnEntireProduct(item),
-                  icon: const Icon(Icons.check_circle, size: 14),
+                  icon: const Icon(Icons.check_circle, size: 16),
                   label: const Text('સંપૂર્ણ પરત',
                       style: TextStyle(
-                          fontSize: 12, fontWeight: FontWeight.bold)),
+                          fontSize: 13, fontWeight: FontWeight.bold)),
                   style: ElevatedButton.styleFrom(
                     backgroundColor: AppColors.primary,
                     foregroundColor: Colors.white,
                     padding: const EdgeInsets.symmetric(
-                        horizontal: 10, vertical: 6),
+                        horizontal: 12, vertical: 8),
                     tapTargetSize: MaterialTapTargetSize.shrinkWrap,
                   ),
                 ),
@@ -1427,13 +1781,14 @@ class _ReturnReplaceScreenState extends ConsumerState<ReturnReplaceScreen> {
             ),
           ),
 
-          const SizedBox(height: 10),
+          const SizedBox(height: 12),
 
           // ── Input field ───────────────────────────────────────────────────
           TextField(
             controller: ctrl,
             focusNode: _getOrCreateFocusNode(item.id!),
             autofocus: true,
+            style: const TextStyle(fontSize: 16, fontWeight: FontWeight.w600),
             keyboardType:
                 const TextInputType.numberWithOptions(decimal: true),
             textInputAction: TextInputAction.done,
@@ -1443,10 +1798,11 @@ class _ReturnReplaceScreenState extends ConsumerState<ReturnReplaceScreen> {
               labelText: labelText,
               hintText: hintText,
               suffixText: suffixText,
+              labelStyle: const TextStyle(fontSize: 14),
               border: const OutlineInputBorder(),
               errorText: error,
               contentPadding: const EdgeInsets.symmetric(
-                  horizontal: 12, vertical: 10),
+                  horizontal: 14, vertical: 12),
             ),
           ),
 
@@ -1455,7 +1811,7 @@ class _ReturnReplaceScreenState extends ConsumerState<ReturnReplaceScreen> {
           // ── Live result display ───────────────────────────────────────────
           if (isValid) ...[
             Container(
-              padding: const EdgeInsets.all(10),
+              padding: const EdgeInsets.all(12),
               decoration: BoxDecoration(
                 color: Colors.green.shade50,
                 borderRadius: BorderRadius.circular(8),
@@ -1469,13 +1825,13 @@ class _ReturnReplaceScreenState extends ConsumerState<ReturnReplaceScreen> {
                     children: [
                       Text(
                         'પરત: ${_formatQtyWithUnit(receivedBase, item.unitTypeSnapshot)}',
-                        style: const TextStyle(fontSize: 13),
+                        style: const TextStyle(fontSize: 15, fontWeight: FontWeight.w600),
                       ),
                       Text(
                         'રિફંડ: ${formatCurrency(refundAmount)}',
                         style: const TextStyle(
                           fontWeight: FontWeight.bold,
-                          fontSize: 14,
+                          fontSize: 16,
                           color: Colors.green,
                         ),
                       ),
@@ -1485,7 +1841,7 @@ class _ReturnReplaceScreenState extends ConsumerState<ReturnReplaceScreen> {
                   Text(
                     'બિલ પર બાકી:  $remainingDisplay',
                     style: TextStyle(
-                        fontSize: 12, color: Colors.grey.shade700),
+                        fontSize: 14, color: Colors.grey.shade700),
                   ),
                 ],
               ),
@@ -1499,18 +1855,19 @@ class _ReturnReplaceScreenState extends ConsumerState<ReturnReplaceScreen> {
             children: [
               TextButton.icon(
                 onPressed: () => _clearRowReturn(item),
-                icon: const Icon(Icons.clear, size: 16),
-                label: const Text('ક્લિયર'),
+                icon: const Icon(Icons.clear, size: 18),
+                label: const Text('ક્લિયર', style: TextStyle(fontSize: 14, fontWeight: FontWeight.bold)),
                 style: TextButton.styleFrom(foregroundColor: Colors.red),
               ),
               const SizedBox(width: 8),
               ElevatedButton.icon(
                 onPressed: () => _confirmRowReturn(item),
-                icon: const Icon(Icons.check, size: 16),
-                label: const Text('સાચવો'),
+                icon: const Icon(Icons.check, size: 18),
+                label: const Text('સાચવો', style: TextStyle(fontSize: 14, fontWeight: FontWeight.bold)),
                 style: ElevatedButton.styleFrom(
                   backgroundColor: AppColors.primary,
                   foregroundColor: Colors.white,
+                  padding: const EdgeInsets.symmetric(horizontal: 16, vertical: 10),
                 ),
               ),
             ],
@@ -1525,7 +1882,7 @@ class _ReturnReplaceScreenState extends ConsumerState<ReturnReplaceScreen> {
     final hasAny = _returnedQtyMap.isNotEmpty;
 
     return Container(
-      padding: const EdgeInsets.fromLTRB(12, 12, 12, 8),
+      padding: const EdgeInsets.fromLTRB(14, 12, 14, 10),
       decoration: BoxDecoration(
         color: Colors.white,
         border: Border(top: BorderSide(color: Colors.grey.shade200, width: 1.5)),
@@ -1549,13 +1906,13 @@ class _ReturnReplaceScreenState extends ConsumerState<ReturnReplaceScreen> {
                   children: [
                     Text(
                       'બિલ ટોટલ:  ${formatCurrency(_billGrandTotal)}',
-                      style: const TextStyle(fontSize: 13, color: Colors.black54),
+                      style: const TextStyle(fontSize: 14, color: Colors.black54),
                     ),
                     const SizedBox(height: 2),
                     Text(
                       'રિફંડ:  ${formatCurrency(_totalRefundAmount)}',
                       style: TextStyle(
-                        fontSize: 16,
+                        fontSize: 17,
                         fontWeight: FontWeight.bold,
                         color: hasAny ? Colors.green.shade700 : Colors.grey,
                       ),
@@ -1563,48 +1920,78 @@ class _ReturnReplaceScreenState extends ConsumerState<ReturnReplaceScreen> {
                   ],
                 ),
               ),
-              // Mode selector
-              Column(
-                crossAxisAlignment: CrossAxisAlignment.end,
+              // Mode selector (hidden if fully returned)
+              if (!_isFullyReturnedBill)
+                Column(
+                  crossAxisAlignment: CrossAxisAlignment.end,
+                  children: [
+                    const Text('રિફંડ મોડ:',
+                        style: TextStyle(fontSize: 12, color: Colors.grey)),
+                    DropdownButton<String>(
+                      value: mode,
+                      isDense: true,
+                      items: const [
+                        DropdownMenuItem(
+                            value: 'cash_refund', child: Text('💵 કેશ')),
+                        DropdownMenuItem(
+                            value: 'udhaar_credit',
+                            child: Text('📒 ઉધાર ક્રેડિટ')),
+                      ],
+                      onChanged: (v) {
+                        if (v != null) {
+                          ref.read(returnModeProvider.notifier).state = v;
+                        }
+                      },
+                    ),
+                  ],
+                ),
+            ],
+          ),
+          const SizedBox(height: 10),
+          if (_isFullyReturnedBill)
+            Container(
+              padding: const EdgeInsets.symmetric(vertical: 14, horizontal: 16),
+              decoration: BoxDecoration(
+                color: const Color(0xFFF1F5F9),
+                borderRadius: BorderRadius.circular(10),
+                border: Border.all(color: const Color(0xFFCBD5E1), width: 1.5),
+              ),
+              child: const Row(
+                mainAxisAlignment: MainAxisAlignment.center,
                 children: [
-                  const Text('રિફંડ મોડ:', style: TextStyle(fontSize: 11, color: Colors.grey)),
-                  DropdownButton<String>(
-                    value: mode,
-                    isDense: true,
-                    items: const [
-                      DropdownMenuItem(
-                          value: 'cash_refund', child: Text('💵 કેશ')),
-                      DropdownMenuItem(
-                          value: 'udhaar_credit', child: Text('📒 ઉધાર ક્રેડિટ')),
-                    ],
-                    onChanged: (v) {
-                      if (v != null) ref.read(returnModeProvider.notifier).state = v;
-                    },
+                  Icon(Icons.lock_outline, size: 20, color: Color(0xFF475569)),
+                  SizedBox(width: 8),
+                  Text(
+                    'આ બિલ સંપૂર્ણ પરત થયેલ હોવાથી નવો ફેરફાર શક્ય નથી (ફક્ત જોવા માટે)',
+                    style: TextStyle(
+                      fontSize: 14,
+                      fontWeight: FontWeight.bold,
+                      color: Color(0xFF475569),
+                    ),
                   ),
                 ],
               ),
-            ],
-          ),
-          const SizedBox(height: 8),
-          SizedBox(
-            width: double.infinity,
-            height: 48,
-            child: ElevatedButton.icon(
-              onPressed: (_isLoading || !hasAny) ? null : _confirmReturn,
-              icon: const Icon(Icons.check_circle_outline),
-              label: Text(
-                hasAny
-                    ? 'Return Process કરો  (${formatCurrency(_totalRefundAmount)})'
-                    : 'Return Process કરો',
-                style: const TextStyle(fontSize: 15),
-              ),
-              style: ElevatedButton.styleFrom(
-                backgroundColor: AppColors.primary,
-                foregroundColor: Colors.white,
-                disabledBackgroundColor: Colors.grey.shade300,
+            )
+          else
+            SizedBox(
+              width: double.infinity,
+              height: 48,
+              child: ElevatedButton.icon(
+                onPressed: (_isLoading || !hasAny) ? null : _confirmReturn,
+                icon: const Icon(Icons.check_circle_outline),
+                label: Text(
+                  hasAny
+                      ? 'Return Process કરો  (${formatCurrency(_totalRefundAmount)})'
+                      : 'Return Process કરો',
+                  style: const TextStyle(fontSize: 15, fontWeight: FontWeight.bold),
+                ),
+                style: ElevatedButton.styleFrom(
+                  backgroundColor: AppColors.primary,
+                  foregroundColor: Colors.white,
+                  disabledBackgroundColor: Colors.grey.shade300,
+                ),
               ),
             ),
-          ),
         ],
       ),
     );
@@ -1715,15 +2102,16 @@ class _ReturnReplaceScreenState extends ConsumerState<ReturnReplaceScreen> {
                       elevation: 0,
                       margin: EdgeInsets.zero,
                       shape: RoundedRectangleBorder(
-                        borderRadius: BorderRadius.circular(8),
-                        side: BorderSide(color: Colors.grey.shade200),
+                        borderRadius: BorderRadius.circular(10),
+                        side: const BorderSide(
+                            color: Color(0xFFCBD5E1), width: 1.2),
                       ),
                       child: InkWell(
-                        borderRadius: BorderRadius.circular(8),
-                        onTap: () => _addCatalogProductToReplace(p),
+                        borderRadius: BorderRadius.circular(10),
+                        onTap: () => _onSelectProductForReplace(p),
                         child: Padding(
                           padding: const EdgeInsets.symmetric(
-                              horizontal: 10, vertical: 8),
+                              horizontal: 12, vertical: 10),
                           child: Row(
                             children: [
                               Expanded(
@@ -1735,23 +2123,23 @@ class _ReturnReplaceScreenState extends ConsumerState<ReturnReplaceScreen> {
                                       p.nameGujarati,
                                       style: const TextStyle(
                                           fontWeight: FontWeight.bold,
-                                          fontSize: 14),
+                                          fontSize: 15),
                                     ),
                                     const SizedBox(height: 4),
                                     Row(
                                       children: [
                                         Text(
                                           '₹${p.sellPrice.toStringAsFixed(2)} / $u',
-                                          style: const TextStyle(
-                                            fontWeight: FontWeight.w600,
-                                            color: Colors.green,
-                                            fontSize: 13,
+                                          style: TextStyle(
+                                            fontWeight: FontWeight.w700,
+                                            color: Colors.green.shade700,
+                                            fontSize: 14,
                                           ),
                                         ),
                                         const SizedBox(width: 8),
                                         Container(
                                           padding: const EdgeInsets.symmetric(
-                                              horizontal: 6, vertical: 2),
+                                              horizontal: 7, vertical: 2),
                                           decoration: BoxDecoration(
                                             color: (p.stockQty <= 0)
                                                 ? Colors.red.shade50
@@ -1759,7 +2147,7 @@ class _ReturnReplaceScreenState extends ConsumerState<ReturnReplaceScreen> {
                                                     ? Colors.orange.shade50
                                                     : Colors.blue.shade50),
                                             borderRadius:
-                                                BorderRadius.circular(4),
+                                                BorderRadius.circular(5),
                                             border: Border.all(
                                               color: (p.stockQty <= 0)
                                                   ? Colors.red.shade300
@@ -1771,7 +2159,7 @@ class _ReturnReplaceScreenState extends ConsumerState<ReturnReplaceScreen> {
                                           child: Text(
                                             'સ્ટોક: ${p.stockQty % 1 == 0 ? p.stockQty.toInt() : p.stockQty.toStringAsFixed(2)} $u',
                                             style: TextStyle(
-                                              fontSize: 10,
+                                              fontSize: 11,
                                               fontWeight: FontWeight.w600,
                                               color: (p.stockQty <= 0)
                                                   ? Colors.red.shade700
@@ -1787,19 +2175,10 @@ class _ReturnReplaceScreenState extends ConsumerState<ReturnReplaceScreen> {
                                 ),
                               ),
                               const SizedBox(width: 8),
-                              ElevatedButton.icon(
-                                icon: const Icon(Icons.add, size: 16),
-                                label: const Text('ઉમેરો',
-                                    style: TextStyle(fontSize: 12)),
-                                style: ElevatedButton.styleFrom(
-                                  backgroundColor: AppColors.primary,
-                                  foregroundColor: Colors.white,
-                                  padding: const EdgeInsets.symmetric(
-                                      horizontal: 10, vertical: 6),
-                                  visualDensity: VisualDensity.compact,
-                                ),
-                                onPressed: () =>
-                                    _addCatalogProductToReplace(p),
+                              const Icon(
+                                Icons.add_circle_outline,
+                                color: AppColors.primary,
+                                size: 24,
                               ),
                             ],
                           ),
@@ -1960,62 +2339,205 @@ class _BillCard extends StatelessWidget {
             : 'અજ્ઞાત ગ્રાહક';
     final dateText = _formatDate(bill.billDate);
 
-    return Opacity(
-      opacity: isReturned ? 0.5 : 1,
-      child: Card(
-        margin: const EdgeInsets.symmetric(vertical: 6),
-        color: Colors.white,
-        elevation: 0,
-        shape: RoundedRectangleBorder(
-          borderRadius: BorderRadius.circular(12),
-          side: const BorderSide(color: AppColors.divider, width: 1),
+    final normalized = (bill.paymentStatus ?? '').trim();
+    final (statusLabel, statusColor, statusBg) = switch (normalized) {
+      'paid' => ('ચૂકવાયું', const Color(0xFF16A34A), const Color(0xFFDCFCE7)),
+      'udhaar' => ('ઉધાર', const Color(0xFFEA580C), const Color(0xFFFFEDD5)),
+      'partial' => ('આંશિક', const Color(0xFFD97706), const Color(0xFFFEF3C7)),
+      'partial_return' =>
+        ('આંશિક પરત', const Color(0xFF2563EB), const Color(0xFFDBEAFE)),
+      'fully_returned' =>
+        ('પૂર્ણ પરત', const Color(0xFF475569), const Color(0xFFF1F5F9)),
+      _ => (
+        normalized.isEmpty ? 'અજ્ઞાત' : normalized,
+        const Color(0xFF64748B),
+        const Color(0xFFF8FAFC)
+      ),
+    };
+
+    return Card(
+      margin: const EdgeInsets.symmetric(vertical: 6, horizontal: 2),
+      color: Colors.white,
+      elevation: 1,
+      shadowColor: Colors.black.withValues(alpha: 0.08),
+      shape: RoundedRectangleBorder(
+        borderRadius: BorderRadius.circular(12),
+        side: BorderSide(
+          color: isReturned
+              ? const Color(0xFFCBD5E1)
+              : statusColor.withValues(alpha: 0.35),
+          width: 1.5,
         ),
-        child: InkWell(
-          borderRadius: BorderRadius.circular(12),
-          onTap: isReturned ? null : onTap,
-          child: Padding(
-            padding: const EdgeInsets.all(12),
-            child: Row(
-              crossAxisAlignment: CrossAxisAlignment.start,
-              children: [
-                Expanded(
-                  child: Column(
-                    crossAxisAlignment: CrossAxisAlignment.start,
-                    children: [
-                      Text(
-                        'બિલ નં. ${bill.billNumber}',
-                        style: const TextStyle(
-                            fontWeight: FontWeight.w700, fontSize: 15),
+      ),
+      child: ClipRRect(
+        borderRadius: BorderRadius.circular(12),
+        child: Container(
+          decoration: BoxDecoration(
+            border: Border(
+              left: BorderSide(
+                color: statusColor,
+                width: 5,
+              ),
+            ),
+          ),
+          child: InkWell(
+            borderRadius: BorderRadius.circular(12),
+            onTap: onTap,
+            child: Padding(
+              padding: const EdgeInsets.all(12),
+              child: Row(
+                children: [
+                  Container(
+                    width: 44,
+                    height: 44,
+                    decoration: BoxDecoration(
+                      color: statusBg,
+                      borderRadius: BorderRadius.circular(10),
+                      border: Border.all(
+                        color: statusColor.withValues(alpha: 0.3),
+                        width: 1,
                       ),
-                      const SizedBox(height: 4),
-                      Text(dateText,
-                          style: const TextStyle(fontSize: 12)),
-                      const SizedBox(height: 4),
-                      Text(customerName,
+                    ),
+                    child: Icon(
+                      isReturned
+                          ? Icons.assignment_turned_in_outlined
+                          : Icons.receipt_long,
+                      color: statusColor,
+                      size: 24,
+                    ),
+                  ),
+                  const SizedBox(width: 12),
+                  Expanded(
+                    child: Column(
+                      crossAxisAlignment: CrossAxisAlignment.start,
+                      children: [
+                        Row(
+                          children: [
+                            Text(
+                              'બિલ #${bill.billNumber}',
+                              style: const TextStyle(
+                                fontWeight: FontWeight.w800,
+                                fontSize: 16,
+                                color: Color(0xFF0F172A),
+                              ),
+                            ),
+                            if (isReturned) ...[
+                              const SizedBox(width: 8),
+                              Container(
+                                padding: const EdgeInsets.symmetric(
+                                    horizontal: 6, vertical: 2),
+                                decoration: BoxDecoration(
+                                  color: const Color(0xFFF1F5F9),
+                                  borderRadius: BorderRadius.circular(4),
+                                  border: Border.all(
+                                      color: const Color(0xFF94A3B8)),
+                                ),
+                                child: const Row(
+                                  mainAxisSize: MainAxisSize.min,
+                                  children: [
+                                    Icon(Icons.visibility,
+                                        size: 11, color: Color(0xFF475569)),
+                                    SizedBox(width: 3),
+                                    Text(
+                                      'ફક્ત જોવા માટે',
+                                      style: TextStyle(
+                                        fontSize: 10,
+                                        fontWeight: FontWeight.bold,
+                                        color: Color(0xFF475569),
+                                      ),
+                                    ),
+                                  ],
+                                ),
+                              ),
+                            ],
+                          ],
+                        ),
+                        const SizedBox(height: 4),
+                        Row(
+                          children: [
+                            Icon(Icons.person_outline,
+                                size: 14, color: Colors.grey.shade600),
+                            const SizedBox(width: 4),
+                            Expanded(
+                              child: Text(
+                                customerName,
+                                maxLines: 1,
+                                overflow: TextOverflow.ellipsis,
+                                style: TextStyle(
+                                  fontSize: 13,
+                                  fontWeight: FontWeight.w600,
+                                  color: Colors.grey.shade700,
+                                ),
+                              ),
+                            ),
+                            const SizedBox(width: 8),
+                            Icon(Icons.calendar_today_outlined,
+                                size: 13, color: Colors.grey.shade500),
+                            const SizedBox(width: 4),
+                            Text(
+                              dateText,
+                              style: TextStyle(
+                                fontSize: 12,
+                                color: Colors.grey.shade600,
+                              ),
+                            ),
+                          ],
+                        ),
+                        const SizedBox(height: 8),
+                        _StatusBadge(status: bill.paymentStatus),
+                      ],
+                    ),
+                  ),
+                  const SizedBox(width: 12),
+                  Column(
+                    crossAxisAlignment: CrossAxisAlignment.end,
+                    children: [
+                      Container(
+                        padding: const EdgeInsets.symmetric(
+                            horizontal: 10, vertical: 6),
+                        decoration: BoxDecoration(
+                          color: const Color(0xFFF8FAFC),
+                          borderRadius: BorderRadius.circular(8),
+                          border:
+                              Border.all(color: const Color(0xFFE2E8F0)),
+                        ),
+                        child: Text(
+                          formatCurrency(bill.totalAmount),
                           style: const TextStyle(
-                              fontSize: 13, color: Colors.grey)),
+                            fontWeight: FontWeight.w800,
+                            fontSize: 16,
+                            color: Color(0xFF0F172A),
+                          ),
+                        ),
+                      ),
                       const SizedBox(height: 8),
-                      _StatusBadge(status: bill.paymentStatus),
+                      Row(
+                        mainAxisSize: MainAxisSize.min,
+                        children: [
+                          Text(
+                            isReturned ? 'વિગત જુઓ' : 'પસંદ કરો',
+                            style: TextStyle(
+                              fontSize: 12,
+                              fontWeight: FontWeight.w600,
+                              color: isReturned
+                                  ? const Color(0xFF475569)
+                                  : AppColors.primary,
+                            ),
+                          ),
+                          const SizedBox(width: 2),
+                          Icon(
+                            Icons.chevron_right,
+                            size: 16,
+                            color: isReturned
+                                ? const Color(0xFF475569)
+                                : AppColors.primary,
+                          ),
+                        ],
+                      ),
                     ],
                   ),
-                ),
-                const SizedBox(width: 12),
-                Column(
-                  crossAxisAlignment: CrossAxisAlignment.end,
-                  children: [
-                    Text(
-                      formatCurrency(bill.totalAmount),
-                      style: const TextStyle(
-                          fontWeight: FontWeight.w700, fontSize: 15),
-                    ),
-                    if (isReturned) ...[
-                      const SizedBox(height: 6),
-                      const Text('પહેલેથી પરત',
-                          style: TextStyle(color: Colors.grey, fontSize: 12)),
-                    ],
-                  ],
-                ),
-              ],
+                ],
+              ),
             ),
           ),
         ),
@@ -2045,26 +2567,33 @@ class _StatusBadge extends StatelessWidget {
   @override
   Widget build(BuildContext context) {
     final normalized = (status ?? '').trim();
-    final (label, color) = switch (normalized) {
-      'paid' => ('ચૂકવાયું', Colors.green),
-      'udhaar' => ('ઉધાર', Colors.orange),
-      'partial' => ('આંશિક', Colors.amber),
-      'partial_return' => ('આંશિક પરત', Colors.blue),
-      'fully_returned' => ('પૂર્ણ પરત', Colors.grey),
-      _ => (normalized.isEmpty ? 'અજ્ઞાત' : normalized, Colors.grey),
+    final (label, color, bg) = switch (normalized) {
+      'paid' => ('ચૂકવાયું', const Color(0xFF16A34A), const Color(0xFFDCFCE7)),
+      'udhaar' => ('ઉધાર', const Color(0xFFEA580C), const Color(0xFFFFEDD5)),
+      'partial' => ('આંશિક', const Color(0xFFD97706), const Color(0xFFFEF3C7)),
+      'partial_return' =>
+        ('આંશિક પરત', const Color(0xFF2563EB), const Color(0xFFDBEAFE)),
+      'fully_returned' =>
+        ('પૂર્ણ પરત', const Color(0xFF475569), const Color(0xFFF1F5F9)),
+      _ => (
+        normalized.isEmpty ? 'અજ્ઞાત' : normalized,
+        const Color(0xFF64748B),
+        const Color(0xFFF8FAFC)
+      ),
     };
 
     return Container(
       padding: const EdgeInsets.symmetric(horizontal: 10, vertical: 4),
       decoration: BoxDecoration(
-        color: color.withValues(alpha: 0.12),
+        color: bg,
         borderRadius: BorderRadius.circular(999),
+        border: Border.all(color: color.withValues(alpha: 0.4), width: 1),
       ),
       child: Text(
         label,
         style: TextStyle(
           fontSize: 12,
-          fontWeight: FontWeight.w600,
+          fontWeight: FontWeight.w700,
           color: color,
         ),
       ),

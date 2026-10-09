@@ -20,8 +20,21 @@ class KhataRepository {
       ''',
       [customerId],
     );
-    if (result.isEmpty) return 0;
-    return (result.first['balance_after'] as num?)?.toDouble() ?? 0;
+    if (result.isNotEmpty) {
+      return (result.first['balance_after'] as num?)?.toDouble() ?? 0.0;
+    }
+
+    final cRows = await db.query(
+      'customers',
+      columns: ['total_outstanding'],
+      where: 'id = ?',
+      whereArgs: [customerId],
+      limit: 1,
+    );
+    if (cRows.isNotEmpty) {
+      return (cRows.first['total_outstanding'] as num?)?.toDouble() ?? 0.0;
+    }
+    return 0.0;
   }
 
   Future<Map<int, double>> getBulkBalances() async {
@@ -42,6 +55,19 @@ class KhataRepository {
       final bal = (row['balance_after'] as num?)?.toDouble() ?? 0.0;
       if (cid != null) {
         map[cid] = bal;
+      }
+    }
+
+    final cRows = await db.query(
+      'customers',
+      columns: ['id', 'total_outstanding'],
+      where: 'is_active = 1',
+    );
+    for (final row in cRows) {
+      final cid = row['id'] as int?;
+      final out = (row['total_outstanding'] as num?)?.toDouble() ?? 0.0;
+      if (cid != null && !map.containsKey(cid)) {
+        map[cid] = out;
       }
     }
     return map;
@@ -71,35 +97,37 @@ class KhataRepository {
     await db.transaction((txn) async {
       final now = DateTime.now().millisecondsSinceEpoch;
       final currentBalance = await _getBalance(txn, customerId);
-      final newBalance = type == 'debit'
+      final isDebit = type == 'debit' || type == 'udhaar';
+      final newBalance = isDebit
           ? currentBalance + amount
           : currentBalance - amount;
+
+      final finalBalance = newBalance < 0 ? 0.0 : newBalance;
 
       await txn.insert('khata_entries', {
         'customer_id': customerId,
         'related_bill_id': relatedBillId,
         'date_time': now,
-        'type': type,
+        'type': isDebit ? 'debit' : 'credit',
         'amount': amount,
         'note': note,
-        'balance_after': newBalance,
+        'balance_after': finalBalance,
       });
 
-      final finalOutstanding = newBalance < 0 ? 0.0 : newBalance;
       await txn.rawUpdate(
         'UPDATE customers SET total_outstanding = ? WHERE id = ?',
-        [finalOutstanding, customerId],
+        [finalBalance, customerId],
       );
 
       final nowIso = DateTime.now().toIso8601String();
       await txn.insert('udhaar_ledger', {
         'customer_id': customerId,
         'bill_id': relatedBillId,
-        'transaction_type': type == 'debit' ? 'credit' : 'payment',
+        'transaction_type': isDebit ? 'credit' : 'payment',
         'amount': amount,
-        'running_balance': finalOutstanding,
+        'running_balance': finalBalance,
         'payment_mode': 'cash',
-        'note': note ?? 'ખાતા નોંધણી',
+        'note': note ?? (isDebit ? 'ઉધાર નોંધણી' : 'ચુકવણી જમા'),
         'created_at': nowIso,
       });
     });
@@ -115,8 +143,20 @@ class KhataRepository {
       ''',
       [customerId],
     );
-    if (result.isEmpty) return 0;
-    return (result.first['balance_after'] as num?)?.toDouble() ?? 0;
+    if (result.isNotEmpty) {
+      return (result.first['balance_after'] as num?)?.toDouble() ?? 0.0;
+    }
+    final cRows = await txn.query(
+      'customers',
+      columns: ['total_outstanding'],
+      where: 'id = ?',
+      whereArgs: [customerId],
+      limit: 1,
+    );
+    if (cRows.isNotEmpty) {
+      return (cRows.first['total_outstanding'] as num?)?.toDouble() ?? 0.0;
+    }
+    return 0.0;
   }
 
   Future<void> addUdharFromBill(

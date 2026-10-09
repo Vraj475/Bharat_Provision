@@ -45,6 +45,6 @@ class KhataEntry {
     };
   }
 
-  bool get isDebit => type == 'debit';
-  bool get isCredit => type == 'credit';
+  bool get isDebit => type == 'debit' || type == 'udhaar';
+  bool get isCredit => type == 'credit' || type == 'payment';
 }

@@ -144,7 +144,9 @@ final appRouter = GoRouter(
     GoRoute(
       path: AppRouter.customerEdit,
       builder: (context, state) {
-        final id = state.extra as int?;
+        final id = state.extra is int
+            ? state.extra as int
+            : int.tryParse(state.extra?.toString() ?? '');
         return RoleGuard(
           allowedRoles: ['admin'],
           child: CustomerEditScreen(customerId: id),
@@ -154,7 +156,9 @@ final appRouter = GoRouter(
     GoRoute(
       path: AppRouter.customerKhata,
       builder: (context, state) {
-        final id = state.extra as int;
+        final id = state.extra is int
+            ? state.extra as int
+            : int.tryParse(state.extra?.toString() ?? '') ?? 0;
         return RoleGuard(
           allowedRoles: ['admin'],
           child: CustomerKhataDetailScreen(customerId: id),

@@ -20,10 +20,23 @@ class _KhataScreenState extends ConsumerState<KhataScreen>
   String _filterAccount = '';
   String _filterType = 'all';
 
+  Future<List<KhataEntry>>? _creditFuture;
+  Future<List<KhataEntry>>? _debitFuture;
+  Future<List<KhataEntry>>? _allFuture;
+
   @override
   void initState() {
     super.initState();
     _tabController = TabController(length: 3, vsync: this);
+    _reload();
+  }
+
+  void _reload() {
+    setState(() {
+      _creditFuture = _getCreditEntries();
+      _debitFuture = _getDebitEntries();
+      _allFuture = _getAllEntries();
+    });
   }
 
   @override
@@ -36,7 +49,14 @@ class _KhataScreenState extends ConsumerState<KhataScreen>
   Widget build(BuildContext context) {
     return Scaffold(
       appBar: AppBar(
-        title: const Text('Khata'),
+        title: const Text('ખાતાવહી (Khata)'),
+        actions: [
+          IconButton(
+            icon: const Icon(Icons.refresh),
+            tooltip: 'રિફ્રેશ કરો',
+            onPressed: _reload,
+          ),
+        ],
         bottom: TabBar(
           controller: _tabController,
           tabs: const [
@@ -74,19 +94,21 @@ class _KhataScreenState extends ConsumerState<KhataScreen>
               Expanded(
                 child: TextField(
                   decoration: const InputDecoration(
-                    labelText: 'Filter by account',
+                    labelText: 'નામ અથવા ખાતા વડે શોધો',
+                    prefixIcon: Icon(Icons.search),
                     border: OutlineInputBorder(),
+                    contentPadding: EdgeInsets.symmetric(horizontal: 12, vertical: 10),
                   ),
-                  onChanged: (value) => setState(() => _filterAccount = value),
+                  onChanged: (value) => setState(() => _filterAccount = value.trim()),
                 ),
               ),
               const SizedBox(width: 8),
               DropdownButton<String>(
                 value: _filterType,
                 items: const [
-                  DropdownMenuItem(value: 'all', child: Text('All')),
-                  DropdownMenuItem(value: 'credit', child: Text('Credit')),
-                  DropdownMenuItem(value: 'debit', child: Text('Debit')),
+                  DropdownMenuItem(value: 'all', child: Text('બધું')),
+                  DropdownMenuItem(value: 'credit', child: Text('આવક')),
+                  DropdownMenuItem(value: 'debit', child: Text('ખર્ચ')),
                 ],
                 onChanged: (value) => setState(() => _filterType = value!),
               ),
@@ -95,15 +117,24 @@ class _KhataScreenState extends ConsumerState<KhataScreen>
           const SizedBox(height: 8),
           Row(
             children: [
-              const Text('Date Range: '),
-              TextButton(
+              const Text('તારીખ ગાળો: ', style: TextStyle(fontWeight: FontWeight.w600)),
+              TextButton.icon(
+                icon: const Icon(Icons.date_range, size: 18),
                 onPressed: _selectDateRange,
-                child: Text(
+                label: Text(
                   _dateRange == null
-                      ? 'Select Range'
-                      : '${_dateRange!.start.toString().split(' ')[0]} - ${_dateRange!.end.toString().split(' ')[0]}',
+                      ? 'તમામ તારીખો'
+                      : '${_dateRange!.start.toString().split(' ')[0]} થી ${_dateRange!.end.toString().split(' ')[0]}',
                 ),
               ),
+              if (_dateRange != null)
+                IconButton(
+                  icon: const Icon(Icons.close, size: 16),
+                  tooltip: 'તારીખ ફિલ્ટર હટાવો',
+                  onPressed: () {
+                    setState(() => _dateRange = null);
+                  },
+                ),
             ],
           ),
         ],
@@ -115,7 +146,7 @@ class _KhataScreenState extends ConsumerState<KhataScreen>
     final range = await showDateRangePicker(
       context: context,
       firstDate: DateTime(2020),
-      lastDate: DateTime.now(),
+      lastDate: DateTime.now().add(const Duration(days: 1)),
     );
     if (range != null) {
       setState(() => _dateRange = range);
@@ -123,14 +154,19 @@ class _KhataScreenState extends ConsumerState<KhataScreen>
   }
 
   Widget _buildCreditTab() {
-    // Show credit entries: cash sales, upi, card, udhaar collected
     return FutureBuilder<List<KhataEntry>>(
-      future: _getCreditEntries(),
+      future: _creditFuture,
       builder: (context, snapshot) {
-        if (!snapshot.hasData) {
+        if (snapshot.connectionState == ConnectionState.waiting) {
           return const Center(child: CircularProgressIndicator());
         }
-        final entries = _filterEntries(snapshot.data!);
+        if (snapshot.hasError) {
+          return Center(child: Text('ભૂલ: ${snapshot.error}'));
+        }
+        final entries = _filterEntries(snapshot.data ?? const []);
+        if (entries.isEmpty) {
+          return const Center(child: Text('કોઈ આવક નોંધ નથી'));
+        }
         return ListView.builder(
           itemCount: entries.length,
           itemBuilder: (context, index) =>
@@ -141,14 +177,19 @@ class _KhataScreenState extends ConsumerState<KhataScreen>
   }
 
   Widget _buildDebitTab() {
-    // Show debit entries: expenses
     return FutureBuilder<List<KhataEntry>>(
-      future: _getDebitEntries(),
+      future: _debitFuture,
       builder: (context, snapshot) {
-        if (!snapshot.hasData) {
+        if (snapshot.connectionState == ConnectionState.waiting) {
           return const Center(child: CircularProgressIndicator());
         }
-        final entries = _filterEntries(snapshot.data!);
+        if (snapshot.hasError) {
+          return Center(child: Text('ભૂલ: ${snapshot.error}'));
+        }
+        final entries = _filterEntries(snapshot.data ?? const []);
+        if (entries.isEmpty) {
+          return const Center(child: Text('કોઈ ખર્ચ/ઉધાર નોંધ નથી'));
+        }
         return ListView.builder(
           itemCount: entries.length,
           itemBuilder: (context, index) =>
@@ -160,12 +201,18 @@ class _KhataScreenState extends ConsumerState<KhataScreen>
 
   Widget _buildCombinedTab() {
     return FutureBuilder<List<KhataEntry>>(
-      future: _getAllEntries(),
+      future: _allFuture,
       builder: (context, snapshot) {
-        if (!snapshot.hasData) {
+        if (snapshot.connectionState == ConnectionState.waiting) {
           return const Center(child: CircularProgressIndicator());
         }
-        final entries = _filterEntries(snapshot.data!);
+        if (snapshot.hasError) {
+          return Center(child: Text('ભૂલ: ${snapshot.error}'));
+        }
+        final entries = _filterEntries(snapshot.data ?? const []);
+        if (entries.isEmpty) {
+          return const Center(child: Text('કોઈ નોંધ મળી નથી'));
+        }
         return ListView.builder(
           itemCount: entries.length,
           itemBuilder: (context, index) {
@@ -180,27 +227,45 @@ class _KhataScreenState extends ConsumerState<KhataScreen>
 
   Widget _buildEntryTile(KhataEntry entry, Color color) {
     return ListTile(
-      title: Text('${entry.accountName} - ${entry.reference}'),
+      leading: CircleAvatar(
+        backgroundColor: color.withValues(alpha: 0.15),
+        child: Icon(
+          entry.type == 'credit' ? Icons.arrow_downward : Icons.arrow_upward,
+          color: color,
+          size: 20,
+        ),
+      ),
+      title: Text(
+        entry.reference.isNotEmpty
+            ? '${entry.accountName} (${entry.reference})'
+            : entry.accountName,
+        style: const TextStyle(fontWeight: FontWeight.w600),
+      ),
       subtitle: Text(entry.date.toString().split(' ')[0]),
       trailing: Text(
         formatCurrency(entry.amount),
-        style: TextStyle(color: color, fontWeight: FontWeight.bold),
+        style: TextStyle(color: color, fontWeight: FontWeight.bold, fontSize: 15),
       ),
       onTap: () => _openEntrySource(entry),
     );
   }
 
   List<KhataEntry> _filterEntries(List<KhataEntry> entries) {
+    final query = _filterAccount.toLowerCase();
     return entries.where((e) {
       final matchesAccount =
-          _filterAccount.isEmpty || e.accountName.contains(_filterAccount);
+          query.isEmpty ||
+          e.accountName.toLowerCase().contains(query) ||
+          e.reference.toLowerCase().contains(query);
       final matchesType = _filterType == 'all' || e.type == _filterType;
       final matchesDate =
           _dateRange == null ||
-          (e.date.isAfter(
-                _dateRange!.start.subtract(const Duration(days: 1)),
+          (!e.date.isBefore(
+                DateTime(_dateRange!.start.year, _dateRange!.start.month, _dateRange!.start.day),
               ) &&
-              e.date.isBefore(_dateRange!.end.add(const Duration(days: 1))));
+              !e.date.isAfter(
+                DateTime(_dateRange!.end.year, _dateRange!.end.month, _dateRange!.end.day, 23, 59, 59),
+              ));
       return matchesAccount && matchesType && matchesDate;
     }).toList();
   }
@@ -208,6 +273,7 @@ class _KhataScreenState extends ConsumerState<KhataScreen>
   void _openEntrySource(KhataEntry entry) async {
     switch (entry.source) {
       case 'bill':
+      case 'udhaar_bill':
         context.push(AppRouter.billDetail, extra: entry.sourceId);
         return;
       case 'expense':
@@ -216,16 +282,17 @@ class _KhataScreenState extends ConsumerState<KhataScreen>
         if (!mounted) return;
         if (expense == null) {
           ScaffoldMessenger.of(context).showSnackBar(
-            const SnackBar(content: Text('Expense detail not found')),
+            const SnackBar(content: Text('ખર્ચની વિગતો મળી નથી')),
           );
           return;
         }
         context.push(AppRouter.addExpense, extra: expense);
         return;
       case 'payment':
+      case 'udhaar_manual':
         final db = await ref.read(databaseHelperProvider).database;
         final rows = await db.query(
-          'udhaar_payments',
+          'udhaar_ledger',
           columns: ['customer_id'],
           where: 'id = ?',
           whereArgs: [entry.sourceId],
@@ -234,35 +301,37 @@ class _KhataScreenState extends ConsumerState<KhataScreen>
         if (!mounted) return;
         if (rows.isEmpty) {
           ScaffoldMessenger.of(context).showSnackBar(
-            const SnackBar(content: Text('Payment detail not found')),
+            const SnackBar(content: Text('ખાતાની વિગતો મળી નથી')),
           );
           return;
         }
         final customerId = rows.first['customer_id'] as int;
-        context.push(AppRouter.udhaarCustomer, extra: customerId);
+        context.push(AppRouter.customerKhata, extra: customerId);
         return;
       default:
         ScaffoldMessenger.of(
           context,
-        ).showSnackBar(SnackBar(content: Text('Open ${entry.reference}')));
+        ).showSnackBar(SnackBar(content: Text('${entry.accountName}: ${entry.reference}')));
     }
   }
 
   Future<List<KhataEntry>> _getCreditEntries() async {
     final db = await ref.read(databaseHelperProvider).database;
     final results = await db.rawQuery('''
-      SELECT 'bill' as source, b.id as source_id, b.date_time as date, 
-             COALESCE(c.name_gujarati, 'Walk-in') as account_name, b.total_amount as amount,
+      SELECT 'bill' as source, b.id as source_id, b.created_at as date, 
+             COALESCE(c.name_gujarati, b.customer_name_snapshot, 'સામાન્ય ગ્રાહક') as account_name,
+             CASE WHEN b.payment_mode = 'split' THEN b.paid_amount ELSE b.total_amount END as amount,
              b.payment_mode as reference, 'credit' as type
       FROM bills b
       LEFT JOIN customers c ON b.customer_id = c.id
-      WHERE b.payment_mode IN ('cash', 'upi', 'card')
+      WHERE b.payment_mode IN ('cash', 'upi', 'card') OR (b.payment_mode = 'split' AND b.paid_amount > 0)
       UNION ALL
-      SELECT 'payment' as source, up.id as source_id, up.date as date,
-             c.name_gujarati as account_name, up.amount as amount,
-             'Udhaar Payment' as reference, 'credit' as type
-      FROM udhaar_payments up
-      JOIN customers c ON up.customer_id = c.id
+      SELECT 'payment' as source, ul.id as source_id, ul.created_at as date,
+             COALESCE(c.name_gujarati, 'ગ્રાહક') as account_name, ul.amount as amount,
+             'ઉધાર ચુકવણી' as reference, 'credit' as type
+      FROM udhaar_ledger ul
+      LEFT JOIN customers c ON ul.customer_id = c.id
+      WHERE ul.transaction_type = 'payment'
       ORDER BY date DESC
     ''');
     return results.map((row) => KhataEntry.fromMap(row)).toList();
@@ -271,12 +340,29 @@ class _KhataScreenState extends ConsumerState<KhataScreen>
   Future<List<KhataEntry>> _getDebitEntries() async {
     final db = await ref.read(databaseHelperProvider).database;
     final results = await db.rawQuery('''
-      SELECT 'expense' as source, e.id as source_id, e.date as date,
-             ea.name as account_name, e.amount as amount,
+      SELECT 'expense' as source, e.id as source_id, e.created_at as date,
+             COALESCE(ea.account_name_gujarati, ea.account_name_english, e.account_name_snapshot, 'ખર્ચ') as account_name,
+             e.amount as amount,
              COALESCE(e.description, '') as reference, 'debit' as type
       FROM expenses e
-      JOIN expense_accounts ea ON e.expense_account_id = ea.id
-      ORDER BY e.date DESC
+      LEFT JOIN expense_accounts ea ON e.expense_account_id = ea.id
+      UNION ALL
+      SELECT 'udhaar_bill' as source, b.id as source_id, b.created_at as date,
+             COALESCE(c.name_gujarati, b.customer_name_snapshot, 'ઉધાર ગ્રાહક') as account_name,
+             COALESCE(b.udhaar_amount, b.total_amount) as amount,
+             'ઉધાર બિલ #' || b.bill_number as reference, 'debit' as type
+      FROM bills b
+      LEFT JOIN customers c ON b.customer_id = c.id
+      WHERE b.payment_mode = 'udhaar' OR (b.udhaar_amount IS NOT NULL AND b.udhaar_amount > 0)
+      UNION ALL
+      SELECT 'udhaar_manual' as source, ul.id as source_id, ul.created_at as date,
+             COALESCE(c.name_gujarati, 'ઉધાર ગ્રાહક') as account_name,
+             ul.amount as amount,
+             COALESCE(ul.note, 'હસ્તચાલિત ઉધાર') as reference, 'debit' as type
+      FROM udhaar_ledger ul
+      LEFT JOIN customers c ON ul.customer_id = c.id
+      WHERE ul.transaction_type = 'credit' AND ul.bill_id IS NULL
+      ORDER BY date DESC
     ''');
     return results.map((row) => KhataEntry.fromMap(row)).toList();
   }
@@ -302,14 +388,24 @@ class KhataEntry {
   });
 
   factory KhataEntry.fromMap(Map<String, dynamic> map) {
+    DateTime parsedDate;
+    final rawDate = map['date']?.toString();
+    if (rawDate != null && rawDate.isNotEmpty) {
+      parsedDate = DateTime.tryParse(rawDate) ??
+          DateTime.fromMillisecondsSinceEpoch(
+            int.tryParse(rawDate) ?? DateTime.now().millisecondsSinceEpoch,
+          );
+    } else {
+      parsedDate = DateTime.now();
+    }
     return KhataEntry(
-      source: map['source'] as String,
-      sourceId: map['source_id'] as int,
-      date: DateTime.parse(map['date'] as String),
-      accountName: map['account_name'] as String,
-      amount: (map['amount'] as num).toDouble(),
-      reference: map['reference'] as String,
-      type: map['type'] as String,
+      source: (map['source'] as String?) ?? '',
+      sourceId: (map['source_id'] as num?)?.toInt() ?? 0,
+      date: parsedDate,
+      accountName: (map['account_name'] as String?) ?? '',
+      amount: (map['amount'] as num?)?.toDouble() ?? 0.0,
+      reference: (map['reference'] as String?) ?? '',
+      type: (map['type'] as String?) ?? 'credit',
     );
   }
 

@@ -1,7 +1,6 @@
 import 'package:flutter/material.dart';
 
 import '../localization/app_strings.dart';
-import 'package:go_router/go_router.dart';
 
 /// Confirmation dialog before delete or irreversible actions
 class ConfirmDialog extends StatelessWidget {
@@ -12,7 +11,7 @@ class ConfirmDialog extends StatelessWidget {
     this.confirmLabel = AppStrings.deleteConfirm,
     this.cancelLabel = AppStrings.cancelButton,
     this.isDestructive = true,
-    required this.onConfirm,
+    this.onConfirm,
   });
 
   final String title;
@@ -20,7 +19,7 @@ class ConfirmDialog extends StatelessWidget {
   final String confirmLabel;
   final String cancelLabel;
   final bool isDestructive;
-  final VoidCallback onConfirm;
+  final VoidCallback? onConfirm;
 
   static Future<bool?> show(
     BuildContext context, {
@@ -29,6 +28,7 @@ class ConfirmDialog extends StatelessWidget {
     String confirmLabel = AppStrings.deleteConfirm,
     String cancelLabel = AppStrings.cancelButton,
     bool isDestructive = true,
+    VoidCallback? onConfirm,
   }) {
     return showDialog<bool>(
       context: context,
@@ -38,7 +38,7 @@ class ConfirmDialog extends StatelessWidget {
         confirmLabel: confirmLabel,
         cancelLabel: cancelLabel,
         isDestructive: isDestructive,
-        onConfirm: () => ctx.pop(true),
+        onConfirm: onConfirm,
       ),
     );
   }
@@ -50,13 +50,19 @@ class ConfirmDialog extends StatelessWidget {
       content: Text(message),
       actions: [
         TextButton(
-          onPressed: () => context.pop(false),
+          onPressed: () {
+            if (Navigator.of(context).canPop()) {
+              Navigator.of(context).pop(false);
+            }
+          },
           child: Text(cancelLabel),
         ),
         ElevatedButton(
           onPressed: () {
-            onConfirm();
-            context.pop(true);
+            onConfirm?.call();
+            if (Navigator.of(context).canPop()) {
+              Navigator.of(context).pop(true);
+            }
           },
           style: isDestructive
               ? ElevatedButton.styleFrom(

@@ -8,6 +8,7 @@ import '../../core/utils/date_time_format.dart';
 import '../../core/widgets/numpad.dart';
 import '../../data/repositories/udhaar_repository.dart';
 import 'udhaar_providers.dart';
+import '../khata/khata_providers.dart';
 
 class CollectPaymentScreen extends ConsumerStatefulWidget {
   const CollectPaymentScreen({super.key, required this.customerId});
@@ -101,6 +102,12 @@ class _CollectPaymentScreenState extends ConsumerState<CollectPaymentScreen>
     ref.invalidate(udhaarCustomerListProvider);
     ref.invalidate(unpaidBillsProvider(widget.customerId));
     ref.invalidate(udhaarTotalOutstandingProvider);
+    ref.invalidate(udhaarProvider);
+    ref.invalidate(customersProvider);
+    ref.invalidate(customerListProvider);
+    ref.invalidate(bulkCustomerBalancesProvider);
+    ref.invalidate(customerWithBalanceProvider(widget.customerId));
+    ref.invalidate(customerKhataEntriesProvider(widget.customerId));
   }
 
   @override

@@ -2,9 +2,10 @@ import 'package:flutter/material.dart';
 
 import '../../shared/models/product_model.dart';
 
-/// Visual theme configuration for authentic Kirana/grocery products.
+/// Visual theme configuration for authentic Kirana/grocery products using reliable vector icons.
 class ProductVisualTheme {
-  final String symbol;
+  final IconData icon;
+  final Color iconColor;
   final Color gradientStart;
   final Color gradientEnd;
   final Color borderColor;
@@ -12,7 +13,8 @@ class ProductVisualTheme {
   final String categoryLabel;
 
   const ProductVisualTheme({
-    required this.symbol,
+    required this.icon,
+    required this.iconColor,
     required this.gradientStart,
     required this.gradientEnd,
     required this.borderColor,
@@ -34,7 +36,8 @@ ProductVisualTheme getProductVisualTheme(String name) {
       lower.contains('કોપરેલ') ||
       lower.contains('oil')) {
     return const ProductVisualTheme(
-      symbol: '🛢️',
+      icon: Icons.opacity,
+      iconColor: Color(0xFFD97706),
       gradientStart: Color(0xFFFFFBEB),
       gradientEnd: Color(0xFFFEF3C7),
       borderColor: Color(0xFFF59E0B),
@@ -49,7 +52,8 @@ ProductVisualTheme getProductVisualTheme(String name) {
       lower.contains('માખણ') ||
       lower.contains('butter')) {
     return const ProductVisualTheme(
-      symbol: '🧈',
+      icon: Icons.breakfast_dining,
+      iconColor: Color(0xFFCA8A04),
       gradientStart: Color(0xFFFEFCE8),
       gradientEnd: Color(0xFFFEF08A),
       borderColor: Color(0xFFEAB308),
@@ -64,7 +68,8 @@ ProductVisualTheme getProductVisualTheme(String name) {
       lower.contains('શરબતી') ||
       lower.contains('wheat')) {
     return const ProductVisualTheme(
-      symbol: '🌾',
+      icon: Icons.grain,
+      iconColor: Color(0xFFA16207),
       gradientStart: Color(0xFFFEF9C3),
       gradientEnd: Color(0xFFFDE68A),
       borderColor: Color(0xFFCA8A04),
@@ -81,7 +86,8 @@ ProductVisualTheme getProductVisualTheme(String name) {
       lower.contains('કોલમ') ||
       lower.contains('rice')) {
     return const ProductVisualTheme(
-      symbol: '🍚',
+      icon: Icons.rice_bowl,
+      iconColor: Color(0xFF475569),
       gradientStart: Color(0xFFF8FAFC),
       gradientEnd: Color(0xFFF1F5F9),
       borderColor: Color(0xFF94A3B8),
@@ -100,7 +106,8 @@ ProductVisualTheme getProductVisualTheme(String name) {
       lower.contains('સાબુદાણા') ||
       lower.contains('મમરા')) {
     return const ProductVisualTheme(
-      symbol: '🌽',
+      icon: Icons.grass,
+      iconColor: Color(0xFFB45309),
       gradientStart: Color(0xFFFEFCE8),
       gradientEnd: Color(0xFFFDE68A),
       borderColor: Color(0xFFEAB308),
@@ -125,7 +132,8 @@ ProductVisualTheme getProductVisualTheme(String name) {
       lower.contains('dal') ||
       lower.contains('pulses')) {
     return const ProductVisualTheme(
-      symbol: '🫘',
+      icon: Icons.spa,
+      iconColor: Color(0xFF15803D),
       gradientStart: Color(0xFFF0FDF4),
       gradientEnd: Color(0xFFDCFCE7),
       borderColor: Color(0xFF22C55E),
@@ -141,7 +149,8 @@ ProductVisualTheme getProductVisualTheme(String name) {
       lower.contains('કાશ્મીરી') ||
       lower.contains('રેશમપટ્ટો')) {
     return const ProductVisualTheme(
-      symbol: '🌶️',
+      icon: Icons.local_fire_department,
+      iconColor: Color(0xFFDC2626),
       gradientStart: Color(0xFFFEF2F2),
       gradientEnd: Color(0xFFFEE2E2),
       borderColor: Color(0xFFEF4444),
@@ -170,7 +179,8 @@ ProductVisualTheme getProductVisualTheme(String name) {
       lower.contains('cumin') ||
       lower.contains('masala')) {
     return const ProductVisualTheme(
-      symbol: '🧂',
+      icon: Icons.scatter_plot,
+      iconColor: Color(0xFFD97706),
       gradientStart: Color(0xFFFFFBEB),
       gradientEnd: Color(0xFFFDE68A),
       borderColor: Color(0xFFF59E0B),
@@ -182,7 +192,8 @@ ProductVisualTheme getProductVisualTheme(String name) {
   // 9. Sweeteners (ખાંડ / ગોળ / સાકર)
   if (lower.contains('ગોળ') || lower.contains('jaggery')) {
     return const ProductVisualTheme(
-      symbol: '🍯',
+      icon: Icons.cake,
+      iconColor: Color(0xFFB45309),
       gradientStart: Color(0xFFFEF3C7),
       gradientEnd: Color(0xFFFDE68A),
       borderColor: Color(0xFFD97706),
@@ -192,7 +203,8 @@ ProductVisualTheme getProductVisualTheme(String name) {
   }
   if (lower.contains('ખાંડ') || lower.contains('sugar') || lower.contains('સાકર') || lower.contains('બૂરું')) {
     return const ProductVisualTheme(
-      symbol: '🍬',
+      icon: Icons.icecream,
+      iconColor: Color(0xFF2563EB),
       gradientStart: Color(0xFFEFF6FF),
       gradientEnd: Color(0xFFDBEAFE),
       borderColor: Color(0xFF60A5FA),
@@ -204,7 +216,8 @@ ProductVisualTheme getProductVisualTheme(String name) {
   // 10. Beverages - Tea & Coffee (ચા / કોફી)
   if (lower.contains('ચા') || lower.contains('tea') || lower.contains('વાઘ બકરી') || lower.contains('ટાટા ટી')) {
     return const ProductVisualTheme(
-      symbol: '🍵',
+      icon: Icons.emoji_food_beverage,
+      iconColor: Color(0xFFC2410C),
       gradientStart: Color(0xFFFFF7ED),
       gradientEnd: Color(0xFFFFEDD5),
       borderColor: Color(0xFFEA580C),
@@ -214,7 +227,8 @@ ProductVisualTheme getProductVisualTheme(String name) {
   }
   if (lower.contains('કોફી') || lower.contains('coffee') || lower.contains('nescafe') || lower.contains('bru')) {
     return const ProductVisualTheme(
-      symbol: '☕',
+      icon: Icons.coffee,
+      iconColor: Color(0xFF6D4C41),
       gradientStart: Color(0xFFF5EBE1),
       gradientEnd: Color(0xFFE5D5C5),
       borderColor: Color(0xFF8D5B4C),
@@ -232,7 +246,8 @@ ProductVisualTheme getProductVisualTheme(String name) {
       lower.contains('amul') ||
       lower.contains('અમૂલ')) {
     return const ProductVisualTheme(
-      symbol: '🥛',
+      icon: Icons.local_drink,
+      iconColor: Color(0xFF0284C7),
       gradientStart: Color(0xFFF0FDF4),
       gradientEnd: Color(0xFFE0F2FE),
       borderColor: Color(0xFF38BDF8),
@@ -252,7 +267,8 @@ ProductVisualTheme getProductVisualTheme(String name) {
       lower.contains('સુજી') ||
       lower.contains('સોજી')) {
     return const ProductVisualTheme(
-      symbol: '🥡',
+      icon: Icons.takeout_dining,
+      iconColor: Color(0xFF475569),
       gradientStart: Color(0xFFF8FAFC),
       gradientEnd: Color(0xFFF1F5F9),
       borderColor: Color(0xFF94A3B8),
@@ -271,7 +287,8 @@ ProductVisualTheme getProductVisualTheme(String name) {
       lower.contains('ખારી') ||
       lower.contains('બ્રેડ')) {
     return const ProductVisualTheme(
-      symbol: '🍪',
+      icon: Icons.cookie,
+      iconColor: Color(0xFFB45309),
       gradientStart: Color(0xFFFEF3C7),
       gradientEnd: Color(0xFFFDE68A),
       borderColor: Color(0xFFD97706),
@@ -294,7 +311,8 @@ ProductVisualTheme getProductVisualTheme(String name) {
       lower.contains('farsan') ||
       lower.contains('snacks')) {
     return const ProductVisualTheme(
-      symbol: '🍿',
+      icon: Icons.fastfood,
+      iconColor: Color(0xFFEA580C),
       gradientStart: Color(0xFFFFF7ED),
       gradientEnd: Color(0xFFFFEDD5),
       borderColor: Color(0xFFF97316),
@@ -321,7 +339,8 @@ ProductVisualTheme getProductVisualTheme(String name) {
       lower.contains('peanut') ||
       lower.contains('dryfruit')) {
     return const ProductVisualTheme(
-      symbol: '🥜',
+      icon: Icons.eco,
+      iconColor: Color(0xFF78350F),
       gradientStart: Color(0xFFF5EBE1),
       gradientEnd: Color(0xFFE5D5C5),
       borderColor: Color(0xFFB45309),
@@ -336,7 +355,8 @@ ProductVisualTheme getProductVisualTheme(String name) {
       lower.contains('શેમ્પૂ') ||
       lower.contains('shampoo')) {
     return const ProductVisualTheme(
-      symbol: '🧼',
+      icon: Icons.soap,
+      iconColor: Color(0xFF059669),
       gradientStart: Color(0xFFF0FDF4),
       gradientEnd: Color(0xFFDCFCE7),
       borderColor: Color(0xFF34D399),
@@ -355,7 +375,8 @@ ProductVisualTheme getProductVisualTheme(String name) {
       lower.contains('ક્લીનર') ||
       lower.contains('લિક્વિડ')) {
     return const ProductVisualTheme(
-      symbol: '🧴',
+      icon: Icons.sanitizer,
+      iconColor: Color(0xFF0284C7),
       gradientStart: Color(0xFFEFF6FF),
       gradientEnd: Color(0xFFDBEAFE),
       borderColor: Color(0xFF38BDF8),
@@ -367,7 +388,8 @@ ProductVisualTheme getProductVisualTheme(String name) {
   // 17. Salt (મીઠું / નમક / સિંધવ)
   if (lower.contains('મીઠું') || lower.contains('નમક') || lower.contains('salt') || lower.contains('સિંધવ') || lower.contains('સંચળ')) {
     return const ProductVisualTheme(
-      symbol: '🧂',
+      icon: Icons.blur_on,
+      iconColor: Color(0xFF0284C7),
       gradientStart: Color(0xFFF0F9FF),
       gradientEnd: Color(0xFFE0F2FE),
       borderColor: Color(0xFF38BDF8),
@@ -386,7 +408,8 @@ ProductVisualTheme getProductVisualTheme(String name) {
       lower.contains('સિંદૂર') ||
       lower.contains('પૂજા')) {
     return const ProductVisualTheme(
-      symbol: '🪔',
+      icon: Icons.auto_awesome,
+      iconColor: Color(0xFFEA580C),
       gradientStart: Color(0xFFFFF7ED),
       gradientEnd: Color(0xFFFFEDD5),
       borderColor: Color(0xFFFB923C),
@@ -403,7 +426,8 @@ ProductVisualTheme getProductVisualTheme(String name) {
       lower.contains('સોડા') ||
       lower.contains('જ્યુસ')) {
     return const ProductVisualTheme(
-      symbol: '🥤',
+      icon: Icons.sports_bar,
+      iconColor: Color(0xFF0284C7),
       gradientStart: Color(0xFFF0FDF4),
       gradientEnd: Color(0xFFDCFCE7),
       borderColor: Color(0xFF38BDF8),
@@ -414,7 +438,8 @@ ProductVisualTheme getProductVisualTheme(String name) {
 
   // Default Kirana Grocery Provision Badge
   return const ProductVisualTheme(
-    symbol: '🛍️',
+    icon: Icons.storefront,
+    iconColor: Color(0xFFD97706),
     gradientStart: Color(0xFFFFFBEB),
     gradientEnd: Color(0xFFFEF3C7),
     borderColor: Color(0xFFF59E0B),
@@ -423,15 +448,15 @@ ProductVisualTheme getProductVisualTheme(String name) {
   );
 }
 
-/// Helper that returns the visual emoji string for product name.
-String getProductVisualEmoji(String name) {
-  return getProductVisualTheme(name).symbol;
+/// Helper that returns the visual IconData for product name.
+IconData getProductVisualIcon(String name) {
+  return getProductVisualTheme(name).icon;
 }
 
-/// Builds an authentic, realistic product badge widget with grocery shop aesthetics.
+/// Builds an authentic, reliable, guaranteed-to-render product badge widget.
 Widget buildRealisticProductBadge(
   Product item, {
-  double size = 46,
+  double size = 44,
   bool showStockIndicator = true,
 }) {
   final theme = getProductVisualTheme(item.nameGujarati);
@@ -468,8 +493,8 @@ Widget buildRealisticProductBadge(
             ),
             boxShadow: [
               BoxShadow(
-                color: theme.shadowColor.withValues(alpha: 0.12),
-                blurRadius: 5,
+                color: theme.shadowColor.withValues(alpha: 0.14),
+                blurRadius: 4,
                 offset: const Offset(0, 2),
               ),
               const BoxShadow(
@@ -480,17 +505,15 @@ Widget buildRealisticProductBadge(
             ],
           ),
           child: Center(
-            child: Text(
-              theme.symbol,
-              style: TextStyle(
-                fontSize: size * 0.54,
-                height: 1.05,
-              ),
+            child: Icon(
+              theme.icon,
+              size: size * 0.52,
+              color: theme.iconColor,
             ),
           ),
         ),
 
-        // Optional mini stock status indicator dot on the badge
+        // Live stock status indicator dot on the badge
         if (showStockIndicator)
           Positioned(
             right: -2,

@@ -8,7 +8,7 @@ import '../../core/utils/date_time_format.dart';
 import '../../core/widgets/numpad.dart';
 import '../../data/providers.dart';
 import 'khata_providers.dart';
-import 'package:go_router/go_router.dart';
+import '../udhaar/udhaar_providers.dart';
 
 class CustomerKhataDetailScreen extends ConsumerStatefulWidget {
   const CustomerKhataDetailScreen({super.key, required this.customerId});
@@ -28,6 +28,7 @@ class _CustomerKhataDetailScreenState
 
   void _showEntryDialog(String type, String title) async {
     final ctrl = TextEditingController();
+    final noteCtrl = TextEditingController();
     final confirmed = await showDialog<bool>(
       context: context,
       builder: (ctx) => AlertDialog(
@@ -41,17 +42,33 @@ class _CustomerKhataDetailScreenState
                 NumpadTextField(
                   controller: ctrl,
                   allowDecimal: true,
+                  readOnly: false,
                   decoration: InputDecoration(
                     labelText: type == 'debit'
                         ? AppStrings.udharAmount
                         : AppStrings.paymentAmount,
+                    prefixText: '₹ ',
+                  ),
+                ),
+                const SizedBox(height: 12),
+                TextField(
+                  controller: noteCtrl,
+                  decoration: const InputDecoration(
+                    labelText: 'નોંધ / વિગત (વૈકલ્પિક)',
+                    hintText: 'દા.ત. રોકડા, ઓનલાઈન, વગેરે',
+                    border: OutlineInputBorder(),
+                    contentPadding: EdgeInsets.symmetric(horizontal: 12, vertical: 10),
                   ),
                 ),
                 const SizedBox(height: 16),
                 NumpadWidget(
                   controller: ctrl,
                   allowDecimal: true,
-                  onSubmit: () => ctx.pop(true),
+                  onSubmit: () {
+                    if (Navigator.of(ctx).canPop()) {
+                      Navigator.of(ctx).pop(true);
+                    }
+                  },
                 ),
               ],
             ),
@@ -59,11 +76,19 @@ class _CustomerKhataDetailScreenState
         ),
         actions: [
           TextButton(
-            onPressed: () => ctx.pop(false),
+            onPressed: () {
+              if (Navigator.of(ctx).canPop()) {
+                Navigator.of(ctx).pop(false);
+              }
+            },
             child: const Text(AppStrings.cancelButton),
           ),
           ElevatedButton(
-            onPressed: () => ctx.pop(true),
+            onPressed: () {
+              if (Navigator.of(ctx).canPop()) {
+                Navigator.of(ctx).pop(true);
+              }
+            },
             child: const Text(AppStrings.saveButton),
           ),
         ],
@@ -75,24 +100,39 @@ class _CustomerKhataDetailScreenState
     final amount = double.tryParse(ctrl.text) ?? 0;
     if (amount <= 0) return;
 
+    final noteText = noteCtrl.text.trim().isNotEmpty
+        ? noteCtrl.text.trim()
+        : (type == 'debit' ? 'હસ્તચાલિત ઉધાર' : 'ચુકવણી જમા');
+
     try {
       final repo = ref.read(khataRepositoryProvider);
       await repo.addEntry(
         customerId: widget.customerId,
         type: type,
         amount: amount,
+        note: noteText,
       );
       ref.invalidate(customerKhataEntriesProvider(widget.customerId));
+      ref.invalidate(customerWithBalanceProvider(widget.customerId));
+      ref.invalidate(customersProvider);
       ref.invalidate(customerListProvider);
+      ref.invalidate(bulkCustomerBalancesProvider);
+      ref.invalidate(udhaarProvider);
+      ref.invalidate(udhaarTotalOutstandingProvider);
+      ref.invalidate(udhaarCustomerListProvider);
+      ref.invalidate(udhaarCustomerProvider(widget.customerId));
       if (mounted) {
+        final successMsg = type == 'debit'
+            ? '₹$amount ઉધાર સફળતાપૂર્વક નોંધાયા'
+            : '₹$amount ચુકવણી સફળતાપૂર્વક જમા થઈ';
         ScaffoldMessenger.of(
           context,
-        ).showSnackBar(const SnackBar(content: Text('નોંધાવ્યું')));
+        ).showSnackBar(SnackBar(content: Text(successMsg), backgroundColor: const Color(0xFF16A34A)));
       }
     } catch (e) {
       if (mounted) {
         ScaffoldMessenger.of(context).showSnackBar(
-          SnackBar(content: Text('${AppStrings.errorGeneric} $e')),
+          SnackBar(content: Text('${AppStrings.errorGeneric} $e'), backgroundColor: Colors.red),
         );
       }
     }
@@ -183,7 +223,7 @@ class _CustomerKhataDetailScreenState
             child: entriesAsync.when(
               data: (entries) {
                 if (entries.isEmpty) {
-                  return Center(child: Text('કોઈ એન્ટ્રી નથી'));
+                  return const Center(child: Text('કોઈ એન્ટ્રી નથી'));
                 }
                 return ListView.builder(
                   itemCount: entries.length,

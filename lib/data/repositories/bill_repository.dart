@@ -365,26 +365,16 @@ class BillRepository {
             'entry_date': billDate,
             'created_at': nowIso,
           });
-        } else if (hasKhataEntries) {
-          final lastBalanceRows = await txn.rawQuery(
-            'SELECT balance_after FROM khata_entries WHERE customer_id = ? '
-            'ORDER BY date_time DESC, id DESC LIMIT 1',
-            [customerId],
-          );
-          final currentBalance =
-              (lastBalanceRows.firstOrNull?['balance_after'] as num?)
-                  ?.toDouble() ??
-              0.0;
-          final balanceAfter = currentBalance + udhaarAmount;
-
+        }
+        if (hasKhataEntries) {
           await txn.insert('khata_entries', {
             'customer_id': customerId,
             'related_bill_id': billId,
             'date_time': nowEpoch,
-            'type': 'udhaar',
+            'type': 'debit',
             'amount': udhaarAmount,
             'note': 'Bill #$billNumber',
-            'balance_after': balanceAfter,
+            'balance_after': updatedOutstanding,
           });
         }
       }

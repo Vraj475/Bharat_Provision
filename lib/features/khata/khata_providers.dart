@@ -20,7 +20,7 @@ class CustomersNotifier extends AsyncNotifier<List<Customer>> {
     final repo = ref.read(customerRepositoryProvider);
     final customer = await repo.getById(customerId);
     if (customer != null) {
-      await repo.update(customer.copyWith());
+      await repo.update(customer.copyWith(totalOutstanding: newOutstanding));
 
       // Reload customers after update
       state = await AsyncValue.guard(() => _reloadCustomers());
@@ -74,7 +74,10 @@ final customerWithBalanceProvider =
       final khataRepo = ref.watch(khataRepositoryProvider);
       final customer = await customerRepo.getById(customerId);
       if (customer == null) throw StateError('Customer not found');
-      final balance = await khataRepo.getBalance(customerId);
+      var balance = await khataRepo.getBalance(customerId);
+      if (balance == 0 && customer.totalOutstanding > 0) {
+        balance = customer.totalOutstanding;
+      }
       return (customer: customer, balance: balance);
     });
 

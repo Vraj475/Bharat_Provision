@@ -9,7 +9,11 @@ class CustomerRepository {
 
   Future<List<Customer>> getAll() async {
     final db = await _dbHelper.database;
-    final maps = await db.query('customers', orderBy: 'name_gujarati ASC');
+    final maps = await db.query(
+      'customers',
+      where: 'is_active = 1',
+      orderBy: 'name_gujarati ASC',
+    );
     return maps.map((m) => Customer.fromMap(m)).toList();
   }
 
@@ -19,7 +23,8 @@ class CustomerRepository {
     final q = '%${query.trim()}%';
     final maps = await db.query(
       'customers',
-      where: 'name_gujarati LIKE ? OR name_english LIKE ? OR phone LIKE ?',
+      where:
+          'is_active = 1 AND (name_gujarati LIKE ? OR name_english LIKE ? OR phone LIKE ?)',
       whereArgs: [q, q, q],
       orderBy: 'name_gujarati ASC',
     );
@@ -70,6 +75,11 @@ class CustomerRepository {
 
   Future<int> delete(int id) async {
     final db = await _dbHelper.database;
-    return db.delete('customers', where: 'id = ?', whereArgs: [id]);
+    return db.update(
+      'customers',
+      {'is_active': 0},
+      where: 'id = ?',
+      whereArgs: [id],
+    );
   }
 }

@@ -284,7 +284,9 @@ final appRouter = GoRouter(
     GoRoute(
       path: AppRouter.billDetail,
       builder: (context, state) {
-        final id = state.extra as int;
+        final id = state.extra is int
+            ? state.extra as int
+            : int.tryParse(state.extra?.toString() ?? '') ?? 0;
         return BillDetailScreen(billId: id);
       },
     ),

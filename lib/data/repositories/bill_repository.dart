@@ -399,31 +399,31 @@ class BillRepository {
   final Set<String> _existingTables = {};
   final Map<String, Set<String>> _tableColumns = {};
 
-  Future<void> _ensureSchemaIntrospected(Transaction txn) async {
+  Future<void> _ensureSchemaIntrospected(DatabaseExecutor db) async {
     if (_schemaIntrospected) return;
 
-    final tables = await txn.rawQuery("SELECT name FROM sqlite_master WHERE type = 'table'");
+    final tables = await db.rawQuery("SELECT name FROM sqlite_master WHERE type = 'table'");
     for (final row in tables) {
       final tableName = row['name']?.toString() ?? '';
       _existingTables.add(tableName);
       
-      final columns = await txn.rawQuery('PRAGMA table_info($tableName)');
+      final columns = await db.rawQuery('PRAGMA table_info($tableName)');
       _tableColumns[tableName] = columns.map((c) => c['name']?.toString() ?? '').toSet();
     }
     _schemaIntrospected = true;
   }
 
-  Future<bool> _tableExists(Transaction txn, String tableName) async {
-    await _ensureSchemaIntrospected(txn);
+  Future<bool> _tableExists(DatabaseExecutor db, String tableName) async {
+    await _ensureSchemaIntrospected(db);
     return _existingTables.contains(tableName);
   }
 
   Future<bool> _columnExists(
-    Transaction txn,
+    DatabaseExecutor db,
     String tableName,
     String columnName,
   ) async {
-    await _ensureSchemaIntrospected(txn);
+    await _ensureSchemaIntrospected(db);
     return _tableColumns[tableName]?.contains(columnName) ?? false;
   }
 
@@ -455,13 +455,13 @@ class BillRepository {
     }
   }
 
-  Future<String> _resolveItemTable(Transaction txn) async {
+  Future<String> _resolveItemTable(DatabaseExecutor txn) async {
     if (await _tableExists(txn, 'items')) return 'items';
     return 'products';
   }
 
   Future<String?> _firstExistingColumn(
-    Transaction txn,
+    DatabaseExecutor txn,
     String table,
     List<String> candidates,
   ) async {
@@ -509,6 +509,15 @@ class BillRepository {
 
   Future<List<BillItem>> getBillItems(int billId) async {
     final db = await _db;
+    final hasItemId = await _columnExists(db, 'bill_items', 'item_id');
+    final hasProductId = await _columnExists(db, 'bill_items', 'product_id');
+
+    final joinClause = hasItemId && hasProductId
+        ? '(p.id = bi.product_id OR p.id = bi.item_id)'
+        : (hasProductId
+            ? 'p.id = bi.product_id'
+            : (hasItemId ? 'p.id = bi.item_id' : '1=0'));
+
     final maps = await db.rawQuery('''
       SELECT
         bi.*,
@@ -516,7 +525,7 @@ class BillRepository {
         p.name_english AS prod_name_en,
         p.unit_type AS prod_unit_type
       FROM bill_items bi
-      LEFT JOIN products p ON (p.id = bi.product_id OR p.id = bi.item_id)
+      LEFT JOIN products p ON $joinClause
       WHERE bi.bill_id = ?
       ORDER BY bi.id ASC
     ''', [billId]);

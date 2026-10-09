@@ -8,6 +8,7 @@ import '../../data/providers.dart';
 import '../../shared/models/product_model.dart';
 import 'inventory_providers.dart';
 import 'item_edit_form.dart';
+import 'category_dialogs.dart';
 
 class ItemEditScreen extends ConsumerStatefulWidget {
   const ItemEditScreen({super.key, this.itemId});
@@ -175,6 +176,12 @@ class _ItemEditScreenState extends ConsumerState<ItemEditScreen> {
         isActive: _isActive,
         categoriesAsync: ref.watch(categoryListProvider),
         onCategoryChanged: (value) => setState(() => _categoryId = value),
+        onAddCategory: () async {
+          final newCat = await showCategoryDialog(context, ref);
+          if (newCat?.id != null && mounted) {
+            setState(() => _categoryId = newCat!.id);
+          }
+        },
         onUnitChanged: (value) => setState(() => _unit = value),
         onActiveChanged: (value) => setState(() => _isActive = value),
         onSave: _save,

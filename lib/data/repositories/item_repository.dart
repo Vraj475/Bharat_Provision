@@ -133,7 +133,7 @@ class ItemRepository {
     });
   }
 
-  Future<void> increaseStock(int itemId, double qty) async {
+  Future<void> increaseStock(int itemId, double qty, {String? note}) async {
     final db = await _dbHelper.database;
     await db.transaction((txn) async {
       final rows = await txn.query('products', columns: ['stock_qty'], where: 'id = ?', whereArgs: [itemId]);
@@ -151,7 +151,7 @@ class ItemRepository {
         'qty_change': qty,
         'qty_before': qtyBefore,
         'qty_after': qtyAfter,
-        'note': 'હસ્તચાલિત ઉમેરો',
+        'note': note ?? 'હસ્તચાલિત ઉમેરો',
         'created_at': DateTime.now().toIso8601String(),
       });
     });
@@ -168,7 +168,7 @@ class ItemRepository {
     final db = await _dbHelper.database;
     return db.insert('categories', {
       'name_gujarati': c.nameGu,
-      'name_english': null,
+      'name_english': c.nameEnglish,
       'icon': c.colorCode,
       'is_active': 1,
       'created_at': DateTime.now().toIso8601String(),
@@ -180,10 +180,30 @@ class ItemRepository {
     final db = await _dbHelper.database;
     return db.update(
       'categories',
-      {'name_gujarati': c.nameGu, 'icon': c.colorCode},
+      {
+        'name_gujarati': c.nameGu,
+        'name_english': c.nameEnglish,
+        'icon': c.colorCode,
+      },
       where: 'id = ?',
       whereArgs: [c.id],
     );
+  }
+
+  Future<int> deleteCategory(int id) async {
+    final db = await _dbHelper.database;
+    return db.delete('categories', where: 'id = ?', whereArgs: [id]);
+  }
+
+  Future<List<Product>> getByCategoryId(int categoryId) async {
+    final db = await _dbHelper.database;
+    final maps = await db.query(
+      'products',
+      where: 'category_id = ? AND is_active = 1',
+      whereArgs: [categoryId],
+      orderBy: 'name_gujarati ASC',
+    );
+    return maps.map((m) => Product.fromMap(m)).toList();
   }
 
   String generateTransliterationKeys(String nameGujarati) {

@@ -22,6 +22,7 @@ class ItemEditForm extends StatelessWidget {
     required this.onUnitChanged,
     required this.onActiveChanged,
     required this.onSave,
+    this.onAddCategory,
   });
 
   final TextEditingController nameController;
@@ -38,6 +39,7 @@ class ItemEditForm extends StatelessWidget {
   final ValueChanged<String> onUnitChanged;
   final ValueChanged<bool> onActiveChanged;
   final VoidCallback onSave;
+  final VoidCallback? onAddCategory;
 
   static const List<String> _units = ['નંગ', 'કિલો', 'ગ્રામ', 'લીટર'];
 
@@ -112,25 +114,40 @@ class ItemEditForm extends StatelessWidget {
   }
 
   Widget _buildCategoryDropdown() {
-    return DropdownButtonFormField<int?>(
-      initialValue: categoryId,
-      decoration: const InputDecoration(labelText: AppStrings.category),
-      items: [
-        const DropdownMenuItem(value: null, child: Text('—')),
-        ...categoriesAsync.when(
-          data: (categories) => categories
-              .map(
-                (category) => DropdownMenuItem<int?>(
-                  value: category.id,
-                  child: Text(category.nameGu),
-                ),
-              )
-              .toList(),
-          loading: () => [],
-          error: (error, stack) => [],
+    return Row(
+      crossAxisAlignment: CrossAxisAlignment.center,
+      children: [
+        Expanded(
+          child: DropdownButtonFormField<int?>(
+            initialValue: categoryId,
+            decoration: const InputDecoration(labelText: AppStrings.category),
+            items: [
+              const DropdownMenuItem(value: null, child: Text('—')),
+              ...categoriesAsync.when(
+                data: (categories) => categories
+                    .map(
+                      (category) => DropdownMenuItem<int?>(
+                        value: category.id,
+                        child: Text(category.nameGu),
+                      ),
+                    )
+                    .toList(),
+                loading: () => [],
+                error: (error, stack) => [],
+              ),
+            ],
+            onChanged: onCategoryChanged,
+          ),
         ),
+        if (onAddCategory != null) ...[
+          const SizedBox(width: 8),
+          IconButton.filledTonal(
+            icon: const Icon(Icons.add),
+            tooltip: 'નવી કેટેગરી ઉમેરો',
+            onPressed: onAddCategory,
+          ),
+        ],
       ],
-      onChanged: onCategoryChanged,
     );
   }
 

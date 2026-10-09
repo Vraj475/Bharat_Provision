@@ -14,6 +14,10 @@ import '../models/bill_line_item.dart';
 import 'dialogs/product_addition_dialog.dart';
 import 'package:go_router/go_router.dart';
 
+import '../../inventory/inventory_providers.dart';
+import '../../inventory/category_dialogs.dart';
+import '../../../core/utils/product_visual_helper.dart';
+
 enum BillingDropdownType { none, product }
 
 class BillingProductPanel extends ConsumerStatefulWidget {
@@ -38,6 +42,7 @@ class _BillingProductPanelState extends ConsumerState<BillingProductPanel> {
   BillingDropdownType _activeDropdown = BillingDropdownType.none;
   bool _lowStockPopupShown = false;
   int _draftLineCounter = 0;
+  int? _selectedCategoryId;
 
   void _openDropdown(BillingDropdownType type) {
     if (!mounted) return;
@@ -357,6 +362,7 @@ class _BillingProductPanelState extends ConsumerState<BillingProductPanel> {
   Widget build(BuildContext context) {
     final state = ref.watch(billingItemsProvider);
     final billingState = ref.watch(billingTabsProvider);
+    final categoriesAsync = ref.watch(categoryListProvider);
     final transactionType = billingState.activeDraft.transactionType;
     final productsForDropdown = state.valueOrNull ?? const <Product>[];
     
@@ -378,7 +384,7 @@ class _BillingProductPanelState extends ConsumerState<BillingProductPanel> {
                     children: [
                       Expanded(
                         child: _buildTransactionTypeButton(
-                          label: 'રોકડ',
+                           label: 'રોકડ',
                           icon: Icons.payments,
                           value: 'cash',
                           selected: transactionType == 'cash',
@@ -414,6 +420,7 @@ class _BillingProductPanelState extends ConsumerState<BillingProductPanel> {
                         prefixIcon: Icon(Icons.search),
                         hintText: strings.AppStrings.searchHintProducts,
                         border: OutlineInputBorder(),
+                        contentPadding: EdgeInsets.symmetric(horizontal: 14, vertical: 12),
                       ),
                       onTap: () {
                         if (widget.searchController.text.trim().isNotEmpty) {
@@ -430,26 +437,82 @@ class _BillingProductPanelState extends ConsumerState<BillingProductPanel> {
                       },
                     ),
                   ),
+                  const SizedBox(height: 8),
+                  // Category filter chips in billing module + Add Category action
+                  SingleChildScrollView(
+                    scrollDirection: Axis.horizontal,
+                    child: Row(
+                      children: [
+                        FilterChip(
+                          label: const Text('બધા'),
+                          selected: _selectedCategoryId == null,
+                          onSelected: (_) => setState(() => _selectedCategoryId = null),
+                          visualDensity: VisualDensity.compact,
+                          padding: const EdgeInsets.symmetric(horizontal: 4),
+                        ),
+                        const SizedBox(width: 6),
+                        ...categoriesAsync.maybeWhen(
+                          data: (categories) => categories.map((cat) {
+                            return Padding(
+                              padding: const EdgeInsets.only(right: 6),
+                              child: FilterChip(
+                                label: Text(cat.nameGu),
+                                selected: _selectedCategoryId == cat.id,
+                                onSelected: (sel) {
+                                  setState(() {
+                                    _selectedCategoryId = sel ? cat.id : null;
+                                  });
+                                },
+                                visualDensity: VisualDensity.compact,
+                                padding: const EdgeInsets.symmetric(horizontal: 4),
+                              ),
+                            );
+                          }),
+                          orElse: () => [],
+                        ),
+                        ActionChip(
+                          avatar: const Icon(Icons.add, size: 16),
+                          label: const Text('કેટેગરી ઉમેરો'),
+                          visualDensity: VisualDensity.compact,
+                          padding: const EdgeInsets.symmetric(horizontal: 4),
+                          onPressed: () async {
+                            final newCat = await showCategoryDialog(context, ref);
+                            if (newCat?.id != null && mounted) {
+                              setState(() {
+                                _selectedCategoryId = newCat!.id;
+                              });
+                            }
+                          },
+                        ),
+                      ],
+                    ),
+                  ),
                 ],
               ),
             ),
             Expanded(
               child: state.when(
                 data: (items) {
-                  if (items.isEmpty) {
+                  final displayItems = _selectedCategoryId == null
+                      ? items
+                      : items.where((p) => p.categoryId == _selectedCategoryId).toList();
+
+                  if (displayItems.isEmpty) {
                     return Center(
                       child: Column(
                         mainAxisAlignment: MainAxisAlignment.center,
                         children: [
                           const Icon(
-                            Icons.inventory_2_outlined,
+                            Icons.shopping_bag_outlined,
                             size: 48,
                             color: Colors.grey,
                           ),
                           const SizedBox(height: 16),
-                          const Text(
-                            'કોઈ ઉત્પાદન મળ્યું નહીં',
-                            style: TextStyle(
+                          Text(
+                            _selectedCategoryId != null
+                                ? 'આ કેટેગરીમાં કોઈ ઉત્પાદન નથી'
+                                : 'કોઈ ઉત્પાદન મળ્યું નહીં',
+                            style: const TextStyle(
                               fontSize: 16,
                               fontWeight: FontWeight.bold,
                             ),
@@ -469,6 +532,7 @@ class _BillingProductPanelState extends ConsumerState<BillingProductPanel> {
                             onPressed: () {
                               ref.read(billingSearchProvider.notifier).state = '';
                               widget.searchController.clear();
+                              setState(() => _selectedCategoryId = null);
                               ref.invalidate(billingItemsProvider);
                             },
                           ),
@@ -477,11 +541,11 @@ class _BillingProductPanelState extends ConsumerState<BillingProductPanel> {
                     );
                   }
                   return ListView.builder(
-                    itemCount: items.length,
+                    itemCount: displayItems.length,
                     itemBuilder: (ctx, i) {
-                      final item = items[i];
+                      final item = displayItems[i];
                       if (!_lowStockPopupShown) {
-                        final lowStockItems = items
+                        final lowStockItems = displayItems
                             .where((p) => p.stockQty > 0 && p.isLowStock)
                             .toList();
                         if (lowStockItems.isNotEmpty) {
@@ -526,7 +590,7 @@ class _BillingProductPanelState extends ConsumerState<BillingProductPanel> {
                       return Opacity(
                         opacity: _isOutOfStock(item) ? 0.5 : 1,
                         child: ListTile(
-                          leading: const Icon(Icons.inventory_2),
+                          leading: buildRealisticProductBadge(item, size: 40),
                           title: _buildProductNameLine(item),
                           subtitle: Column(
                             crossAxisAlignment: CrossAxisAlignment.start,

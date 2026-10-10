@@ -56,7 +56,7 @@ class BillDraft {
   final double discountAmount;
   final int? customerId;
   final String? customerName;
-  final String transactionType; // 'cash' or 'udhaar'
+  final String transactionType; // 'cash'
 
   double get subtotal => lines.fold(0, (s, l) => s + l.amount);
   double get total => subtotal - discountAmount;
@@ -170,16 +170,7 @@ class BillingTabsNotifier extends Notifier<BillingTabsState> {
   void setTransactionTypeForActive(String type) {
     final drafts = [...state.drafts];
     final current = drafts[state.activeIndex];
-    // When switching from udhaar to cash, clear customer selection
-    if (current.transactionType == 'udhaar' && type == 'cash') {
-      drafts[state.activeIndex] = current.copyWith(
-        transactionType: type,
-        customerId: null,
-        customerName: null,
-      );
-    } else {
-      drafts[state.activeIndex] = current.copyWith(transactionType: type);
-    }
+    drafts[state.activeIndex] = current.copyWith(transactionType: type);
     state = state.copyWith(drafts: drafts);
   }
 

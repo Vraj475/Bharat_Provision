@@ -15,5 +15,4 @@ export '../../shared/models/return_model.dart';
 export '../../shared/models/settings_model.dart';
 export '../../shared/models/stock_log_model.dart';
 export '../../shared/models/transliteration_dictionary_model.dart';
-export '../../shared/models/udhaar_ledger_model.dart';
 export '../../shared/models/user_model.dart';

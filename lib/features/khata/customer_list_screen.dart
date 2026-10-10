@@ -13,7 +13,6 @@ import '../../core/utils/debouncer.dart';
 import '../../core/widgets/hover_effects.dart';
 import '../../core/widgets/dialogs_and_snackbars.dart';
 import 'khata_providers.dart';
-import '../udhaar/udhaar_providers.dart';
 
 class CustomerListScreen extends ConsumerStatefulWidget {
   const CustomerListScreen({super.key});
@@ -54,9 +53,6 @@ class _CustomerListScreenState extends ConsumerState<CustomerListScreen> {
     ref.invalidate(customersProvider);
     ref.invalidate(customerListProvider);
     ref.invalidate(bulkCustomerBalancesProvider);
-    ref.invalidate(udhaarProvider);
-    ref.invalidate(udhaarCustomerListProvider);
-    ref.invalidate(udhaarTotalOutstandingProvider);
   }
 
   @override
@@ -115,7 +111,7 @@ class _CustomerListScreenState extends ConsumerState<CustomerListScreen> {
             // Summary metrics banner if customers are available
             customersAsync.maybeWhen(
               data: (customers) {
-                final totalUdhaar = customers.fold<double>(0.0, (sum, c) {
+                final totalOutstanding = customers.fold<double>(0.0, (sum, c) {
                   final b = balances[c.id] ?? c.totalOutstanding;
                   return sum + (b > 0 ? b : 0.0);
                 });
@@ -153,28 +149,28 @@ class _CustomerListScreenState extends ConsumerState<CustomerListScreen> {
                         child: Container(
                           padding: const EdgeInsets.symmetric(horizontal: 12, vertical: 10),
                           decoration: BoxDecoration(
-                            color: totalUdhaar > 0 ? const Color(0xFFFEF2F2) : Colors.white,
+                            color: totalOutstanding > 0 ? const Color(0xFFFEF2F2) : Colors.white,
                             borderRadius: BorderRadius.circular(12),
-                            border: Border.all(color: totalUdhaar > 0 ? const Color(0xFFFECACA) : const Color(0xFFE2E8F0)),
+                            border: Border.all(color: totalOutstanding > 0 ? const Color(0xFFFECACA) : const Color(0xFFE2E8F0)),
                           ),
                           child: Column(
                             crossAxisAlignment: CrossAxisAlignment.start,
                             children: [
                               Text(
-                                'કુલ બાકી ઉધાર',
+                                'કુલ બાકી',
                                 style: TextStyle(
                                   fontSize: 11,
-                                  color: totalUdhaar > 0 ? const Color(0xFFDC2626) : const Color(0xFF64748B),
+                                  color: totalOutstanding > 0 ? const Color(0xFFDC2626) : const Color(0xFF64748B),
                                   fontWeight: FontWeight.w600,
                                 ),
                               ),
                               const SizedBox(height: 2),
                               Text(
-                                formatCurrency(totalUdhaar),
+                                formatCurrency(totalOutstanding),
                                 style: TextStyle(
                                   fontSize: 16,
                                   fontWeight: FontWeight.w800,
-                                  color: totalUdhaar > 0 ? const Color(0xFFDC2626) : const Color(0xFF16A34A),
+                                  color: totalOutstanding > 0 ? const Color(0xFFDC2626) : const Color(0xFF16A34A),
                                 ),
                               ),
                             ],
@@ -257,7 +253,7 @@ class _CustomerListScreenState extends ConsumerState<CustomerListScreen> {
                     itemBuilder: (ctx, i) {
                       final c = customers[i];
                       final balance = balances[c.id] ?? c.totalOutstanding;
-                      final isUdhaar = balance > 0;
+                      final isDue = balance > 0;
 
                       return HoverableCard(
                         margin: const EdgeInsets.symmetric(vertical: 4),
@@ -266,13 +262,13 @@ class _CustomerListScreenState extends ConsumerState<CustomerListScreen> {
                           contentPadding: const EdgeInsets.symmetric(horizontal: 12, vertical: 4),
                           leading: CircleAvatar(
                             radius: 22,
-                            backgroundColor: isUdhaar ? const Color(0xFFFEE2E2) : const Color(0xFFEFF6FF),
+                            backgroundColor: isDue ? const Color(0xFFFEE2E2) : const Color(0xFFEFF6FF),
                             child: Text(
                               c.nameGujarati.isNotEmpty ? c.nameGujarati.characters.first : 'ગ્રા',
                               style: TextStyle(
                                 fontSize: 16,
                                 fontWeight: FontWeight.w800,
-                                color: isUdhaar ? const Color(0xFFDC2626) : const Color(0xFF2563EB),
+                                color: isDue ? const Color(0xFFDC2626) : const Color(0xFF2563EB),
                               ),
                             ),
                           ),
@@ -288,7 +284,7 @@ class _CustomerListScreenState extends ConsumerState<CustomerListScreen> {
                                   ),
                                 ),
                               ),
-                              if (isUdhaar)
+                              if (isDue)
                                 Container(
                                   padding: const EdgeInsets.symmetric(horizontal: 6, vertical: 2),
                                   decoration: BoxDecoration(
@@ -296,7 +292,7 @@ class _CustomerListScreenState extends ConsumerState<CustomerListScreen> {
                                     borderRadius: BorderRadius.circular(6),
                                   ),
                                   child: const Text(
-                                    'બાકી ઉધાર',
+                                    'બાકી',
                                     style: TextStyle(
                                       fontSize: 10,
                                       fontWeight: FontWeight.w700,
@@ -348,7 +344,7 @@ class _CustomerListScreenState extends ConsumerState<CustomerListScreen> {
                                     ),
                                   ),
                                   Text(
-                                    isUdhaar ? 'બાકી' : 'ચુકતે',
+                                    isDue ? 'બાકી' : 'ચુકતે',
                                     style: TextStyle(
                                       fontSize: 11,
                                       color: _balanceColor(balance),
@@ -444,9 +440,6 @@ class _CustomerListScreenState extends ConsumerState<CustomerListScreen> {
       ref.invalidate(customersProvider);
       ref.invalidate(customerListProvider);
       ref.invalidate(bulkCustomerBalancesProvider);
-      ref.invalidate(udhaarProvider);
-      ref.invalidate(udhaarCustomerListProvider);
-      ref.invalidate(udhaarTotalOutstandingProvider);
       message = 'ગ્રાહક સફળતાપૂર્વક કાઢી નાખવામાં આવ્યું';
     } catch (e) {
       isError = true;

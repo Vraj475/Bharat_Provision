@@ -103,26 +103,6 @@ class _DailyReportScreenState extends ConsumerState<DailyReportScreen> {
               children: [
                 Expanded(
                   child: _buildSummaryCard(
-                    'Udhaar Given',
-                    data.udhaarGiven,
-                    Colors.orange,
-                  ),
-                ),
-                const SizedBox(width: 8),
-                Expanded(
-                  child: _buildSummaryCard(
-                    'Udhaar Collected',
-                    data.udhaarCollected,
-                    Colors.blue,
-                  ),
-                ),
-              ],
-            ),
-            const SizedBox(height: 8),
-            Row(
-              children: [
-                Expanded(
-                  child: _buildSummaryCard(
                     'Expenses',
                     data.totalExpenses,
                     Colors.red,

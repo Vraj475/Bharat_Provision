@@ -4,7 +4,7 @@ class ReturnEntry {
   final int? customerId;
   final String returnDate;
   final double totalReturnValue;
-  final String? returnMode; // cash_refund | udhaar_credit | replace
+  final String? returnMode; // cash_refund | khata_credit | replace
   final String? notes;
 
   const ReturnEntry({

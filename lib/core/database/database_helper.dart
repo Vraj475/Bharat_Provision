@@ -49,15 +49,12 @@ class DatabaseHelper {
           onCreate: (db, version) async {
             await _createSchema(db);
             await _insertDefaultData(db);
-            await _syncKhataEntriesFromUdhaar(db);
           },
           onUpgrade: (db, oldVersion, newVersion) async {
             await _createSchema(db);
-            await _syncKhataEntriesFromUdhaar(db);
           },
           onOpen: (db) async {
             await _createSchema(db);
-            await _syncKhataEntriesFromUdhaar(db);
           },
         );
       } else {
@@ -76,22 +73,18 @@ class DatabaseHelper {
             onCreate: (db, version) async {
               await _createSchema(db);
               await _insertDefaultData(db);
-              await _syncKhataEntriesFromUdhaar(db);
             },
             onUpgrade: (db, oldVersion, newVersion) async {
               await _createSchema(db);
-              await _syncKhataEntriesFromUdhaar(db);
             },
             onOpen: (db) async {
               await _createSchema(db);
-              await _syncKhataEntriesFromUdhaar(db);
             },
           ),
         );
       }
 
       await _createSchema(db);
-      await _syncKhataEntriesFromUdhaar(db);
       return db;
     } catch (e, st) {
       throw ErrorHandler.handle(
@@ -99,56 +92,6 @@ class DatabaseHelper {
         st,
         context: 'DatabaseHelper._openDb',
       );
-    }
-  }
-
-  Future<void> _syncKhataEntriesFromUdhaar(dynamic db) async {
-    try {
-      final countResult = await db.rawQuery('SELECT COUNT(*) as count FROM khata_entries');
-      final khataCount = Sqflite.firstIntValue(countResult) ?? 0;
-      if (khataCount > 0) return;
-
-      final hasUdhaarLedger = Sqflite.firstIntValue(
-        await db.rawQuery(
-          "SELECT COUNT(*) FROM sqlite_master WHERE type='table' AND name='udhaar_ledger'",
-        ),
-      ) ?? 0;
-      if (hasUdhaarLedger == 0) return;
-
-      final udhaarRows = await db.rawQuery(
-        'SELECT id, customer_id, bill_id, transaction_type, amount, running_balance, note, created_at FROM udhaar_ledger ORDER BY id ASC',
-      );
-      if (udhaarRows.isEmpty) return;
-
-      final batch = db.batch();
-      for (final row in udhaarRows) {
-        final cid = row['customer_id'] as int?;
-        if (cid == null) continue;
-        final txType = (row['transaction_type'] as String?) ?? 'credit';
-        final isDebit = txType == 'credit';
-        final amount = (row['amount'] as num?)?.toDouble() ?? 0.0;
-        final runningBal = (row['running_balance'] as num?)?.toDouble() ?? 0.0;
-        final note = row['note'] as String?;
-        final billId = row['bill_id'] as int?;
-        final createdAtStr = row['created_at']?.toString() ?? '';
-        final parsed = DateTime.tryParse(createdAtStr);
-        final dt = parsed != null
-            ? parsed.millisecondsSinceEpoch
-            : (int.tryParse(createdAtStr) ?? DateTime.now().millisecondsSinceEpoch);
-
-        batch.insert('khata_entries', {
-          'customer_id': cid,
-          'related_bill_id': billId,
-          'date_time': dt,
-          'type': isDebit ? 'debit' : 'credit',
-          'amount': amount,
-          'note': note ?? (isDebit ? 'ઉધાર નોંધણી' : 'ચુકવણી જમા'),
-          'balance_after': runningBal,
-        });
-      }
-      await batch.commit(noResult: true);
-    } catch (_) {
-      // Ignore migration errors so database opening is not blocked
     }
   }
 
@@ -282,7 +225,6 @@ class DatabaseHelper {
         gst_amount REAL DEFAULT 0,
         total_amount REAL NOT NULL,
         paid_amount REAL DEFAULT 0,
-        udhaar_amount REAL DEFAULT 0,
         payment_mode TEXT,
         payment_status TEXT,
         is_printed INTEGER DEFAULT 0,
@@ -349,28 +291,7 @@ class DatabaseHelper {
       'CREATE INDEX IF NOT EXISTS idx_stock_log_transaction_type ON stock_log(transaction_type);',
     );
 
-    await db.execute('''
-      CREATE TABLE IF NOT EXISTS udhaar_ledger (
-        id INTEGER PRIMARY KEY AUTOINCREMENT,
-        customer_id INTEGER NOT NULL REFERENCES customers(id),
-        bill_id INTEGER REFERENCES bills(id),
-        transaction_type TEXT NOT NULL,
-        amount REAL NOT NULL,
-        running_balance REAL NOT NULL,
-        payment_mode TEXT,
-        note TEXT,
-        created_at TEXT NOT NULL
-      );
-    ''');
-    await db.execute(
-      'CREATE INDEX IF NOT EXISTS idx_udhaar_ledger_customer_id ON udhaar_ledger(customer_id);',
-    );
-    await db.execute(
-      'CREATE INDEX IF NOT EXISTS idx_udhaar_ledger_created_at ON udhaar_ledger(created_at);',
-    );
-    await db.execute(
-      'CREATE INDEX IF NOT EXISTS idx_udhaar_ledger_bill_id ON udhaar_ledger(bill_id);',
-    );
+    await db.execute('DROP TABLE IF EXISTS udhaar_ledger;');
 
     await db.execute('''
       CREATE TABLE IF NOT EXISTS bill_payments (
@@ -540,10 +461,8 @@ class DatabaseHelper {
       'shop_address': '',
       'shop_phone': '',
       'bill_counter': '1',
-      'print_udhaar_receipt': 'false',
       'print_payment_receipt': 'true',
       'print_final_receipt': 'true',
-      'module_udhaar': 'true',
       'module_returns': 'true',
       'module_replace': 'true',
       'module_stock_alerts': 'true',
@@ -949,7 +868,6 @@ class DatabaseHelper {
         'bills',
         'bill_items',
         'stock_log',
-        'udhaar_ledger',
         'bill_payments',
         'expense_accounts',
         'expenses',
@@ -982,7 +900,6 @@ class DatabaseHelper {
           'bills',
           'bill_items',
           'stock_log',
-          'udhaar_ledger',
           'bill_payments',
           'expense_accounts',
           'expenses',

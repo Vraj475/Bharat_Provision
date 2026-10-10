@@ -5,7 +5,7 @@ class KhataLedgerEntry {
   final int? customerId;
   final double amount;
   final String? paymentMode;
-  final String? referenceType; // bill | expense | manual | udhaar_payment
+  final String? referenceType; // bill | expense | manual | payment
   final int? referenceId;
   final String? note;
   final String entryDate;

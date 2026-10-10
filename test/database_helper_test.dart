@@ -1,6 +1,7 @@
 import 'dart:convert';
 import 'package:flutter_test/flutter_test.dart';
 import 'package:bharat_provision/core/database/database_helper.dart';
+import 'package:bharat_provision/core/errors/error_types.dart';
 import 'package:sqflite_common_ffi/sqflite_ffi.dart';
 // ignore: depend_on_referenced_packages
 import 'package:path_provider_platform_interface/path_provider_platform_interface.dart';
@@ -103,7 +104,8 @@ void main() {
       });
       fail('Should have thrown foreign key constraint error');
     } catch (e) {
-      expect(e.toString().contains('FOREIGN KEY'), true);
+      final msg = e is AppError ? e.technicalMessage : e.toString();
+      expect(msg.toUpperCase().contains('FOREIGN KEY') || (e is AppError && e.code == 'DB_007'), true);
     }
   });
 

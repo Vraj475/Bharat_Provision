@@ -43,7 +43,7 @@ class BillRepository {
       subtotal += i.qty * i.sellPriceSnapshot!;
     }
     final totalAmount = subtotal - discountAmount;
-    final udhaarAmount = (totalAmount - paidAmount).clamp(0.0, totalAmount);
+    final dueAmount = (totalAmount - paidAmount).clamp(0.0, totalAmount);
 
     final db = await _db;
     return db.transaction((txn) async {
@@ -73,11 +73,6 @@ class BillRepository {
         txn,
         'bills',
         'payment_status',
-      );
-      final hasUdhaarAmount = await _columnExists(
-        txn,
-        'bills',
-        'udhaar_amount',
       );
 
       final billValues = <String, Object?>{
@@ -114,12 +109,9 @@ class BillRepository {
         billValues['created_at'] = nowIso;
       }
       if (hasPaymentStatus) {
-        billValues['payment_status'] = udhaarAmount <= 0.0
+        billValues['payment_status'] = dueAmount <= 0.0
             ? 'paid'
-            : (paidAmount <= 0.0 ? 'udhaar' : 'partial');
-      }
-      if (hasUdhaarAmount) {
-        billValues['udhaar_amount'] = udhaarAmount;
+            : (paidAmount <= 0.0 ? 'unpaid' : 'partial');
       }
       if (hasCustomerNameSnapshot) {
         billValues['customer_name_snapshot'] =
@@ -307,9 +299,7 @@ class BillRepository {
         }
       }
 
-      final isUdhaarOrSplit = paymentMode == 'udhaar' || paymentMode == 'split';
-      if (isUdhaarOrSplit && customerId != null && udhaarAmount > 0) {
-        final hasUdhaarLedger = await _tableExists(txn, 'udhaar_ledger');
+      if (customerId != null && dueAmount > 0) {
         final hasKhataLedger = await _tableExists(txn, 'khata_ledger');
         final hasKhataEntries = await _tableExists(txn, 'khata_entries');
         final hasCustomerOutstanding = await _columnExists(
@@ -318,7 +308,7 @@ class BillRepository {
           'total_outstanding',
         );
 
-        double updatedOutstanding = udhaarAmount;
+        double updatedOutstanding = dueAmount;
         if (hasCustomerOutstanding) {
           final customerRows = await txn.query(
             'customers',
@@ -330,7 +320,7 @@ class BillRepository {
               (customerRows.firstOrNull?['total_outstanding'] as num?)
                   ?.toDouble() ??
               0.0;
-          updatedOutstanding = currentOutstanding + udhaarAmount;
+          updatedOutstanding = currentOutstanding + dueAmount;
           await txn.update(
             'customers',
             {'total_outstanding': updatedOutstanding},
@@ -339,25 +329,12 @@ class BillRepository {
           );
         }
 
-        if (hasUdhaarLedger) {
-          await txn.insert('udhaar_ledger', {
-            'customer_id': customerId,
-            'bill_id': billId,
-            'transaction_type': 'credit',
-            'amount': udhaarAmount,
-            'running_balance': updatedOutstanding,
-            'payment_mode': paymentMode,
-            'note': 'Bill #$billNumber',
-            'created_at': nowIso,
-          });
-        }
-
         if (hasKhataLedger) {
           await txn.insert('khata_ledger', {
             'entry_type': 'debit',
-            'account_name': 'ઉધાર બિલ',
+            'account_name': 'બિલ',
             'customer_id': customerId,
-            'amount': udhaarAmount,
+            'amount': dueAmount,
             'payment_mode': paymentMode,
             'reference_type': 'bill',
             'reference_id': billId,
@@ -372,7 +349,7 @@ class BillRepository {
             'related_bill_id': billId,
             'date_time': nowEpoch,
             'type': 'debit',
-            'amount': udhaarAmount,
+            'amount': dueAmount,
             'note': 'Bill #$billNumber',
             'balance_after': updatedOutstanding,
           });

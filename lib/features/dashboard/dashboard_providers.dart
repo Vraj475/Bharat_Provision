@@ -26,11 +26,6 @@ final sevenDaySalesProvider = FutureProvider<List<DailySales>>((ref) async {
   return repo.get7DaySales();
 });
 
-final totalUdhaarOutstandingProvider = FutureProvider<double>((ref) async {
-  final repo = ref.watch(reportRepositoryProvider);
-  return repo.getTotalUdhaarOutstanding();
-});
-
 final todaysNetProfitProvider = FutureProvider<double>((ref) async {
   final repo = ref.watch(reportRepositoryProvider);
   return repo.getTodaysNetProfit();

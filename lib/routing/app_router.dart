@@ -30,10 +30,6 @@ import '../features/settings/screens/superadmin_panel_screen.dart';
 import '../features/settings/screens/expense_accounts_manager_screen.dart';
 import '../features/settings/screens/transliteration_dictionary_screen.dart';
 import '../shared/models/product_model.dart';
-import '../features/udhaar/udhaar_dashboard_screen.dart';
-import '../features/udhaar/customer_ledger_screen.dart';
-import '../features/udhaar/collect_payment_screen.dart';
-import '../features/udhaar/final_total_screen.dart';
 import '../features/dashboard/dashboard_screen.dart';
 import '../features/reports/pl_report_screen.dart';
 import '../features/reports/daily_report_screen.dart';
@@ -215,46 +211,6 @@ final appRouter = GoRouter(
       ),
     ),
     GoRoute(
-      path: AppRouter.udhaarDashboard,
-      builder: (context, state) => const RoleGuard(
-        allowedRoles: ['admin'],
-        child: _ShellRoute(
-          currentRoute: AppRouter.udhaarDashboard,
-          child: UdhaarDashboardScreen(),
-        ),
-      ),
-    ),
-    GoRoute(
-      path: AppRouter.udhaarCustomer,
-      builder: (context, state) {
-        final customerId = state.extra as int;
-        return RoleGuard(
-          allowedRoles: const ['admin'],
-          child: CustomerLedgerScreen(customerId: customerId),
-        );
-      },
-    ),
-    GoRoute(
-      path: AppRouter.udhaarCollect,
-      builder: (context, state) {
-        final customerId = state.extra as int;
-        return RoleGuard(
-          allowedRoles: const ['admin'],
-          child: CollectPaymentScreen(customerId: customerId),
-        );
-      },
-    ),
-    GoRoute(
-      path: AppRouter.udhaarFinal,
-      builder: (context, state) {
-        final customerId = state.extra as int;
-        return RoleGuard(
-          allowedRoles: const ['admin'],
-          child: FinalTotalScreen(customerId: customerId),
-        );
-      },
-    ),
-    GoRoute(
       path: AppRouter.plReport,
       builder: (context, state) => const RoleGuard(
         allowedRoles: ['admin'],
@@ -377,10 +333,6 @@ class AppRouter {
   static const String returnsNew = '/returns/new';
   static const String returnsReplace = '/returns/replace';
   static const String returnsHistory = '/returns/history';
-  static const String udhaarDashboard = '/udhaar';
-  static const String udhaarCustomer = '/udhaar/customer';
-  static const String udhaarCollect = '/udhaar/collect';
-  static const String udhaarFinal = '/udhaar/final';
   static const String plReport = '/reports/pl';
   static const String dailyReport = '/reports/daily';
   static const String addExpense = '/expenses/add';
@@ -395,7 +347,7 @@ class AppRouter {
   static const String transliterationDict = '/settings/transliteration';
 
   static List<String> _mainRoutesForRole(String role) {
-    final isAdmin = canAccessUdhaar(role);
+    final isAdmin = role == 'admin' || role == 'superadmin';
     return [
       billing,
       if (isAdmin) billHistory,
@@ -403,7 +355,6 @@ class AppRouter {
       customers,
       reports,
       settings,
-      if (isAdmin) udhaarDashboard,
     ];
   }
 

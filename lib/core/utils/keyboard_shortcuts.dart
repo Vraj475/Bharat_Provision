@@ -11,7 +11,6 @@ class KeyboardShortcutsHandler {
   final VoidCallback? onF3; // Khata
   final VoidCallback? onF4; // Reports
   final VoidCallback? onF5; // Settings
-  final VoidCallback? onF6; // Udhaar
   final VoidCallback? onF7; // Stock
   final VoidCallback? onCtrlP; // Print
   final VoidCallback? onCtrlS; // Save
@@ -26,7 +25,6 @@ class KeyboardShortcutsHandler {
     this.onF3,
     this.onF4,
     this.onF5,
-    this.onF6,
     this.onF7,
     this.onCtrlP,
     this.onCtrlS,
@@ -38,12 +36,10 @@ class KeyboardShortcutsHandler {
 
   /// Handle key press events (Windows only)
   bool handleKeyPress(KeyEvent event) {
-    // No-op on non-Windows platforms
     if (!Platform.isWindows) return false;
-
     if (event is! KeyDownEvent) return false;
 
-    // Check for F1-F7
+    // Check function keys
     if (event.logicalKey == LogicalKeyboardKey.f1) {
       onF1?.call();
       return true;
@@ -62,10 +58,6 @@ class KeyboardShortcutsHandler {
     }
     if (event.logicalKey == LogicalKeyboardKey.f5) {
       onF5?.call();
-      return true;
-    }
-    if (event.logicalKey == LogicalKeyboardKey.f6) {
-      onF6?.call();
       return true;
     }
     if (event.logicalKey == LogicalKeyboardKey.f7) {
@@ -155,11 +147,6 @@ final keyboardShortcutsListProvider = Provider<List<KeyboardShortcut>>((ref) {
       descriptionGu: 'સેટિંગમાં જાઓ',
     ),
     KeyboardShortcut(
-      key: 'F6',
-      description: 'Switch to Udhaar',
-      descriptionGu: 'ઉધારમાં જાઓ',
-    ),
-    KeyboardShortcut(
       key: 'F7',
       description: 'Switch to Stock',
       descriptionGu: 'સ્ટોકમાં જાઓ',
@@ -182,12 +169,12 @@ final keyboardShortcutsListProvider = Provider<List<KeyboardShortcut>>((ref) {
     KeyboardShortcut(
       key: 'Ctrl + Z',
       description: 'Undo',
-      descriptionGu: 'પૂર્વવત્ કરો',
+      descriptionGu: 'પહેલા જેવું કરો',
     ),
     KeyboardShortcut(
-      key: 'Escape',
-      description: 'Cancel/Close',
-      descriptionGu: 'રદ કરો/બંધ કરો',
+      key: 'Esc',
+      description: 'Cancel / Close',
+      descriptionGu: 'રદ કરો / બંધ કરો',
     ),
   ];
 });

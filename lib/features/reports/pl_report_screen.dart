@@ -225,11 +225,6 @@ class _PLReportScreenState extends ConsumerState<PLReportScreen> {
                     trailing: Text(formatCurrency(e.value)),
                   ),
                 ),
-                if (summary.udhaarCollected > 0)
-                  ListTile(
-                    title: const Text('Udhaar Collected'),
-                    trailing: Text(formatCurrency(summary.udhaarCollected)),
-                  ),
               ],
             ),
           ),

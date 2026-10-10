@@ -6,7 +6,6 @@ import '../../core/theme/app_colors.dart';
 import '../../core/utils/currency_format.dart';
 import '../../core/utils/date_time_format.dart';
 import '../../data/providers.dart';
-import '../udhaar/udhaar_providers.dart';
 import 'khata_providers.dart';
 
 class CustomerKhataDetailScreen extends ConsumerStatefulWidget {
@@ -58,10 +57,6 @@ class _CustomerKhataDetailScreenState
       ref.invalidate(customersProvider);
       ref.invalidate(customerListProvider);
       ref.invalidate(bulkCustomerBalancesProvider);
-      ref.invalidate(udhaarProvider);
-      ref.invalidate(udhaarTotalOutstandingProvider);
-      ref.invalidate(udhaarCustomerListProvider);
-      ref.invalidate(udhaarCustomerProvider(widget.customerId));
       if (mounted) {
         final successMsg = type == 'debit'
             ? '₹${result.amount.toStringAsFixed(2)} ઉધાર સફળતાપૂર્વક નોંધાયા'
@@ -369,7 +364,7 @@ class _KhataEntryDialogState extends ConsumerState<_KhataEntryDialog> {
                       crossAxisAlignment: CrossAxisAlignment.start,
                       children: [
                         Text(
-                          isDebit ? 'ઉધાર નોંધણી (Add Udhaar)' : 'ચુકવણી જમા (Record Payment)',
+                          isDebit ? 'ખાતા નોંધણી (Debit Entry)' : 'ચુકવણી જમા (Record Payment)',
                           style: const TextStyle(
                             fontSize: 17,
                             fontWeight: FontWeight.bold,

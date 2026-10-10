@@ -27,7 +27,6 @@ final settingsValuesProvider = FutureProvider<Map<String, String>>((ref) async {
 final moduleSettingsProvider = FutureProvider<Map<String, bool>>((ref) async {
   final repo = ref.watch(settingsRepositoryProvider);
   return {
-    'module_udhaar': await repo.getBool('module_udhaar'),
     'module_returns': await repo.getBool('module_returns'),
     'module_replace': await repo.getBool('module_replace'),
     'module_stock_alerts': await repo.getBool('module_stock_alerts'),
@@ -62,7 +61,6 @@ final featureToggleProvider = FutureProvider<Map<String, bool>>((ref) async {
     ),
     'show_weight_on_bill': await repo.getBool('show_weight_on_bill'),
     'gst_enabled': await repo.getBool('gst_enabled'),
-    'print_udhaar_receipt': await repo.getBool('print_udhaar_receipt'),
     'print_payment_receipt': await repo.getBool('print_payment_receipt'),
     'print_final_receipt': await repo.getBool('print_final_receipt'),
     'large_text': await repo.getBool('large_text'),

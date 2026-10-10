@@ -79,7 +79,7 @@ class BillService {
   /// Reprint a bill (deprecated alias for [markPrinted])
   Future<void> reprintBill(int billId) async => markPrinted(billId);
 
-  /// Update payment status (e.g. paid, udhaar, partial)
+  /// Update payment status (e.g. paid, partial)
   Future<void> updatePaymentStatus(int billId, String paymentStatus) async {
     try {
       final db = await _dbHelper.database;
@@ -125,7 +125,7 @@ class BillService {
         SELECT 
           COUNT(*) as bill_count,
           SUM(total_amount) as total_sales,
-          SUM(CASE WHEN payment_mode = 'udhaar' THEN total_amount ELSE 0 END) as udhaar_amount,
+          SUM(total_amount - paid_amount) as due_amount,
           SUM(CASE WHEN payment_mode = 'cash' THEN total_amount ELSE 0 END) as cash_amount,
           SUM(CASE WHEN payment_mode = 'upi' THEN total_amount ELSE 0 END) as upi_amount
         FROM bills
@@ -138,7 +138,7 @@ class BillService {
         return {
           'bill_count': 0,
           'total_sales': 0.0,
-          'udhaar_amount': 0.0,
+          'due_amount': 0.0,
           'cash_amount': 0.0,
           'upi_amount': 0.0,
         };
@@ -147,7 +147,7 @@ class BillService {
       return {
         'bill_count': result[0]['bill_count'] ?? 0,
         'total_sales': (result[0]['total_sales'] as num?)?.toDouble() ?? 0.0,
-        'udhaar_amount': (result[0]['udhaar_amount'] as num?)?.toDouble() ?? 0.0,
+        'due_amount': (result[0]['due_amount'] as num?)?.toDouble() ?? 0.0,
         'cash_amount': (result[0]['cash_amount'] as num?)?.toDouble() ?? 0.0,
         'upi_amount': (result[0]['upi_amount'] as num?)?.toDouble() ?? 0.0,
       };

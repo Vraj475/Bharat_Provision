@@ -16,7 +16,6 @@ class BillHistoryCard extends ConsumerWidget {
     final normalized = (status ?? '').trim().toLowerCase();
     return switch (normalized) {
       'paid' => const Color(0xFF16A34A), // Rich Green
-      'udhaar' => const Color(0xFFEA580C), // Deep Orange
       'partial' => const Color(0xFFD97706), // Amber
       'partial_return' => const Color(0xFF2563EB), // Blue
       'fully_returned' => const Color(0xFF64748B), // Slate Grey
@@ -35,18 +34,12 @@ class BillHistoryCard extends ConsumerWidget {
         bill.customerNameSnapshot != null &&
         bill.customerNameSnapshot!.trim().isNotEmpty;
 
-    final isUdhaar =
-        normalizedStatus == 'udhaar' ||
-        normalizedMode == 'udhaar' ||
-        bill.udhaarAmount > 0;
-
     final isCash =
-        !isUdhaar &&
-        (normalizedMode == 'cash' ||
-            normalizedMode.isEmpty ||
-            (!hasCustomerName && normalizedStatus == 'paid'));
+        normalizedMode == 'cash' ||
+        normalizedMode.isEmpty ||
+        (!hasCustomerName && normalizedStatus == 'paid');
 
-    final isOnline = !isUdhaar && !isCash && (normalizedMode == 'upi' || normalizedMode == 'online' || normalizedMode == 'card');
+    final isOnline = !isCash && (normalizedMode == 'upi' || normalizedMode == 'online' || normalizedMode == 'card');
 
     return Card(
       margin: const EdgeInsets.symmetric(vertical: 6, horizontal: 2),
@@ -139,8 +132,6 @@ class BillHistoryCard extends ConsumerWidget {
                       // Middle Row: Prominent Customer / Cash Display (Not Muted!)
                       if (isCash)
                         _buildCashBadge(hasCustomerName)
-                      else if (isUdhaar)
-                        _buildUdhaarBadge(hasCustomerName)
                       else if (isOnline)
                         _buildOnlineBadge(hasCustomerName)
                       else
@@ -243,55 +234,6 @@ class BillHistoryCard extends ConsumerWidget {
           ),
         ],
       ),
-    );
-  }
-
-  Widget _buildUdhaarBadge(bool hasCustomerName) {
-    final customerName = hasCustomerName
-        ? bill.customerNameSnapshot!.trim()
-        : 'ઉધાર ગ્રાહક';
-
-    return Row(
-      children: [
-        Container(
-          padding: const EdgeInsets.symmetric(horizontal: 8, vertical: 4),
-          decoration: BoxDecoration(
-            color: const Color(0xFFFFEDD5),
-            borderRadius: BorderRadius.circular(6),
-            border: Border.all(color: const Color(0xFFFDBA74)),
-          ),
-          child: Row(
-            mainAxisSize: MainAxisSize.min,
-            children: [
-              const Icon(
-                Icons.person,
-                size: 15,
-                color: Color(0xFFC2410C),
-              ),
-              const SizedBox(width: 5),
-              Text(
-                customerName,
-                style: const TextStyle(
-                  fontSize: 13,
-                  fontWeight: FontWeight.w700,
-                  color: Color(0xFF9A3412),
-                ),
-              ),
-            ],
-          ),
-        ),
-        if (bill.udhaarAmount > 0) ...[
-          const SizedBox(width: 8),
-          Text(
-            'બાકી: ${formatCurrency(bill.udhaarAmount)}',
-            style: const TextStyle(
-              fontSize: 12,
-              fontWeight: FontWeight.w700,
-              color: Color(0xFFEA580C),
-            ),
-          ),
-        ],
-      ],
     );
   }
 
@@ -420,7 +362,6 @@ class BillHistoryStatusBadge extends StatelessWidget {
     final normalized = (status ?? '').trim().toLowerCase();
     final (label, color) = switch (normalized) {
       'paid' => ('ચૂકવાયું', const Color(0xFF16A34A)),
-      'udhaar' => ('ઉધાર', const Color(0xFFEA580C)),
       'partial' => ('આંશિક', const Color(0xFFD97706)),
       'partial_return' => ('આંશિક પરત', const Color(0xFF2563EB)),
       'fully_returned' => ('પૂર્ણ પરત', const Color(0xFF64748B)),

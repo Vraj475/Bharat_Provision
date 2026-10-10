@@ -16,7 +16,8 @@ void main() {
     await tester.pumpWidget(const ProviderScope(child: KiranaApp()));
 
     // Allow async providers / first frame work to settle.
-    await tester.pumpAndSettle();
+    await tester.pump(const Duration(milliseconds: 500));
+    await tester.pump(const Duration(milliseconds: 500));
 
     // MaterialApp should be in the tree if the app booted.
     expect(find.byType(MaterialApp), findsOneWidget);

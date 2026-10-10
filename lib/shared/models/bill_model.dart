@@ -9,10 +9,9 @@ class Bill {
   final double gstAmount;
   final double totalAmount;
   final double paidAmount;
-  final double udhaarAmount;
-  final String? paymentMode; // cash | upi | card | udhaar | split
+  final String? paymentMode; // cash | upi | card | split
   final String?
-  paymentStatus; // paid | udhaar | partial | partial_return | fully_returned
+  paymentStatus; // paid | unpaid | partial | partial_return | fully_returned
   final bool isPrinted;
   final bool isReturned;
   final String? notes;
@@ -30,7 +29,6 @@ class Bill {
     required this.gstAmount,
     required this.totalAmount,
     required this.paidAmount,
-    required this.udhaarAmount,
     this.paymentMode,
     this.paymentStatus,
     required this.isPrinted,
@@ -39,6 +37,8 @@ class Bill {
     this.createdByRole,
     required this.createdAt,
   });
+
+  double get dueAmount => (totalAmount - paidAmount).clamp(0.0, totalAmount);
 
   factory Bill.fromMap(Map<String, dynamic> map) {
     final rawDateTime = map['date_time'];
@@ -60,7 +60,6 @@ class Bill {
           ((map['gst_amount'] ?? map['tax_amount']) as num?)?.toDouble() ?? 0,
       totalAmount: (map['total_amount'] as num?)?.toDouble() ?? 0,
       paidAmount: (map['paid_amount'] as num?)?.toDouble() ?? 0,
-      udhaarAmount: (map['udhaar_amount'] as num?)?.toDouble() ?? 0,
       paymentMode: map['payment_mode'] as String?,
       paymentStatus: map['payment_status'] as String?,
       isPrinted: (map['is_printed'] as int? ?? 0) == 1,
@@ -83,7 +82,6 @@ class Bill {
       'gst_amount': gstAmount,
       'total_amount': totalAmount,
       'paid_amount': paidAmount,
-      'udhaar_amount': udhaarAmount,
       'payment_mode': paymentMode,
       'payment_status': paymentStatus,
       'is_printed': isPrinted ? 1 : 0,

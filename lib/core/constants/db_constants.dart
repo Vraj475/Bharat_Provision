@@ -15,7 +15,6 @@ class DbConstants {
   static const String tableBillItems = 'bill_items';
   static const String tableBillPayments = 'bill_payments';
   static const String tableStockLog = 'stock_log';
-  static const String tableUdhaarLedger = 'udhaar_ledger';
   static const String tableExpenseAccounts = 'expense_accounts';
   static const String tableExpenses = 'expenses';
   static const String tableKhataLedger = 'khata_ledger';
@@ -50,7 +49,6 @@ class DbConstants {
   static const String colBillGstAmount = 'gst_amount';
   static const String colBillTotalAmount = 'total_amount';
   static const String colBillPaidAmount = 'paid_amount';
-  static const String colBillUdhaarAmount = 'udhaar_amount';
   static const String colBillPaymentMode = 'payment_mode';
   static const String colBillPaymentStatus = 'payment_status';
   static const String colBillIsPrinted = 'is_printed';

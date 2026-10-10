@@ -273,7 +273,6 @@ class _KhataScreenState extends ConsumerState<KhataScreen>
   void _openEntrySource(KhataLedgerRow entry) async {
     switch (entry.source) {
       case 'bill':
-      case 'udhaar_bill':
         context.push(AppRouter.billDetail, extra: entry.sourceId);
         return;
       case 'expense':
@@ -289,10 +288,10 @@ class _KhataScreenState extends ConsumerState<KhataScreen>
         context.push(AppRouter.addExpense, extra: expense);
         return;
       case 'payment':
-      case 'udhaar_manual':
+      case 'khata_entry':
         final db = await ref.read(databaseHelperProvider).database;
         final rows = await db.query(
-          'udhaar_ledger',
+          'khata_entries',
           columns: ['customer_id'],
           where: 'id = ?',
           whereArgs: [entry.sourceId],
@@ -326,12 +325,12 @@ class _KhataScreenState extends ConsumerState<KhataScreen>
       LEFT JOIN customers c ON b.customer_id = c.id
       WHERE b.payment_mode IN ('cash', 'upi', 'card') OR (b.payment_mode = 'split' AND b.paid_amount > 0)
       UNION ALL
-      SELECT 'payment' as source, ul.id as source_id, ul.created_at as date,
-             COALESCE(c.name_gujarati, 'ગ્રાહક') as account_name, ul.amount as amount,
-             'ઉધાર ચુકવણી' as reference, 'credit' as type
-      FROM udhaar_ledger ul
-      LEFT JOIN customers c ON ul.customer_id = c.id
-      WHERE ul.transaction_type = 'payment'
+      SELECT 'payment' as source, ke.id as source_id, CAST(ke.date_time AS TEXT) as date,
+             COALESCE(c.name_gujarati, 'ગ્રાહક') as account_name, ke.amount as amount,
+             COALESCE(ke.note, 'ચુકવણી') as reference, 'credit' as type
+      FROM khata_entries ke
+      LEFT JOIN customers c ON ke.customer_id = c.id
+      WHERE ke.type = 'credit'
       ORDER BY date DESC
     ''');
     return results.map((row) => KhataLedgerRow.fromMap(row)).toList();
@@ -347,21 +346,13 @@ class _KhataScreenState extends ConsumerState<KhataScreen>
       FROM expenses e
       LEFT JOIN expense_accounts ea ON e.expense_account_id = ea.id
       UNION ALL
-      SELECT 'udhaar_bill' as source, b.id as source_id, b.created_at as date,
-             COALESCE(c.name_gujarati, b.customer_name_snapshot, 'ઉધાર ગ્રાહક') as account_name,
-             COALESCE(b.udhaar_amount, b.total_amount) as amount,
-             'ઉધાર બિલ #' || b.bill_number as reference, 'debit' as type
-      FROM bills b
-      LEFT JOIN customers c ON b.customer_id = c.id
-      WHERE b.payment_mode = 'udhaar' OR (b.udhaar_amount IS NOT NULL AND b.udhaar_amount > 0)
-      UNION ALL
-      SELECT 'udhaar_manual' as source, ul.id as source_id, ul.created_at as date,
-             COALESCE(c.name_gujarati, 'ઉધાર ગ્રાહક') as account_name,
-             ul.amount as amount,
-             COALESCE(ul.note, 'હસ્તચાલિત ઉધાર') as reference, 'debit' as type
-      FROM udhaar_ledger ul
-      LEFT JOIN customers c ON ul.customer_id = c.id
-      WHERE ul.transaction_type = 'credit' AND ul.bill_id IS NULL
+      SELECT 'khata_entry' as source, ke.id as source_id, CAST(ke.date_time AS TEXT) as date,
+             COALESCE(c.name_gujarati, 'ગ્રાહક') as account_name,
+             ke.amount as amount,
+             COALESCE(ke.note, 'ખાતા નોંધણી') as reference, 'debit' as type
+      FROM khata_entries ke
+      LEFT JOIN customers c ON ke.customer_id = c.id
+      WHERE ke.type = 'debit'
       ORDER BY date DESC
     ''');
     return results.map((row) => KhataLedgerRow.fromMap(row)).toList();

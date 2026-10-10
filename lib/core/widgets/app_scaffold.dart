@@ -30,7 +30,7 @@ class AppScaffold extends ConsumerWidget {
   Widget build(BuildContext context, WidgetRef ref) {
     final session = ref.watch(authSessionProvider);
     final String role = session?.role ?? ref.watch(currentRoleProvider);
-    final isAdmin = canAccessUdhaar(role);
+    final isAdmin = role == 'admin' || role == 'superadmin';
     final roleLabel = _roleLabel(role);
     
     // Determine layout based on screen width instead of Platform
@@ -305,7 +305,6 @@ class AppScaffold extends ConsumerWidget {
       const _NavItem(AppStrings.navKhata, Icons.people),
       const _NavItem(AppStrings.navReports, Icons.assessment),
       const _NavItem(AppStrings.navSettings, Icons.settings),
-      if (isAdmin) const _NavItem('ઉધાર', Icons.account_balance_wallet),
     ];
   }
 }

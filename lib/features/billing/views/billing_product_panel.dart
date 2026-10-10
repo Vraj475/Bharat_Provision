@@ -5,7 +5,6 @@ import '../../../core/constants/app_strings.dart' as strings;
 import '../../../core/errors/error_handler.dart';
 import '../../../core/errors/error_logger.dart';
 import '../../../core/errors/error_types.dart';
-import '../../../core/theme/app_colors.dart';
 import '../../../shared/models/product_model.dart';
 import '../../../shared/widgets/errors/error_dialogue.dart';
 import '../billing_providers.dart';
@@ -242,50 +241,6 @@ class _BillingProductPanelState extends ConsumerState<BillingProductPanel> {
     }
   }
 
-  Widget _buildTransactionTypeButton({
-    required String label,
-    required IconData icon,
-    required String value,
-    required bool selected,
-    required VoidCallback onPressed,
-  }) {
-    return GestureDetector(
-      onTap: onPressed,
-      child: Container(
-        padding: const EdgeInsets.symmetric(horizontal: 12, vertical: 10),
-        decoration: BoxDecoration(
-          color: selected ? AppColors.primary : Colors.transparent,
-          border: Border.all(
-            color: selected
-                ? AppColors.primary
-                : AppColors.primary.withValues(alpha: 0.3),
-            width: 2,
-          ),
-          borderRadius: BorderRadius.circular(8),
-        ),
-        child: Row(
-          mainAxisAlignment: MainAxisAlignment.center,
-          children: [
-            Icon(
-              icon,
-              color: selected ? Colors.white : AppColors.textSecondary,
-              size: 20,
-            ),
-            const SizedBox(width: 8),
-            Text(
-              label,
-              style: TextStyle(
-                color: selected ? Colors.white : AppColors.textSecondary,
-                fontWeight: selected ? FontWeight.bold : FontWeight.normal,
-                fontSize: 14,
-              ),
-            ),
-          ],
-        ),
-      ),
-    );
-  }
-
   Widget _buildActiveDropdown(List<Product> products) {
     final isProduct = _activeDropdown == BillingDropdownType.product;
     if (!isProduct) {
@@ -361,9 +316,7 @@ class _BillingProductPanelState extends ConsumerState<BillingProductPanel> {
   @override
   Widget build(BuildContext context) {
     final state = ref.watch(billingItemsProvider);
-    final billingState = ref.watch(billingTabsProvider);
     final categoriesAsync = ref.watch(categoryListProvider);
-    final transactionType = billingState.activeDraft.transactionType;
     final productsForDropdown = state.valueOrNull ?? const <Product>[];
     
     return Stack(
@@ -378,39 +331,6 @@ class _BillingProductPanelState extends ConsumerState<BillingProductPanel> {
               child: Column(
                 crossAxisAlignment: CrossAxisAlignment.stretch,
                 children: [
-                  // Transaction type selector
-                  Row(
-                    spacing: 12,
-                    children: [
-                      Expanded(
-                        child: _buildTransactionTypeButton(
-                           label: 'રોકડ',
-                          icon: Icons.payments,
-                          value: 'cash',
-                          selected: transactionType == 'cash',
-                          onPressed: () {
-                            ref
-                                .read(billingTabsProvider.notifier)
-                                .setTransactionTypeForActive('cash');
-                          },
-                        ),
-                      ),
-                      Expanded(
-                        child: _buildTransactionTypeButton(
-                          label: 'ઉધાર',
-                          icon: Icons.account_balance_wallet,
-                          value: 'udhaar',
-                          selected: transactionType == 'udhaar',
-                          onPressed: () {
-                            ref
-                                .read(billingTabsProvider.notifier)
-                                .setTransactionTypeForActive('udhaar');
-                          },
-                        ),
-                      ),
-                    ],
-                  ),
-                  const SizedBox(height: 12),
                   Container(
                     key: _productFieldKey,
                     child: TextField(

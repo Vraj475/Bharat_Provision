@@ -7,7 +7,7 @@ import '../../features/settings/settings_providers.dart';
 class NavItem {
   final String label;
   final IconData icon;
-  final String moduleKey; // e.g., 'module_udhaar', or empty if always visible
+  final String moduleKey; // e.g., 'module_khata', or empty if always visible
 
   NavItem({required this.label, required this.icon, this.moduleKey = ''});
 }
@@ -37,11 +37,6 @@ final navigationItemsProvider = FutureProvider<List<NavItem>>((ref) async {
       label: 'સેટિંગ',
       icon: Icons.settings,
       moduleKey: '', // Always visible
-    ),
-    NavItem(
-      label: 'ઉધાર',
-      icon: Icons.account_balance_wallet,
-      moduleKey: 'module_udhaar',
     ),
   ];
 

@@ -1012,7 +1012,6 @@ class _ReturnReplaceScreenState extends ConsumerState<ReturnReplaceScreen> {
     const statuses = <String, String>{
       'all': 'બધા',
       'paid': 'ચૂકવેલ',
-      'udhaar': 'ઉધાર',
       'partial': 'આંશિક',
     };
     return SingleChildScrollView(
@@ -1934,8 +1933,8 @@ class _ReturnReplaceScreenState extends ConsumerState<ReturnReplaceScreen> {
                         DropdownMenuItem(
                             value: 'cash_refund', child: Text('💵 કેશ')),
                         DropdownMenuItem(
-                            value: 'udhaar_credit',
-                            child: Text('📒 ઉધાર ક્રેડિટ')),
+                            value: 'khata_credit',
+                            child: Text('📒 ખાતા જમા')),
                       ],
                       onChanged: (v) {
                         if (v != null) {
@@ -2293,7 +2292,7 @@ class _ReturnReplaceScreenState extends ConsumerState<ReturnReplaceScreen> {
                   items: const [
                     DropdownMenuItem(value: 'cash_refund', child: Text('💵 કેશ')),
                     DropdownMenuItem(
-                        value: 'udhaar_credit', child: Text('📒 ઉધાર')),
+                        value: 'khata_credit', child: Text('📒 ખાતા જમા')),
                   ],
                   onChanged: (v) {
                     if (v != null) {
@@ -2342,7 +2341,6 @@ class _BillCard extends StatelessWidget {
     final normalized = (bill.paymentStatus ?? '').trim();
     final (statusLabel, statusColor, statusBg) = switch (normalized) {
       'paid' => ('ચૂકવાયું', const Color(0xFF16A34A), const Color(0xFFDCFCE7)),
-      'udhaar' => ('ઉધાર', const Color(0xFFEA580C), const Color(0xFFFFEDD5)),
       'partial' => ('આંશિક', const Color(0xFFD97706), const Color(0xFFFEF3C7)),
       'partial_return' =>
         ('આંશિક પરત', const Color(0xFF2563EB), const Color(0xFFDBEAFE)),
@@ -2569,7 +2567,6 @@ class _StatusBadge extends StatelessWidget {
     final normalized = (status ?? '').trim();
     final (label, color, bg) = switch (normalized) {
       'paid' => ('ચૂકવાયું', const Color(0xFF16A34A), const Color(0xFFDCFCE7)),
-      'udhaar' => ('ઉધાર', const Color(0xFFEA580C), const Color(0xFFFFEDD5)),
       'partial' => ('આંશિક', const Color(0xFFD97706), const Color(0xFFFEF3C7)),
       'partial_return' =>
         ('આંશિક પરત', const Color(0xFF2563EB), const Color(0xFFDBEAFE)),

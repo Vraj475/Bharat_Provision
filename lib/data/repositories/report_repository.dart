@@ -97,25 +97,6 @@ class ReportRepository {
     return (result.first['expenses'] as num?)?.toDouble() ?? 0;
   }
 
-  Future<double> getTodaysUdhaarCollected() async {
-    final today = DateTime.now();
-    final start = DateTime(today.year, today.month, today.day);
-    final end = start.add(const Duration(days: 1));
-    final startIso = start.toIso8601String();
-    final endIso = end.toIso8601String();
-
-    final db = await _dbHelper.database;
-    final result = await db.rawQuery(
-      '''
-      SELECT COALESCE(SUM(amount), 0) as collected
-      FROM udhaar_ledger
-      WHERE transaction_type = 'payment' AND created_at >= ? AND created_at < ?
-      ''',
-      [startIso, endIso],
-    );
-    return (result.first['collected'] as num?)?.toDouble() ?? 0;
-  }
-
   Future<List<Product>> getLowStockProducts() async {
     final db = await _dbHelper.database;
     final result = await db.query(
@@ -166,20 +147,9 @@ class ReportRepository {
     return out;
   }
 
-  Future<double> getTotalUdhaarOutstanding() async {
-    final db = await _dbHelper.database;
-    final result = await db.rawQuery('''
-      SELECT COALESCE(SUM(total_outstanding), 0) as total
-      FROM customers
-      WHERE is_active = 1 AND total_outstanding > 0
-      ''');
-    return (result.first['total'] as num?)?.toDouble() ?? 0;
-  }
-
   Future<double> getTodaysNetProfit() async {
     final sales = await getTodaysSales();
     final expenses = await getTodaysExpenses();
-    final collected = await getTodaysUdhaarCollected();
     final today = DateTime.now();
     final start = DateTime(today.year, today.month, today.day);
     final end = start.add(const Duration(days: 1));
@@ -197,7 +167,7 @@ class ReportRepository {
     );
     final returns = (returnsResult.first['returns'] as num?)?.toDouble() ?? 0;
 
-    return sales + collected - expenses - returns;
+    return sales - expenses - returns;
   }
 
   Future<int> getTodaysBillCount() async {
@@ -241,17 +211,6 @@ class ReportRepository {
       }
     }
 
-    final udhaarResult = await db.rawQuery(
-      '''
-      SELECT COALESCE(SUM(amount), 0) as collected
-      FROM udhaar_ledger
-      WHERE transaction_type = 'payment' AND created_at >= ? AND created_at <= ?
-      ''',
-      [startIso, endIso],
-    );
-    final udhaarCollected =
-        (udhaarResult.first['collected'] as num?)?.toDouble() ?? 0;
-
     final expensesResult = await db.rawQuery(
       '''
       SELECT COALESCE(ea.account_name_gujarati, 'Other') as name, SUM(e.amount) as amount
@@ -280,14 +239,12 @@ class ReportRepository {
     );
     final returns = (returnsResult.first['returns'] as num?)?.toDouble() ?? 0;
 
-    final totalSales =
-        salesByMode.values.fold(0.0, (a, b) => a + b) + udhaarCollected;
+    final totalSales = salesByMode.values.fold(0.0, (a, b) => a + b);
     final totalExpenses = expensesByAccount.values.fold(0.0, (a, b) => a + b);
     final netProfit = totalSales - totalExpenses - returns;
 
     return PLSummary(
       salesByMode: salesByMode,
-      udhaarCollected: udhaarCollected,
       expensesByAccount: expensesByAccount,
       returns: returns,
       totalSales: totalSales,
@@ -306,7 +263,6 @@ class ReportRepository {
       SELECT
         DATE(b.created_at) as date,
         COALESCE(SUM(CASE WHEN b.payment_mode IN ('cash', 'upi', 'card') THEN b.total_amount ELSE 0 END), 0) as sales,
-        COALESCE((SELECT SUM(ul.amount) FROM udhaar_ledger ul WHERE ul.transaction_type = 'payment' AND DATE(ul.created_at) = DATE(b.created_at)), 0) as udhaar_collected,
         COALESCE((SELECT SUM(e.amount) FROM expenses e WHERE DATE(e.expense_date) = DATE(b.created_at)), 0) as expenses,
         COALESCE((SELECT SUM(r.total_return_value) FROM returns r WHERE DATE(r.return_date) = DATE(b.created_at)), 0) as returns
       FROM bills b
@@ -319,10 +275,9 @@ class ReportRepository {
 
     return result.map((row) {
       final sales = (row['sales'] as num?)?.toDouble() ?? 0;
-      final udhaar = (row['udhaar_collected'] as num?)?.toDouble() ?? 0;
       final expenses = (row['expenses'] as num?)?.toDouble() ?? 0;
       final returns = (row['returns'] as num?)?.toDouble() ?? 0;
-      final net = sales + udhaar - expenses - returns;
+      final net = sales - expenses - returns;
       final dateStr = row['date'] as String? ?? DateTime.now().toIso8601String().split('T').first;
       return DailyPL(
         date: DateTime.parse(dateStr),
@@ -351,25 +306,11 @@ class ReportRepository {
 
     final salesByMode = <String, double>{};
     for (final bill in bills) {
-      if (bill.paymentMode != null && bill.paymentMode != 'udhaar') {
+      if (bill.paymentMode != null) {
         salesByMode[bill.paymentMode!] =
             (salesByMode[bill.paymentMode!] ?? 0) + bill.totalAmount;
       }
     }
-
-    final udhaarGiven = bills
-        .where((b) => b.paymentMode == 'udhaar')
-        .fold(0.0, (sum, b) => sum + b.totalAmount);
-
-    final udhaarResult = await db.rawQuery(
-      '''
-      SELECT COALESCE(SUM(amount), 0) as collected
-      FROM udhaar_ledger
-      WHERE transaction_type = 'payment' AND created_at >= ? AND created_at < ?
-      ''',
-      [startIso, endIso],
-    );
-    final udhaarCollected = (udhaarResult.first['collected'] as num?)?.toDouble() ?? 0;
 
     final expensesResult = await db.rawQuery(
       '''
@@ -391,14 +332,12 @@ class ReportRepository {
 
     final totalSales = salesByMode.values.fold(0.0, (a, b) => a + b);
     final totalExpenses = expensesByCategory.values.fold(0.0, (a, b) => a + b);
-    final netPL = totalSales + udhaarCollected - totalExpenses;
+    final netPL = totalSales - totalExpenses;
 
     return DailyReportData(
       billCount: billCount,
       totalSales: totalSales,
       salesByMode: salesByMode,
-      udhaarGiven: udhaarGiven,
-      udhaarCollected: udhaarCollected,
       expensesByCategory: expensesByCategory,
       totalExpenses: totalExpenses,
       netPL: netPL,
@@ -438,7 +377,6 @@ class DailySales {
 class PLSummary {
   PLSummary({
     required this.salesByMode,
-    required this.udhaarCollected,
     required this.expensesByAccount,
     required this.returns,
     required this.totalSales,
@@ -446,7 +384,6 @@ class PLSummary {
     required this.netProfit,
   });
   final Map<String, double> salesByMode;
-  final double udhaarCollected;
   final Map<String, double> expensesByAccount;
   final double returns;
   final double totalSales;
@@ -465,8 +402,6 @@ class DailyReportData {
     required this.billCount,
     required this.totalSales,
     required this.salesByMode,
-    required this.udhaarGiven,
-    required this.udhaarCollected,
     required this.expensesByCategory,
     required this.totalExpenses,
     required this.netPL,
@@ -475,8 +410,6 @@ class DailyReportData {
   final int billCount;
   final double totalSales;
   final Map<String, double> salesByMode;
-  final double udhaarGiven;
-  final double udhaarCollected;
   final Map<String, double> expensesByCategory;
   final double totalExpenses;
   final double netPL;

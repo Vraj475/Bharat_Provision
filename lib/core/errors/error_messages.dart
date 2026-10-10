@@ -99,8 +99,8 @@ class ErrorMessages {
     'BILL_004': ErrorMessage(
       code: 'BILL_004',
       category: ErrorCategory.database,
-      gujarati: 'ઉધાર ખાતામાં નોંધ કરવામાં સમસ્યા. બિલ સેવ થયું નથી.',
-      technical: 'Udhaar ledger insert failed',
+      gujarati: 'ખાતામાં નોંધ કરવામાં સમસ્યા. બિલ સેવ થયું નથી.',
+      technical: 'Khata ledger insert failed',
       isCritical: false,
     ),
     'BILL_005': ErrorMessage(
@@ -251,29 +251,6 @@ class ErrorMessages {
       category: ErrorCategory.storage,
       gujarati: 'Storage ભરેલું છે. ફોન Storage ખાલી કરો.',
       technical: 'Device storage full — file write failed',
-      isCritical: false,
-    ),
-
-    // Udhaar errors
-    'UDH_001': ErrorMessage(
-      code: 'UDH_001',
-      category: ErrorCategory.database,
-      gujarati: 'ઉધાર ખાતું અપડેટ કરવામાં સમસ્યા. ફરી પ્રયાસ કરો.',
-      technical: 'Udhaar ledger update failed',
-      isCritical: false,
-    ),
-    'UDH_002': ErrorMessage(
-      code: 'UDH_002',
-      category: ErrorCategory.validation,
-      gujarati: 'ગ્રાહક ક્રેડિટ લિમિટ ઊલટાઈ ગઈ છે.',
-      technical: 'Customer credit limit exceeded',
-      isCritical: false,
-    ),
-    'UDH_003': ErrorMessage(
-      code: 'UDH_003',
-      category: ErrorCategory.validation,
-      gujarati: 'ઉધારે આપવા માટે ગ્રાહક પસંદ કરવો જરૂરી છે.',
-      technical: 'Udhaar payment mode selected without customer',
       isCritical: false,
     ),
 

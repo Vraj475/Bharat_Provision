@@ -11,7 +11,6 @@ import 'repositories/report_repository.dart';
 import 'repositories/return_repository.dart';
 import 'repositories/settings_repository.dart';
 import 'repositories/stock_repository.dart';
-import 'repositories/udhaar_repository.dart';
 
 final databaseHelperProvider = Provider<DatabaseHelper>((ref) {
   return DatabaseHelper.instance;
@@ -47,10 +46,6 @@ final expenseRepositoryProvider = Provider<ExpenseRepository>((ref) {
 
 final stockRepositoryProvider = Provider<StockRepository>((ref) {
   return StockRepository(ref.watch(databaseHelperProvider));
-});
-
-final udhaarRepositoryProvider = Provider<UdhaarRepository>((ref) {
-  return UdhaarRepository(ref.watch(databaseHelperProvider));
 });
 
 final returnRepositoryProvider = Provider<ReturnRepository>((ref) {

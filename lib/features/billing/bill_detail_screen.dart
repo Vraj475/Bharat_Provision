@@ -134,9 +134,9 @@ class _BillDetailScreenState extends ConsumerState<BillDetailScreen> {
       buffer.writeln('ડિસ્કાઉન્ટ: -${formatCurrency(bill.discount)}');
     }
     buffer.writeln('કુલ રકમ: ${formatCurrency(bill.totalAmount)}');
-    if (bill.udhaarAmount > 0) {
+    if (bill.paidAmount < bill.totalAmount) {
       buffer.writeln('ચૂકવેલ: ${formatCurrency(bill.paidAmount)}');
-      buffer.writeln('બાકી ઉધાર: ${formatCurrency(bill.udhaarAmount)}');
+      buffer.writeln('બાકી: ${formatCurrency(bill.totalAmount - bill.paidAmount)}');
     }
     buffer.writeln('=================================');
     buffer.writeln('     આભાર! ફરી પધારશો.');
@@ -353,16 +353,10 @@ class _BillDetailScreenState extends ConsumerState<BillDetailScreen> {
         bill.customerNameSnapshot != null &&
         bill.customerNameSnapshot!.trim().isNotEmpty;
 
-    final isUdhaar =
-        normalizedStatus == 'udhaar' ||
-        normalizedMode == 'udhaar' ||
-        bill.udhaarAmount > 0;
-
     final isCash =
-        !isUdhaar &&
-        (normalizedMode == 'cash' ||
-            normalizedMode.isEmpty ||
-            (!hasCustomerName && normalizedStatus == 'paid'));
+        normalizedMode == 'cash' ||
+        normalizedMode.isEmpty ||
+        (!hasCustomerName && normalizedStatus == 'paid');
 
     if (isCash) {
       return Card(
@@ -417,10 +411,10 @@ class _BillDetailScreenState extends ConsumerState<BillDetailScreen> {
       );
     }
 
-    // Udhaar or with customer
+    // Customer card
     final displayName = bill.customerNameSnapshot?.trim().isNotEmpty ?? false
         ? bill.customerNameSnapshot!.trim()
-        : (customer?.nameGujarati ?? 'ઉધાર ગ્રાહક');
+        : (customer?.nameGujarati ?? 'ગ્રાહક');
 
     return Card(
       elevation: 0,
@@ -463,9 +457,9 @@ class _BillDetailScreenState extends ConsumerState<BillDetailScreen> {
                           color: const Color(0xFFFED7AA),
                           borderRadius: BorderRadius.circular(4),
                         ),
-                        child: Text(
-                          isUdhaar ? 'ઉધાર ખાતું' : 'નિયમિત ગ્રાહક',
-                          style: const TextStyle(
+                        child: const Text(
+                          'ગ્રાહક',
+                          style: TextStyle(
                             fontSize: 11,
                             fontWeight: FontWeight.w700,
                             color: Color(0xFFC2410C),
@@ -779,7 +773,7 @@ class _BillDetailScreenState extends ConsumerState<BillDetailScreen> {
                 ),
               ],
             ),
-            if (bill.udhaarAmount > 0) ...[
+            if (bill.paidAmount < bill.totalAmount) ...[
               const SizedBox(height: 12),
               Container(
                 padding: const EdgeInsets.symmetric(horizontal: 12, vertical: 8),
@@ -800,7 +794,7 @@ class _BillDetailScreenState extends ConsumerState<BillDetailScreen> {
                       ),
                     ),
                     Text(
-                      'બાકી ઉધાર: ${formatCurrency(bill.udhaarAmount)}',
+                      'બાકી: ${formatCurrency(bill.totalAmount - bill.paidAmount)}',
                       style: const TextStyle(
                         fontSize: 14,
                         fontWeight: FontWeight.w800,

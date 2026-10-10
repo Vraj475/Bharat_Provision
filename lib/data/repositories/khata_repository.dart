@@ -98,7 +98,7 @@ class KhataRepository {
   Future<List<Map<String, dynamic>>> getCustomerBills(int customerId) async {
     final db = await _dbHelper.database;
     return await db.rawQuery('''
-      SELECT id, bill_number, total_amount, paid_amount, udhaar_amount, payment_mode, payment_status, bill_date, created_at
+      SELECT id, bill_number, total_amount, paid_amount, payment_mode, payment_status, bill_date, created_at
       FROM bills
       WHERE customer_id = ?
         AND payment_status != 'paid'
@@ -118,7 +118,7 @@ class KhataRepository {
     await db.transaction((txn) async {
       final now = DateTime.now().millisecondsSinceEpoch;
       final currentBalance = await _getBalance(txn, customerId);
-      final isDebit = type == 'debit' || type == 'udhaar';
+      final isDebit = type == 'debit';
       final newBalance = isDebit
           ? currentBalance + amount
           : currentBalance - amount;
@@ -140,21 +140,9 @@ class KhataRepository {
         [finalBalance, customerId],
       );
 
-      final nowIso = DateTime.now().toIso8601String();
-      await txn.insert('udhaar_ledger', {
-        'customer_id': customerId,
-        'bill_id': relatedBillId,
-        'transaction_type': isDebit ? 'credit' : 'payment',
-        'amount': amount,
-        'running_balance': finalBalance,
-        'payment_mode': 'cash',
-        'note': note ?? (isDebit ? 'ઉધાર નોંધણી' : 'ચુકવણી જમા'),
-        'created_at': nowIso,
-      });
-
       // When payment is recorded, update bills so paid bills are cleared
       if (!isDebit) {
-        final today = nowIso.substring(0, 10);
+        final today = DateTime.now().toIso8601String().substring(0, 10);
         if (relatedBillId != null) {
           final billRows = await txn.rawQuery(
             'SELECT total_amount, paid_amount FROM bills WHERE id = ?',
@@ -165,12 +153,11 @@ class KhataRepository {
             final total = (bRow['total_amount'] as num?)?.toDouble() ?? 0.0;
             final currentPaid = (bRow['paid_amount'] as num?)?.toDouble() ?? 0.0;
             final newPaid = currentPaid + amount;
-            final newUdhaar = (total - newPaid).clamp(0.0, total);
             final newStatus = newPaid >= (total - 0.01) ? 'paid' : 'partial';
 
             await txn.rawUpdate(
-              'UPDATE bills SET paid_amount = ?, udhaar_amount = ?, payment_status = ? WHERE id = ?',
-              [newPaid, newUdhaar, newStatus, relatedBillId],
+              'UPDATE bills SET paid_amount = ?, payment_status = ? WHERE id = ?',
+              [newPaid, newStatus, relatedBillId],
             );
 
             await txn.insert('bill_payments', {
@@ -202,12 +189,11 @@ class KhataRepository {
             final payThis = remainingPayment < billRemaining ? remainingPayment : billRemaining;
             remainingPayment -= payThis;
             final newPaid = currentPaid + payThis;
-            final newUdhaar = (total - newPaid).clamp(0.0, total);
             final newStatus = newPaid >= (total - 0.01) ? 'paid' : 'partial';
 
             await txn.rawUpdate(
-              'UPDATE bills SET paid_amount = ?, udhaar_amount = ?, payment_status = ? WHERE id = ?',
-              [newPaid, newUdhaar, newStatus, bId],
+              'UPDATE bills SET paid_amount = ?, payment_status = ? WHERE id = ?',
+              [newPaid, newStatus, bId],
             );
 
             await txn.insert('bill_payments', {

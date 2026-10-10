@@ -18,6 +18,13 @@ void main() {
   });
 
   testWidgets('ReturnReplaceScreen displays correct product names and correspondence units', (tester) async {
+    tester.view.physicalSize = const Size(1280, 1024);
+    tester.view.devicePixelRatio = 1.0;
+    addTearDown(() {
+      tester.view.resetPhysicalSize();
+      tester.view.resetDevicePixelRatio();
+    });
+
     final testBill = Bill(
       id: 1,
       billNumber: 'BILL-001',
@@ -29,7 +36,6 @@ void main() {
       gstAmount: 0.0,
       totalAmount: 450.0,
       paidAmount: 450.0,
-      udhaarAmount: 0.0,
       paymentMode: 'cash',
       paymentStatus: 'paid',
       isPrinted: false,

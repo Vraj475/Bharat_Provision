@@ -132,8 +132,6 @@ class _DashboardBodyState extends ConsumerState<DashboardBody> {
       SizedBox(height: spacing),
       _buildNetProfitCard(),
       SizedBox(height: spacing),
-      _buildUdhaarOutstandingCard(),
-      SizedBox(height: spacing),
       _buildUserActivityCard(),
       SizedBox(height: spacing),
       _buildLowStockAlert(),
@@ -183,14 +181,6 @@ class _DashboardBodyState extends ConsumerState<DashboardBody> {
       'Today\'s Net Profit',
       todaysNetProfitProvider,
       Colors.blue,
-    );
-  }
-
-  Widget _buildUdhaarOutstandingCard() {
-    return _buildSummaryCard(
-      'Udhaar Outstanding',
-      totalUdhaarOutstandingProvider,
-      Colors.orange,
     );
   }
 

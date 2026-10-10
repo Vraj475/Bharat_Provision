@@ -8,7 +8,7 @@ class ReplaceTransaction {
   final double replacementQtyCalculated;
   final double replacementQtyGiven;
   final double priceDifference;
-  final String? differenceMode; // cash_paid | cash_received | udhaar
+  final String? differenceMode; // cash_paid | cash_received | khata
   final String createdAt;
 
   const ReplaceTransaction({

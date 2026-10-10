@@ -293,8 +293,8 @@ class ReturnRepository {
     final now = DateTime.now().toIso8601String();
     final today = now.substring(0, 10);
 
-    if (returnMode == 'udhaar_credit' && customerId == null) {
-      throw ArgumentError('ઉધાર ક્રેડિટ માટે ગ્રાહક પસંદ કરેલ હોવો જરૂરી છે (Customer required for Udhaar Credit)');
+    if ((returnMode == 'customer_credit' || returnMode == 'khata_credit') && customerId == null) {
+      throw ArgumentError('ગ્રાહક ક્રેડિટ માટે ગ્રાહક પસંદ કરેલ હોવો જરૂરી છે (Customer required for Customer Credit)');
     }
 
     // Build product summary string for clear identification
@@ -438,28 +438,22 @@ class ReturnRepository {
         'entry_date': today,
         'created_at': now,
       });
-    } else if (returnMode == 'udhaar_credit' && customerId != null) {
-      final balRows = await txn.rawQuery(
-        'SELECT running_balance FROM udhaar_ledger WHERE customer_id = ? ORDER BY created_at DESC, id DESC LIMIT 1',
-        [customerId],
-      );
-      final currentBalance = balRows.isNotEmpty
-          ? (balRows.first['running_balance'] as num?)?.toDouble() ?? 0.0
-          : 0.0;
-      final newBalance = (currentBalance - totalReturnValue).clamp(
-        0.0,
-        double.maxFinite,
-      );
-      await txn.insert('udhaar_ledger', {
-        'customer_id': customerId,
-        'bill_id': billId,
-        'transaction_type': 'return_credit',
-        'amount': totalReturnValue,
-        'running_balance': newBalance,
-        'payment_mode': null,
-        'note': 'Return credit: $computedNotes',
-        'created_at': now,
-      });
+    } else if ((returnMode == 'customer_credit' || returnMode == 'khata_credit') && customerId != null) {
+      final hasKhataLedger = await _tableExists(txn, 'khata_ledger');
+      if (hasKhataLedger) {
+        await txn.insert('khata_ledger', {
+          'entry_type': 'credit',
+          'account_name': 'રીટર્ન જમા',
+          'customer_id': customerId,
+          'amount': totalReturnValue,
+          'payment_mode': null,
+          'reference_type': 'return',
+          'reference_id': returnId,
+          'note': 'Return credit: $computedNotes',
+          'entry_date': today,
+          'created_at': now,
+        });
+      }
       await txn.rawUpdate(
         'UPDATE customers SET total_outstanding = MAX(0, total_outstanding - ?) WHERE id = ?',
         [totalReturnValue, customerId],
@@ -563,26 +557,22 @@ class ReturnRepository {
               'entry_date': today,
               'created_at': now,
             });
-          } else if (replacement.differenceMode == 'udhaar') {
-            final balRows = await txn.rawQuery(
-              'SELECT running_balance FROM udhaar_ledger WHERE customer_id = ? ORDER BY created_at DESC, id DESC LIMIT 1',
-              [customerId],
-            );
-            final currentBalance = balRows.isNotEmpty
-                ? (balRows.first['running_balance'] as num?)?.toDouble() ?? 0.0
-                : 0.0;
-            final newBalance = (currentBalance + replacement.priceDifference)
-                .clamp(0.0, double.maxFinite);
-            await txn.insert('udhaar_ledger', {
-              'customer_id': customerId,
-              'bill_id': billId,
-              'transaction_type': 'credit',
-              'amount': replacement.priceDifference,
-              'running_balance': newBalance,
-              'payment_mode': null,
-              'note': 'Replacement extra charge',
-              'created_at': now,
-            });
+          } else if (replacement.differenceMode == 'khata' || replacement.differenceMode == 'customer_credit') {
+            final hasKhataLedger = await _tableExists(txn, 'khata_ledger');
+            if (hasKhataLedger) {
+              await txn.insert('khata_ledger', {
+                'entry_type': 'debit',
+                'account_name': 'Replacement extra',
+                'customer_id': customerId,
+                'amount': replacement.priceDifference,
+                'payment_mode': null,
+                'reference_type': 'replace',
+                'reference_id': returnId,
+                'note': 'Replacement extra charge',
+                'entry_date': today,
+                'created_at': now,
+              });
+            }
             await txn.rawUpdate(
               'UPDATE customers SET total_outstanding = total_outstanding + ? WHERE id = ?',
               [replacement.priceDifference, customerId],
@@ -604,28 +594,22 @@ class ReturnRepository {
               'entry_date': today,
               'created_at': now,
             });
-          } else if (replacement.differenceMode == 'udhaar') {
-            final balRows = await txn.rawQuery(
-              'SELECT running_balance FROM udhaar_ledger WHERE customer_id = ? ORDER BY created_at DESC, id DESC LIMIT 1',
-              [customerId],
-            );
-            final currentBalance = balRows.isNotEmpty
-                ? (balRows.first['running_balance'] as num?)?.toDouble() ?? 0.0
-                : 0.0;
-            final newBalance = (currentBalance - refundAmount).clamp(
-              0.0,
-              double.maxFinite,
-            );
-            await txn.insert('udhaar_ledger', {
-              'customer_id': customerId,
-              'bill_id': billId,
-              'transaction_type': 'payment',
-              'amount': -refundAmount,
-              'running_balance': newBalance,
-              'payment_mode': null,
-              'note': 'Replacement refund',
-              'created_at': now,
-            });
+          } else if (replacement.differenceMode == 'khata' || replacement.differenceMode == 'customer_credit') {
+            final hasKhataLedger = await _tableExists(txn, 'khata_ledger');
+            if (hasKhataLedger) {
+              await txn.insert('khata_ledger', {
+                'entry_type': 'credit',
+                'account_name': 'Replacement refund',
+                'customer_id': customerId,
+                'amount': refundAmount,
+                'payment_mode': null,
+                'reference_type': 'replace',
+                'reference_id': returnId,
+                'note': 'Replacement refund credit',
+                'entry_date': today,
+                'created_at': now,
+              });
+            }
             await txn.rawUpdate(
               'UPDATE customers SET total_outstanding = MAX(0, total_outstanding - ?) WHERE id = ?',
               [refundAmount, customerId],
@@ -689,7 +673,7 @@ class ReturnRepository {
   }
 
   /// Process full bill replace: updates bill items, calculates inventory delta for each product,
-  /// logs stock changes, updates bill total, and handles price difference in Cash / Udhaar.
+  /// logs stock changes, updates bill total, and handles price difference in Cash / Khata.
   Future<void> replaceBill({
     required int billId,
     required int? customerId,
@@ -830,24 +814,21 @@ class ReturnRepository {
               'created_at': now,
             });
           } else if (customerId != null) {
-            final balRows = await txn.rawQuery(
-              'SELECT running_balance FROM udhaar_ledger WHERE customer_id = ? ORDER BY created_at DESC, id DESC LIMIT 1',
-              [customerId],
-            );
-            final currentBalance = balRows.isNotEmpty
-                ? (balRows.first['running_balance'] as num?)?.toDouble() ?? 0.0
-                : 0.0;
-            final newBalance = currentBalance + priceDiff;
-            await txn.insert('udhaar_ledger', {
-              'customer_id': customerId,
-              'bill_id': billId,
-              'transaction_type': 'credit',
-              'amount': priceDiff,
-              'running_balance': newBalance,
-              'payment_mode': null,
-              'note': 'Bill replace extra charge',
-              'created_at': now,
-            });
+            final hasKhataLedger = await _tableExists(txn, 'khata_ledger');
+            if (hasKhataLedger) {
+              await txn.insert('khata_ledger', {
+                'entry_type': 'debit',
+                'account_name': 'Bill replace extra',
+                'customer_id': customerId,
+                'amount': priceDiff,
+                'payment_mode': null,
+                'reference_type': 'replace',
+                'reference_id': returnId,
+                'note': 'Bill replace extra charge',
+                'entry_date': today,
+                'created_at': now,
+              });
+            }
             await txn.rawUpdate(
               'UPDATE customers SET total_outstanding = total_outstanding + ? WHERE id = ?',
               [priceDiff, customerId],
@@ -878,24 +859,21 @@ class ReturnRepository {
               'created_at': now,
             });
           } else if (customerId != null) {
-            final balRows = await txn.rawQuery(
-              'SELECT running_balance FROM udhaar_ledger WHERE customer_id = ? ORDER BY created_at DESC, id DESC LIMIT 1',
-              [customerId],
-            );
-            final currentBalance = balRows.isNotEmpty
-                ? (balRows.first['running_balance'] as num?)?.toDouble() ?? 0.0
-                : 0.0;
-            final newBalance = (currentBalance - refundAmount).clamp(0.0, double.maxFinite);
-            await txn.insert('udhaar_ledger', {
-              'customer_id': customerId,
-              'bill_id': billId,
-              'transaction_type': 'return_credit',
-              'amount': refundAmount,
-              'running_balance': newBalance,
-              'payment_mode': null,
-              'note': 'Bill replace refund credit',
-              'created_at': now,
-            });
+            final hasKhataLedger = await _tableExists(txn, 'khata_ledger');
+            if (hasKhataLedger) {
+              await txn.insert('khata_ledger', {
+                'entry_type': 'credit',
+                'account_name': 'Bill replace refund',
+                'customer_id': customerId,
+                'amount': refundAmount,
+                'payment_mode': null,
+                'reference_type': 'replace',
+                'reference_id': returnId,
+                'note': 'Bill replace refund credit',
+                'entry_date': today,
+                'created_at': now,
+              });
+            }
             await txn.rawUpdate(
               'UPDATE customers SET total_outstanding = MAX(0, total_outstanding - ?) WHERE id = ?',
               [refundAmount, customerId],
@@ -904,5 +882,13 @@ class ReturnRepository {
         }
       }
     });
+  }
+
+  Future<bool> _tableExists(DatabaseExecutor db, String tableName) async {
+    final res = await db.rawQuery(
+      "SELECT name FROM sqlite_master WHERE type='table' AND name=?",
+      [tableName],
+    );
+    return res.isNotEmpty;
   }
 }

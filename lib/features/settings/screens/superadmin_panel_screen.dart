@@ -124,12 +124,6 @@ class _ModuleManagerTab extends ConsumerWidget {
               child: Column(
                 children: [
                   _ModuleToggle(
-                    label: 'ઉધાર સિસ્ટમ',
-                    module: 'module_udhaar',
-                    value: modules['module_udhaar'] ?? true,
-                  ),
-                  const Divider(height: 1),
-                  _ModuleToggle(
                     label: 'રિટર્ન સિસ્ટમ',
                     module: 'module_returns',
                     value: modules['module_returns'] ?? true,

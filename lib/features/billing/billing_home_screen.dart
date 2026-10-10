@@ -139,18 +139,6 @@ class _BillingHomeScreenState extends ConsumerState<BillingHomeScreen> {
     final selectedCustomerId =
         billingState.activeDraft.customerId ?? _customerId;
 
-    if (transactionType == 'udhaar' && selectedCustomerId == null) {
-      if (mounted) {
-        ScaffoldMessenger.of(context).showSnackBar(
-          const SnackBar(
-            content: Text('ઉધાર માટે ગ્રાહક પસંદ કરવો જરૂરી છે'),
-            duration: Duration(seconds: 3),
-          ),
-        );
-      }
-      return null;
-    }
-
     final linesSnapshot = ref.read(billingControllerProvider).billLines;
     final discountSnapshot = ref.read(billingControllerProvider).discount;
     final customerIdSnapshot = selectedCustomerId;
@@ -171,9 +159,8 @@ class _BillingHomeScreenState extends ConsumerState<BillingHomeScreen> {
             : customerNameSnapshot,
         items: billItems,
         discountAmount: discountSnapshot,
-        paidAmount: transactionType == 'udhaar'
-            ? 0.0
-            : (linesSnapshot.fold(0.0, (s, l) => s + l.amount) - discountSnapshot),
+        paidAmount:
+            linesSnapshot.fold(0.0, (s, l) => s + l.amount) - discountSnapshot,
         paymentMode: transactionType,
         userId: null,
       );

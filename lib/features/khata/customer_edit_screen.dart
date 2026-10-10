@@ -6,7 +6,6 @@ import '../../core/localization/app_strings.dart';
 import '../../core/widgets/primary_button.dart';
 import '../../data/providers.dart';
 import '../../shared/models/customer_model.dart';
-import '../udhaar/udhaar_providers.dart';
 import 'khata_providers.dart';
 
 class CustomerEditScreen extends ConsumerStatefulWidget {
@@ -114,12 +113,8 @@ class _CustomerEditScreenState extends ConsumerState<CustomerEditScreen> {
       ref.invalidate(customersProvider);
       ref.invalidate(customerListProvider);
       ref.invalidate(bulkCustomerBalancesProvider);
-      ref.invalidate(udhaarProvider);
-      ref.invalidate(udhaarCustomerListProvider);
-      ref.invalidate(udhaarTotalOutstandingProvider);
       if (widget.customerId != null) {
         ref.invalidate(customerWithBalanceProvider(widget.customerId!));
-        ref.invalidate(udhaarCustomerProvider(widget.customerId!));
       }
       if (mounted) {
         context.pop();

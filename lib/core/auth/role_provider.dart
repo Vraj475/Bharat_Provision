@@ -5,12 +5,6 @@ import 'package:flutter_riverpod/flutter_riverpod.dart';
 final currentRoleProvider = StateProvider<String>((ref) => 'cashier');
 
 /// Role access control providers
-// Check if user can access Udhaar module
-final canAccessUdhaarProvider = Provider<bool>((ref) {
-  final role = ref.watch(currentRoleProvider);
-  return role == 'admin';
-});
-
 // Check if user can access P&L reports
 final canAccessPLProvider = Provider<bool>((ref) {
   final role = ref.watch(currentRoleProvider);
@@ -91,6 +85,3 @@ class RoleInfo {
     return moduleName == 'billing' || moduleName == 'inventory';
   }
 }
-
-/// Returns true if the given role may access the Udhaar module.
-bool canAccessUdhaar(String role) => role == 'admin';

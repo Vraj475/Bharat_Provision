@@ -8,7 +8,6 @@ import '../../features/khata/customer_list_screen.dart';
 import '../../features/reports/reports_home_screen.dart';
 import '../../features/settings/settings_screen.dart';
 import '../../features/settings/providers/auth_provider.dart';
-import '../../features/udhaar/udhaar_dashboard_screen.dart';
 import '../auth/role_provider.dart';
 import 'app_scaffold.dart';
 
@@ -55,7 +54,7 @@ class _HomeScreenState extends ConsumerState<HomeScreen>
   @override
   Widget build(BuildContext context) {
     final role = ref.watch(currentRoleProvider);
-    final isAdmin = canAccessUdhaar(role);
+    final isAdmin = role == 'admin';
     final screens = _screensForRole(isAdmin);
     final currentScreen = screens[_currentIndex.clamp(0, screens.length - 1)];
 
@@ -74,7 +73,6 @@ class _HomeScreenState extends ConsumerState<HomeScreen>
       const CustomerListScreen(),
       const ReportsHomeScreen(),
       const SettingsScreen(),
-      if (isAdmin) const UdhaarDashboardScreen(),
     ];
   }
 }

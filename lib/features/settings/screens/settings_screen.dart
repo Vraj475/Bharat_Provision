@@ -292,23 +292,6 @@ class _PrintSettingsTab extends ConsumerWidget {
               title: 'પ્રિન્ટ સેટિંગ',
               fields: [
                 _BoolSettingField(
-                  label: 'ઉધારે બિલ છાપો',
-                  value: data['print_udhaar_receipt']!,
-                  onChanged: (value) async {
-                    await _SettingsActions.saveBoolSetting(
-                      context,
-                      ref,
-                      key: 'print_udhaar_receipt',
-                      value: value,
-                      invalidations: [() => ref.invalidate(featureToggleProvider)],
-                    );
-                    if (!context.mounted) return;
-                    ScaffoldMessenger.of(context).showSnackBar(
-                      const SnackBar(content: Text('સેટિંગ સેવ થયું')),
-                    );
-                  },
-                ),
-                _BoolSettingField(
                   label: 'ચૂકવણી રસીદ છાપો',
                   value: data['print_payment_receipt']!,
                   onChanged: (value) async {
@@ -860,8 +843,7 @@ class _SettingsActions {
       final bills = await _readCount(db, ['bills']);
       final customers = await _readCount(db, ['customers']);
       final stockEntries = await _readCount(db, ['stock_log', 'purchases']);
-      final udhaarEntries = await _readCount(db, [
-        'udhaar_ledger',
+      final khataEntries = await _readCount(db, [
         'khata_entries',
       ]);
 
@@ -878,7 +860,7 @@ class _SettingsActions {
               Text('બિલ: $bills'),
               Text('ગ્રાહકો: $customers'),
               Text('સ્ટોક એન્ટ્રી: $stockEntries'),
-              Text('ઉધાર એન્ટ્રી: $udhaarEntries'),
+              Text('ખાતા એન્ટ્રી: $khataEntries'),
             ],
           ),
           actions: [

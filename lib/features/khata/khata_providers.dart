@@ -75,7 +75,8 @@ final customerWithBalanceProvider =
       final customer = await customerRepo.getById(customerId);
       if (customer == null) throw StateError('Customer not found');
       var balance = await khataRepo.getBalance(customerId);
-      if (balance == 0 && customer.totalOutstanding > 0) {
+      final hasEntries = await khataRepo.hasEntries(customerId);
+      if (!hasEntries && customer.totalOutstanding > 0) {
         balance = customer.totalOutstanding;
       }
       return (customer: customer, balance: balance);
@@ -85,4 +86,10 @@ final customerKhataEntriesProvider =
     FutureProvider.family<List<KhataEntry>, int>((ref, customerId) async {
       final repo = ref.watch(khataRepositoryProvider);
       return repo.getEntries(customerId);
+    });
+
+final customerBillsProvider =
+    FutureProvider.family<List<Map<String, dynamic>>, int>((ref, customerId) async {
+      final repo = ref.watch(khataRepositoryProvider);
+      return repo.getCustomerBills(customerId);
     });

@@ -86,6 +86,27 @@ class KhataRepository {
     return maps.map((m) => KhataEntry.fromMap(m)).toList();
   }
 
+  Future<bool> hasEntries(int customerId) async {
+    final db = await _dbHelper.database;
+    final result = await db.rawQuery(
+      'SELECT 1 FROM khata_entries WHERE customer_id = ? LIMIT 1',
+      [customerId],
+    );
+    return result.isNotEmpty;
+  }
+
+  Future<List<Map<String, dynamic>>> getCustomerBills(int customerId) async {
+    final db = await _dbHelper.database;
+    return await db.rawQuery('''
+      SELECT id, bill_number, total_amount, paid_amount, udhaar_amount, payment_mode, payment_status, bill_date, created_at
+      FROM bills
+      WHERE customer_id = ?
+        AND payment_status != 'paid'
+        AND (total_amount - paid_amount) > 0.01
+      ORDER BY bill_date ASC, id ASC
+    ''', [customerId]);
+  }
+
   Future<void> addEntry({
     required int customerId,
     required String type,
@@ -102,7 +123,7 @@ class KhataRepository {
           ? currentBalance + amount
           : currentBalance - amount;
 
-      final finalBalance = newBalance < 0 ? 0.0 : newBalance;
+      final finalBalance = newBalance;
 
       await txn.insert('khata_entries', {
         'customer_id': customerId,
@@ -130,6 +151,76 @@ class KhataRepository {
         'note': note ?? (isDebit ? 'ઉધાર નોંધણી' : 'ચુકવણી જમા'),
         'created_at': nowIso,
       });
+
+      // When payment is recorded, update bills so paid bills are cleared
+      if (!isDebit) {
+        final today = nowIso.substring(0, 10);
+        if (relatedBillId != null) {
+          final billRows = await txn.rawQuery(
+            'SELECT total_amount, paid_amount FROM bills WHERE id = ?',
+            [relatedBillId],
+          );
+          if (billRows.isNotEmpty) {
+            final bRow = billRows.first;
+            final total = (bRow['total_amount'] as num?)?.toDouble() ?? 0.0;
+            final currentPaid = (bRow['paid_amount'] as num?)?.toDouble() ?? 0.0;
+            final newPaid = currentPaid + amount;
+            final newUdhaar = (total - newPaid).clamp(0.0, total);
+            final newStatus = newPaid >= (total - 0.01) ? 'paid' : 'partial';
+
+            await txn.rawUpdate(
+              'UPDATE bills SET paid_amount = ?, udhaar_amount = ?, payment_status = ? WHERE id = ?',
+              [newPaid, newUdhaar, newStatus, relatedBillId],
+            );
+
+            await txn.insert('bill_payments', {
+              'bill_id': relatedBillId,
+              'customer_id': customerId,
+              'amount_paid': amount,
+              'payment_mode': 'cash',
+              'payment_date': today,
+              'note': note ?? 'બિલ ચૂકવણી',
+            });
+          }
+        } else {
+          // FIFO: allocate payment across oldest unpaid bills for this customer
+          final unpaidBillRows = await txn.rawQuery('''
+            SELECT id, total_amount, paid_amount FROM bills
+            WHERE customer_id = ? AND payment_status != 'paid' AND (total_amount - paid_amount) > 0.01
+            ORDER BY bill_date ASC, id ASC
+          ''', [customerId]);
+
+          double remainingPayment = amount;
+          for (final bRow in unpaidBillRows) {
+            if (remainingPayment <= 0.01) break;
+            final bId = bRow['id'] as int;
+            final total = (bRow['total_amount'] as num?)?.toDouble() ?? 0.0;
+            final currentPaid = (bRow['paid_amount'] as num?)?.toDouble() ?? 0.0;
+            final billRemaining = (total - currentPaid).clamp(0.0, total);
+            if (billRemaining <= 0.01) continue;
+
+            final payThis = remainingPayment < billRemaining ? remainingPayment : billRemaining;
+            remainingPayment -= payThis;
+            final newPaid = currentPaid + payThis;
+            final newUdhaar = (total - newPaid).clamp(0.0, total);
+            final newStatus = newPaid >= (total - 0.01) ? 'paid' : 'partial';
+
+            await txn.rawUpdate(
+              'UPDATE bills SET paid_amount = ?, udhaar_amount = ?, payment_status = ? WHERE id = ?',
+              [newPaid, newUdhaar, newStatus, bId],
+            );
+
+            await txn.insert('bill_payments', {
+              'bill_id': bId,
+              'customer_id': customerId,
+              'amount_paid': payThis,
+              'payment_mode': 'cash',
+              'payment_date': today,
+              'note': note ?? 'ચુકવણી જમા',
+            });
+          }
+        }
+      }
     });
   }
 

@@ -1,13 +1,13 @@
 import 'package:flutter/material.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
+import 'package:go_router/go_router.dart';
 
 import '../../core/localization/app_strings.dart';
 import '../../core/widgets/primary_button.dart';
-import '../../shared/models/customer_model.dart';
 import '../../data/providers.dart';
-import 'khata_providers.dart';
+import '../../shared/models/customer_model.dart';
 import '../udhaar/udhaar_providers.dart';
-import 'package:go_router/go_router.dart';
+import 'khata_providers.dart';
 
 class CustomerEditScreen extends ConsumerStatefulWidget {
   const CustomerEditScreen({super.key, this.customerId});
@@ -20,9 +20,9 @@ class CustomerEditScreen extends ConsumerStatefulWidget {
 
 class _CustomerEditScreenState extends ConsumerState<CustomerEditScreen> {
   final _nameController = TextEditingController();
+  final _nameEnglishController = TextEditingController();
   final _phoneController = TextEditingController();
   final _addressController = TextEditingController();
-
 
   bool _loading = true;
   Customer? _customer;
@@ -44,6 +44,7 @@ class _CustomerEditScreenState extends ConsumerState<CustomerEditScreen> {
       setState(() {
         _customer = customer;
         _nameController.text = customer.nameGujarati;
+        _nameEnglishController.text = customer.nameEnglish ?? '';
         _phoneController.text = customer.phone ?? '';
         _addressController.text = customer.address ?? '';
         _loading = false;
@@ -56,6 +57,7 @@ class _CustomerEditScreenState extends ConsumerState<CustomerEditScreen> {
   @override
   void dispose() {
     _nameController.dispose();
+    _nameEnglishController.dispose();
     _phoneController.dispose();
     _addressController.dispose();
     super.dispose();
@@ -70,6 +72,10 @@ class _CustomerEditScreenState extends ConsumerState<CustomerEditScreen> {
       return;
     }
 
+    final nameEnglish = _nameEnglishController.text.trim().isEmpty
+        ? null
+        : _nameEnglishController.text.trim();
+
     final repo = ref.read(customerRepositoryProvider);
 
     try {
@@ -77,6 +83,7 @@ class _CustomerEditScreenState extends ConsumerState<CustomerEditScreen> {
         await repo.update(
           _customer!.copyWith(
             nameGujarati: name,
+            nameEnglish: nameEnglish,
             phone: _phoneController.text.trim().isEmpty
                 ? null
                 : _phoneController.text.trim(),
@@ -89,6 +96,7 @@ class _CustomerEditScreenState extends ConsumerState<CustomerEditScreen> {
         await repo.insert(
           Customer(
             nameGujarati: name,
+            nameEnglish: nameEnglish,
             phone: _phoneController.text.trim().isEmpty
                 ? null
                 : _phoneController.text.trim(),
@@ -151,6 +159,13 @@ class _CustomerEditScreenState extends ConsumerState<CustomerEditScreen> {
               controller: _nameController,
               decoration: const InputDecoration(
                 labelText: AppStrings.customerName,
+              ),
+            ),
+            const SizedBox(height: 16),
+            TextField(
+              controller: _nameEnglishController,
+              decoration: const InputDecoration(
+                labelText: 'અંગ્રેજી નામ (વૈકલ્પિક)',
               ),
             ),
             const SizedBox(height: 16),

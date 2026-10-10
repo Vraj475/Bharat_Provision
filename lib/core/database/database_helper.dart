@@ -14,7 +14,7 @@ class DatabaseHelper {
 
   static final DatabaseHelper instance = DatabaseHelper._internal();
 
-  static const int schemaVersion = 1;
+  static const int schemaVersion = 2;
   static const String dbFileName = 'kirana.db';
 
   Database? _db;
@@ -31,6 +31,7 @@ class DatabaseHelper {
 
   Future<Database> _openDb() async {
     try {
+      final Database db;
       if (Platform.isAndroid || Platform.isIOS) {
         final dbPath = await getDatabasesPath();
         final dbDir = Directory(dbPath);
@@ -39,7 +40,7 @@ class DatabaseHelper {
         }
         final path = p.join(dbPath, dbFileName);
 
-        return await openDatabase(
+        db = await openDatabase(
           path,
           version: schemaVersion,
           onConfigure: (db) async {
@@ -48,40 +49,106 @@ class DatabaseHelper {
           onCreate: (db, version) async {
             await _createSchema(db);
             await _insertDefaultData(db);
+            await _syncKhataEntriesFromUdhaar(db);
           },
           onUpgrade: (db, oldVersion, newVersion) async {
             await _createSchema(db);
+            await _syncKhataEntriesFromUdhaar(db);
           },
+          onOpen: (db) async {
+            await _createSchema(db);
+            await _syncKhataEntriesFromUdhaar(db);
+          },
+        );
+      } else {
+        // On desktop (Windows/Linux/macOS), use sqflite_ffi
+        final dbPath = (await getApplicationSupportDirectory()).path;
+        final path = p.join(dbPath, dbFileName);
+        final factory = sqflite_ffi.databaseFactoryFfi;
+
+        db = await factory.openDatabase(
+          path,
+          options: sqflite_ffi.OpenDatabaseOptions(
+            version: schemaVersion,
+            onConfigure: (db) async {
+              await db.execute('PRAGMA foreign_keys = ON');
+            },
+            onCreate: (db, version) async {
+              await _createSchema(db);
+              await _insertDefaultData(db);
+              await _syncKhataEntriesFromUdhaar(db);
+            },
+            onUpgrade: (db, oldVersion, newVersion) async {
+              await _createSchema(db);
+              await _syncKhataEntriesFromUdhaar(db);
+            },
+            onOpen: (db) async {
+              await _createSchema(db);
+              await _syncKhataEntriesFromUdhaar(db);
+            },
+          ),
         );
       }
 
-      // On desktop (Windows/Linux/macOS), use sqflite_ffi
-      final dbPath = (await getApplicationSupportDirectory()).path;
-      final path = p.join(dbPath, dbFileName);
-      final factory = sqflite_ffi.databaseFactoryFfi;
-
-      return factory.openDatabase(
-        path,
-        options: sqflite_ffi.OpenDatabaseOptions(
-          version: schemaVersion,
-          onConfigure: (db) async {
-            await db.execute('PRAGMA foreign_keys = ON');
-          },
-          onCreate: (db, version) async {
-            await _createSchema(db);
-            await _insertDefaultData(db);
-          },
-          onUpgrade: (db, oldVersion, newVersion) async {
-            await _createSchema(db);
-          },
-        ),
-      );
+      await _createSchema(db);
+      await _syncKhataEntriesFromUdhaar(db);
+      return db;
     } catch (e, st) {
       throw ErrorHandler.handle(
         e,
         st,
         context: 'DatabaseHelper._openDb',
       );
+    }
+  }
+
+  Future<void> _syncKhataEntriesFromUdhaar(dynamic db) async {
+    try {
+      final countResult = await db.rawQuery('SELECT COUNT(*) as count FROM khata_entries');
+      final khataCount = Sqflite.firstIntValue(countResult) ?? 0;
+      if (khataCount > 0) return;
+
+      final hasUdhaarLedger = Sqflite.firstIntValue(
+        await db.rawQuery(
+          "SELECT COUNT(*) FROM sqlite_master WHERE type='table' AND name='udhaar_ledger'",
+        ),
+      ) ?? 0;
+      if (hasUdhaarLedger == 0) return;
+
+      final udhaarRows = await db.rawQuery(
+        'SELECT id, customer_id, bill_id, transaction_type, amount, running_balance, note, created_at FROM udhaar_ledger ORDER BY id ASC',
+      );
+      if (udhaarRows.isEmpty) return;
+
+      final batch = db.batch();
+      for (final row in udhaarRows) {
+        final cid = row['customer_id'] as int?;
+        if (cid == null) continue;
+        final txType = (row['transaction_type'] as String?) ?? 'credit';
+        final isDebit = txType == 'credit';
+        final amount = (row['amount'] as num?)?.toDouble() ?? 0.0;
+        final runningBal = (row['running_balance'] as num?)?.toDouble() ?? 0.0;
+        final note = row['note'] as String?;
+        final billId = row['bill_id'] as int?;
+        final createdAtStr = row['created_at']?.toString() ?? '';
+        final parsed = DateTime.tryParse(createdAtStr);
+        final dt = parsed != null
+            ? parsed.millisecondsSinceEpoch
+            : (int.tryParse(createdAtStr) ?? DateTime.now().millisecondsSinceEpoch);
+
+        batch.insert('khata_entries', {
+          'customer_id': cid,
+          'related_bill_id': billId,
+          'date_time': dt,
+          'type': isDebit ? 'debit' : 'credit',
+          'amount': amount,
+          'note': note ?? (isDebit ? 'ઉધાર નોંધણી' : 'ચુકવણી જમા'),
+          'balance_after': runningBal,
+        });
+      }
+      await batch.commit(noResult: true);
+    } catch (_) {
+      // Ignore migration errors so database opening is not blocked
     }
   }
 

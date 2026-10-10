@@ -30,6 +30,7 @@ class _CustomerListScreenState extends ConsumerState<CustomerListScreen> {
   void initState() {
     super.initState();
     _searchController.addListener(() {
+      setState(() {});
       _debouncer.run(() {
         ref.read(customerSearchProvider.notifier).state = _searchController.text;
       });

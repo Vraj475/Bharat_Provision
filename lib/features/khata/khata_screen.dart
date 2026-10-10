@@ -20,9 +20,9 @@ class _KhataScreenState extends ConsumerState<KhataScreen>
   String _filterAccount = '';
   String _filterType = 'all';
 
-  Future<List<KhataEntry>>? _creditFuture;
-  Future<List<KhataEntry>>? _debitFuture;
-  Future<List<KhataEntry>>? _allFuture;
+  Future<List<KhataLedgerRow>>? _creditFuture;
+  Future<List<KhataLedgerRow>>? _debitFuture;
+  Future<List<KhataLedgerRow>>? _allFuture;
 
   @override
   void initState() {
@@ -154,7 +154,7 @@ class _KhataScreenState extends ConsumerState<KhataScreen>
   }
 
   Widget _buildCreditTab() {
-    return FutureBuilder<List<KhataEntry>>(
+    return FutureBuilder<List<KhataLedgerRow>>(
       future: _creditFuture,
       builder: (context, snapshot) {
         if (snapshot.connectionState == ConnectionState.waiting) {
@@ -177,7 +177,7 @@ class _KhataScreenState extends ConsumerState<KhataScreen>
   }
 
   Widget _buildDebitTab() {
-    return FutureBuilder<List<KhataEntry>>(
+    return FutureBuilder<List<KhataLedgerRow>>(
       future: _debitFuture,
       builder: (context, snapshot) {
         if (snapshot.connectionState == ConnectionState.waiting) {
@@ -200,7 +200,7 @@ class _KhataScreenState extends ConsumerState<KhataScreen>
   }
 
   Widget _buildCombinedTab() {
-    return FutureBuilder<List<KhataEntry>>(
+    return FutureBuilder<List<KhataLedgerRow>>(
       future: _allFuture,
       builder: (context, snapshot) {
         if (snapshot.connectionState == ConnectionState.waiting) {
@@ -225,7 +225,7 @@ class _KhataScreenState extends ConsumerState<KhataScreen>
     );
   }
 
-  Widget _buildEntryTile(KhataEntry entry, Color color) {
+  Widget _buildEntryTile(KhataLedgerRow entry, Color color) {
     return ListTile(
       leading: CircleAvatar(
         backgroundColor: color.withValues(alpha: 0.15),
@@ -250,7 +250,7 @@ class _KhataScreenState extends ConsumerState<KhataScreen>
     );
   }
 
-  List<KhataEntry> _filterEntries(List<KhataEntry> entries) {
+  List<KhataLedgerRow> _filterEntries(List<KhataLedgerRow> entries) {
     final query = _filterAccount.toLowerCase();
     return entries.where((e) {
       final matchesAccount =
@@ -270,7 +270,7 @@ class _KhataScreenState extends ConsumerState<KhataScreen>
     }).toList();
   }
 
-  void _openEntrySource(KhataEntry entry) async {
+  void _openEntrySource(KhataLedgerRow entry) async {
     switch (entry.source) {
       case 'bill':
       case 'udhaar_bill':
@@ -315,7 +315,7 @@ class _KhataScreenState extends ConsumerState<KhataScreen>
     }
   }
 
-  Future<List<KhataEntry>> _getCreditEntries() async {
+  Future<List<KhataLedgerRow>> _getCreditEntries() async {
     final db = await ref.read(databaseHelperProvider).database;
     final results = await db.rawQuery('''
       SELECT 'bill' as source, b.id as source_id, b.created_at as date, 
@@ -334,10 +334,10 @@ class _KhataScreenState extends ConsumerState<KhataScreen>
       WHERE ul.transaction_type = 'payment'
       ORDER BY date DESC
     ''');
-    return results.map((row) => KhataEntry.fromMap(row)).toList();
+    return results.map((row) => KhataLedgerRow.fromMap(row)).toList();
   }
 
-  Future<List<KhataEntry>> _getDebitEntries() async {
+  Future<List<KhataLedgerRow>> _getDebitEntries() async {
     final db = await ref.read(databaseHelperProvider).database;
     final results = await db.rawQuery('''
       SELECT 'expense' as source, e.id as source_id, e.created_at as date,
@@ -364,10 +364,10 @@ class _KhataScreenState extends ConsumerState<KhataScreen>
       WHERE ul.transaction_type = 'credit' AND ul.bill_id IS NULL
       ORDER BY date DESC
     ''');
-    return results.map((row) => KhataEntry.fromMap(row)).toList();
+    return results.map((row) => KhataLedgerRow.fromMap(row)).toList();
   }
 
-  Future<List<KhataEntry>> _getAllEntries() async {
+  Future<List<KhataLedgerRow>> _getAllEntries() async {
     final credit = await _getCreditEntries();
     final debit = await _getDebitEntries();
     final all = [...credit, ...debit];
@@ -376,8 +376,8 @@ class _KhataScreenState extends ConsumerState<KhataScreen>
   }
 }
 
-class KhataEntry {
-  KhataEntry({
+class KhataLedgerRow {
+  KhataLedgerRow({
     required this.source,
     required this.sourceId,
     required this.date,
@@ -387,18 +387,23 @@ class KhataEntry {
     required this.type,
   });
 
-  factory KhataEntry.fromMap(Map<String, dynamic> map) {
+  factory KhataLedgerRow.fromMap(Map<String, dynamic> map) {
     DateTime parsedDate;
     final rawDate = map['date']?.toString();
     if (rawDate != null && rawDate.isNotEmpty) {
-      parsedDate = DateTime.tryParse(rawDate) ??
-          DateTime.fromMillisecondsSinceEpoch(
-            int.tryParse(rawDate) ?? DateTime.now().millisecondsSinceEpoch,
-          );
+      final parsed = DateTime.tryParse(rawDate);
+      if (parsed != null) {
+        parsedDate = parsed;
+      } else {
+        final millis = int.tryParse(rawDate);
+        parsedDate = millis != null
+            ? DateTime.fromMillisecondsSinceEpoch(millis)
+            : DateTime(1970);
+      }
     } else {
-      parsedDate = DateTime.now();
+      parsedDate = DateTime(1970);
     }
-    return KhataEntry(
+    return KhataLedgerRow(
       source: (map['source'] as String?) ?? '',
       sourceId: (map['source_id'] as num?)?.toInt() ?? 0,
       date: parsedDate,

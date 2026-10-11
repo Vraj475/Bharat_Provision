@@ -460,53 +460,55 @@ class _BillingProductPanelState extends ConsumerState<BillingProductPanel> {
                       ),
                     );
                   }
+
+                  if (!_lowStockPopupShown) {
+                    final lowStockItems = displayItems
+                        .where((p) => p.stockQty > 0 && p.isLowStock)
+                        .toList();
+                    if (lowStockItems.isNotEmpty) {
+                      _lowStockPopupShown = true;
+                      WidgetsBinding.instance.addPostFrameCallback((_) {
+                        if (!mounted) return;
+                        showDialog<void>(
+                          context: context,
+                          builder: (ctx) => AlertDialog(
+                            title: const Text('લો સ્ટોક એલર્ટ'),
+                            content: SingleChildScrollView(
+                              child: Column(
+                                mainAxisSize: MainAxisSize.min,
+                                crossAxisAlignment:
+                                    CrossAxisAlignment.start,
+                                children: lowStockItems
+                                    .take(6)
+                                    .map(
+                                      (p) => Padding(
+                                        padding: const EdgeInsets.only(
+                                          bottom: 6,
+                                        ),
+                                        child: Text(
+                                          '• ${p.nameGujarati}: ${p.stockQty.toStringAsFixed(2)} ${p.unitType}',
+                                        ),
+                                      ),
+                                    )
+                                    .toList(),
+                              ),
+                            ),
+                            actions: [
+                              TextButton(
+                                onPressed: () => ctx.pop(),
+                                child: const Text('બરાબર'),
+                              ),
+                            ],
+                          ),
+                        );
+                      });
+                    }
+                  }
+
                   return ListView.builder(
                     itemCount: displayItems.length,
                     itemBuilder: (ctx, i) {
                       final item = displayItems[i];
-                      if (!_lowStockPopupShown) {
-                        final lowStockItems = displayItems
-                            .where((p) => p.stockQty > 0 && p.isLowStock)
-                            .toList();
-                        if (lowStockItems.isNotEmpty) {
-                          _lowStockPopupShown = true;
-                          WidgetsBinding.instance.addPostFrameCallback((_) {
-                            if (!mounted) return;
-                            showDialog<void>(
-                              context: context,
-                              builder: (ctx) => AlertDialog(
-                                title: const Text('લો સ્ટોક એલર્ટ'),
-                                content: SingleChildScrollView(
-                                  child: Column(
-                                    mainAxisSize: MainAxisSize.min,
-                                    crossAxisAlignment:
-                                        CrossAxisAlignment.start,
-                                    children: lowStockItems
-                                        .take(6)
-                                        .map(
-                                          (p) => Padding(
-                                            padding: const EdgeInsets.only(
-                                              bottom: 6,
-                                            ),
-                                            child: Text(
-                                              '• ${p.nameGujarati}: ${p.stockQty.toStringAsFixed(2)} ${p.unitType}',
-                                            ),
-                                          ),
-                                        )
-                                        .toList(),
-                                  ),
-                                ),
-                                actions: [
-                                  TextButton(
-                                    onPressed: () => ctx.pop(),
-                                    child: const Text('બરાબર'),
-                                  ),
-                                ],
-                              ),
-                            );
-                          });
-                        }
-                      }
                       return Opacity(
                         opacity: _isOutOfStock(item) ? 0.5 : 1,
                         child: ListTile(

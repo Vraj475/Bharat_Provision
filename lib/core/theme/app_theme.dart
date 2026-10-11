@@ -110,6 +110,9 @@ class AppTheme {
         ),
         margin: const EdgeInsets.symmetric(horizontal: 8, vertical: 6),
       ),
+      snackBarTheme: const SnackBarThemeData(
+        behavior: SnackBarBehavior.floating,
+      ),
     );
   }
 }

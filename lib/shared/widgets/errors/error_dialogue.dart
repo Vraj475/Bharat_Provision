@@ -14,6 +14,7 @@ class ErrorDialogue {
     final background = _backgroundColor(type, theme);
     final duration = _duration(type);
 
+    ScaffoldMessenger.of(context).hideCurrentSnackBar();
     ScaffoldMessenger.of(context).showSnackBar(
       SnackBar(
         content: Column(
@@ -58,16 +59,7 @@ class ErrorDialogue {
   }
 
   static Duration _duration(ErrorDialogueType type) {
-    switch (type) {
-      case ErrorDialogueType.error:
-        return const Duration(seconds: 4);
-      case ErrorDialogueType.warning:
-        return const Duration(seconds: 3);
-      case ErrorDialogueType.info:
-        return const Duration(seconds: 2);
-      case ErrorDialogueType.success:
-        return const Duration(seconds: 2);
-    }
+    return const Duration(seconds: 2);
   }
 }
 

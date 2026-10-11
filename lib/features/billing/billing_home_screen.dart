@@ -26,6 +26,7 @@ import 'services/billing_print_service.dart';
 import 'views/bill_summary_panel.dart';
 import 'views/bill_lines_panel.dart';
 import 'views/billing_product_panel.dart';
+import 'views/mobile_express_billing_view.dart';
 import 'controllers/billing_controller.dart';
 import '../../core/auth/role_provider.dart';
 import 'package:go_router/go_router.dart';
@@ -49,9 +50,6 @@ class _BillingHomeScreenState extends ConsumerState<BillingHomeScreen> {
   String? _bannerMessage;
   String? _customerName;
   int? _customerId;
-
-  /// Tracks which tab is active on mobile (0 = Products, 1 = Cart).
-  int _mobileTabIndex = 0;
 
   @override
   void initState() {
@@ -483,58 +481,35 @@ class _BillingHomeScreenState extends ConsumerState<BillingHomeScreen> {
     );
   }
 
-  /// ─── Mobile layout: two tabs (Products / Cart) ───
+  /// ─── Mobile layout: Express 1-Screen Counter Billing ───
   Widget _buildMobileLayout(int billLineCount) {
-    final primaryColor = Theme.of(context).colorScheme.primary;
-    return Column(
-      children: [
-        // ── Tab bar ──
-        Material(
-          elevation: 2,
-          child: Row(
-            children: [
-              Expanded(
-                child: _MobileTab(
-                  label: 'ઉત્પાદનો',
-                  icon: Icons.grid_view_rounded,
-                  isSelected: _mobileTabIndex == 0,
-                  onTap: () => setState(() => _mobileTabIndex = 0),
-                  primaryColor: primaryColor,
-                ),
-              ),
-              Expanded(
-                child: _MobileTab(
-                  label: 'કાર્ટ',
-                  icon: Icons.shopping_cart,
-                  isSelected: _mobileTabIndex == 1,
-                  badgeCount: billLineCount,
-                  onTap: () => setState(() => _mobileTabIndex = 1),
-                  primaryColor: primaryColor,
-                ),
-              ),
-            ],
-          ),
-        ),
-        // ── Tab content ──
-        Expanded(
-          child: IndexedStack(
-            index: _mobileTabIndex,
-            children: [
-              // Tab 0: Products
-              BillingProductPanel(
-                checkStock: _hasEnoughStockForDraft,
-                productSearchFocusNode: _productSearchFocusNode,
-                searchController: _searchController,
-              ),
-              // Tab 1: Cart / Bill
-              RepaintBoundary(
-                key: _billBoundaryMobileKey,
-                child: _buildBillPanel(isWindows: false),
-              ),
-            ],
-          ),
-        ),
-      ],
+    return MobileExpressBillingView(
+      boundaryKey: _billBoundaryMobileKey,
+      customerName: _customerName,
+      customerId: _customerId,
+      customerController: _customerController,
+      onCustomerSelected: (id, name) {
+        ref.read(billingTabsProvider.notifier).setSelectedCustomer(id, name);
+        setState(() {
+          _customerId = id;
+          _customerName = name;
+        });
+      },
+      onClearCustomer: () {
+        ref.read(billingTabsProvider.notifier).setCustomerForActive(
+              customerId: null,
+              customerName: null,
+            );
+        setState(() {
+          _customerId = null;
+          _customerName = null;
+          _customerController.clear();
+        });
+      },
+      checkStock: _hasEnoughStockForDraft,
+      onSaveBill: _saveBill,
+      onPrintBill: _printBill,
+      onClearBill: _clearCurrentBillDraft,
     );
   }
 
@@ -617,66 +592,3 @@ class _BillingHomeScreenState extends ConsumerState<BillingHomeScreen> {
   }
 }
 
-/// A single tab button used in the mobile billing layout.
-class _MobileTab extends StatelessWidget {
-  const _MobileTab({
-    required this.label,
-    required this.icon,
-    required this.isSelected,
-    required this.onTap,
-    required this.primaryColor,
-    this.badgeCount = 0,
-  });
-
-  final String label;
-  final IconData icon;
-  final bool isSelected;
-  final VoidCallback onTap;
-  final Color primaryColor;
-  final int badgeCount;
-
-  @override
-  Widget build(BuildContext context) {
-    return InkWell(
-      onTap: onTap,
-      child: Container(
-        padding: const EdgeInsets.symmetric(vertical: 10),
-        decoration: BoxDecoration(
-          border: Border(
-            bottom: BorderSide(
-              color: isSelected ? primaryColor : Colors.transparent,
-              width: 3,
-            ),
-          ),
-        ),
-        child: Row(
-          mainAxisAlignment: MainAxisAlignment.center,
-          children: [
-            Badge(
-              isLabelVisible: badgeCount > 0,
-              label: Text(
-                '$badgeCount',
-                style: const TextStyle(fontSize: 10, color: Colors.white),
-              ),
-              backgroundColor: primaryColor,
-              child: Icon(
-                icon,
-                color: isSelected ? primaryColor : Colors.grey,
-                size: 20,
-              ),
-            ),
-            const SizedBox(width: 6),
-            Text(
-              label,
-              style: TextStyle(
-                color: isSelected ? primaryColor : Colors.grey.shade700,
-                fontWeight: isSelected ? FontWeight.w700 : FontWeight.w500,
-                fontSize: 13,
-              ),
-            ),
-          ],
-        ),
-      ),
-    );
-  }
-}

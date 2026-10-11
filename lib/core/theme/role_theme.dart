@@ -67,6 +67,9 @@ class RoleThemeColors {
         surface: Colors.white,
         error: Colors.red,
       ),
+      snackBarTheme: const SnackBarThemeData(
+        behavior: SnackBarBehavior.floating,
+      ),
     );
   }
 

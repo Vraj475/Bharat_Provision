@@ -155,4 +155,93 @@ void main() {
     // Verify discrete unit label
     expect(find.text('પરત આપેલ માત્રા (પેકેટ)'), findsOneWidget);
   });
+
+  testWidgets('ReturnReplaceScreen mobile Replace Mode renders without RenderFlex overflow', (tester) async {
+    // Typical Android phone dimensions
+    tester.view.physicalSize = const Size(390, 844);
+    tester.view.devicePixelRatio = 1.0;
+    addTearDown(() {
+      tester.view.resetPhysicalSize();
+      tester.view.resetDevicePixelRatio();
+    });
+
+    final testBill = Bill(
+      id: 1,
+      billNumber: 'BILL-002',
+      customerId: 1,
+      customerNameSnapshot: 'સુરેશભાઈ',
+      billDate: '2026-10-09',
+      subtotal: 200.0,
+      discount: 0.0,
+      gstAmount: 0.0,
+      totalAmount: 200.0,
+      paidAmount: 200.0,
+      paymentMode: 'cash',
+      paymentStatus: 'paid',
+      isPrinted: false,
+      isReturned: false,
+      createdAt: '2026-10-09T10:00:00',
+    );
+
+    final testItems = [
+      const BillItem(
+        id: 10,
+        billId: 1,
+        productId: 101,
+        productNameSnapshot: 'બાજરી લોટ',
+        unitTypeSnapshot: 'કિલો',
+        sellPriceSnapshot: 40.0,
+        qty: 5.0,
+        amount: 200.0,
+        isReturned: false,
+      ),
+    ];
+
+    when(() => mockRepo.getBillHistory(
+          query: any(named: 'query'),
+          paymentStatus: any(named: 'paymentStatus'),
+          from: any(named: 'from'),
+          to: any(named: 'to'),
+        )).thenAnswer((_) async => [testBill]);
+
+    when(() => mockRepo.getBillItems(1)).thenAnswer((_) async => testItems);
+    when(() => mockRepo.getProducts(query: any(named: 'query'))).thenAnswer((_) async => []);
+
+    await tester.pumpWidget(
+      ProviderScope(
+        overrides: [
+          returnRepositoryProvider.overrideWithValue(mockRepo),
+        ],
+        child: const MaterialApp(
+          home: ReturnReplaceScreen(),
+        ),
+      ),
+    );
+
+    await tester.pumpAndSettle();
+
+    // Select bill
+    await tester.tap(find.textContaining('BILL-002'));
+    await tester.pumpAndSettle();
+
+    // Switch to Replace Mode (બદલો)
+    final replaceModeBtn = find.textContaining('બદલો');
+    expect(replaceModeBtn, findsOneWidget);
+    await tester.tap(replaceModeBtn);
+    await tester.pumpAndSettle();
+
+    // Verify Express 1-Screen Replace UI: Search bar, live items, add button, bottom bar
+    expect(find.text('બદલી માટે ઉત્પાદન શોધો...'), findsOneWidget);
+    expect(find.text('બાજરી લોટ'), findsOneWidget);
+    expect(find.text('+ નવી વસ્તુ ઉમેરો'), findsOneWidget);
+
+    // Verify sticky bottom difference bar and action button appear
+    expect(find.textContaining('તફાવત'), findsOneWidget);
+    expect(find.text('બદલી સાચવો'), findsOneWidget);
+
+    // Verify Stepper buttons are available for quick inline adjustment
+    expect(find.byIcon(Icons.remove), findsWidgets);
+    expect(find.byIcon(Icons.add), findsWidgets);
+  });
 }
+

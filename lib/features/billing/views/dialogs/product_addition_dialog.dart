@@ -1,6 +1,5 @@
 import 'package:flutter/material.dart';
 import 'package:flutter/services.dart';
-import 'package:go_router/go_router.dart';
 
 import '../../../../core/constants/app_strings.dart' as strings;
 import '../../../../core/utils/currency_format.dart';
@@ -11,20 +10,28 @@ class ProductAdditionDialog extends StatefulWidget {
   final Product item;
   final Future<bool> Function(int itemId, double newQtyGrams) checkStock;
 
+  final double? initialQtyGrams;
+
   const ProductAdditionDialog({
     super.key,
     required this.item,
     required this.checkStock,
+    this.initialQtyGrams,
   });
 
   static Future<(double qtyGrams, double amount)?> show(
     BuildContext context, {
     required Product item,
     required Future<bool> Function(int, double) checkStock,
+    double? initialQtyGrams,
   }) {
     return showDialog<(double, double)>(
       context: context,
-      builder: (ctx) => ProductAdditionDialog(item: item, checkStock: checkStock),
+      builder: (ctx) => ProductAdditionDialog(
+        item: item,
+        checkStock: checkStock,
+        initialQtyGrams: initialQtyGrams,
+      ),
     );
   }
 
@@ -56,6 +63,16 @@ class _ProductAdditionDialogState extends State<ProductAdditionDialog> {
     if (!_isWeightProduct) {
       _mode = 'quantity';
     }
+    if (widget.initialQtyGrams != null && widget.initialQtyGrams! > 0) {
+      if (_isWeightProduct) {
+        final kg = widget.initialQtyGrams! / 1000.0;
+        _entryController.text = kg % 1 == 0
+            ? kg.toInt().toString()
+            : kg.toStringAsFixed(3).replaceAll(RegExp(r'0+$'), '').replaceAll(RegExp(r'\.$'), '');
+      } else {
+        _entryController.text = widget.initialQtyGrams!.toInt().toString();
+      }
+    }
   }
 
   @override
@@ -69,7 +86,10 @@ class _ProductAdditionDialogState extends State<ProductAdditionDialog> {
     final item = widget.item;
     if (item.id == null) {
       ScaffoldMessenger.of(context).showSnackBar(
-        const SnackBar(content: Text('પ્રોડક્ટ પસંદ કરો')),
+        const SnackBar(
+          content: Text('પ્રોડક્ટ પસંદ કરો'),
+          duration: Duration(seconds: 2),
+        ),
       );
       return;
     }
@@ -89,7 +109,10 @@ class _ProductAdditionDialogState extends State<ProductAdditionDialog> {
         final parsed = double.tryParse(raw);
         if (raw.isEmpty || parsed == null || parsed <= 0) {
           ScaffoldMessenger.of(context).showSnackBar(
-            const SnackBar(content: Text('વજન દાખલ કરો')),
+            const SnackBar(
+              content: Text('વજન દાખલ કરો'),
+              duration: Duration(seconds: 2),
+            ),
           );
           FocusScope.of(context).requestFocus(_entryFocusNode);
           return;
@@ -107,7 +130,10 @@ class _ProductAdditionDialogState extends State<ProductAdditionDialog> {
       final parsed = int.tryParse(raw);
       if (raw.isEmpty || parsed == null || parsed <= 0) {
         ScaffoldMessenger.of(context).showSnackBar(
-          const SnackBar(content: Text('નંગ / સંખ્યા દાખલ કરો')),
+          const SnackBar(
+            content: Text('નંગ / સંખ્યા દાખલ કરો'),
+            duration: Duration(seconds: 2),
+          ),
         );
         FocusScope.of(context).requestFocus(_entryFocusNode);
         return;
@@ -123,13 +149,14 @@ class _ProductAdditionDialogState extends State<ProductAdditionDialog> {
       ScaffoldMessenger.of(context).showSnackBar(
         const SnackBar(
           content: Text('સ્ટોક અવેલેબલ નથી કૃપા કરી ખરીદી ની યાદી માં એડ કરો'),
+          duration: Duration(seconds: 2),
         ),
       );
       FocusScope.of(context).requestFocus(_entryFocusNode);
       return;
     }
 
-    context.pop((finalQty, finalAmount));
+    Navigator.of(context).pop<(double, double)>((finalQty, finalAmount));
   }
 
   @override
@@ -287,7 +314,7 @@ class _ProductAdditionDialogState extends State<ProductAdditionDialog> {
       ),
       actions: [
         TextButton(
-          onPressed: () => context.pop(),
+          onPressed: () => Navigator.of(context).pop(),
           child: const Text(strings.AppStrings.cancelButton),
         ),
         ElevatedButton(

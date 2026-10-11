@@ -143,3 +143,7 @@ configurations.all {
         force("androidx.multidex:multidex:2.0.1")
     }
 }
+
+tasks.withType<JavaCompile>().configureEach {
+    options.compilerArgs.add("-Xlint:-options")
+}

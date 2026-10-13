@@ -27,7 +27,13 @@ class _DiscountDialogState extends State<DiscountDialog> {
   void initState() {
     super.initState();
     _controller = TextEditingController(
-      text: widget.initialDiscount.toStringAsFixed(2),
+      text: widget.initialDiscount > 0
+          ? widget.initialDiscount.toStringAsFixed(2)
+          : '',
+    );
+    _controller.selection = TextSelection(
+      baseOffset: 0,
+      extentOffset: _controller.text.length,
     );
   }
 
@@ -38,7 +44,7 @@ class _DiscountDialogState extends State<DiscountDialog> {
   }
 
   void _submit() {
-    final parsed = double.tryParse(_controller.text) ?? 0.0;
+    final parsed = double.tryParse(_controller.text.trim()) ?? 0.0;
     context.pop(parsed);
   }
 
@@ -50,8 +56,10 @@ class _DiscountDialogState extends State<DiscountDialog> {
         controller: _controller,
         autofocus: true,
         keyboardType: const TextInputType.numberWithOptions(decimal: true),
+        textInputAction: TextInputAction.done,
         decoration: const InputDecoration(
-          labelText: 'ડિસ્કાઉન્ટ રકમ (₹)',
+          prefixText: '₹ ',
+          labelText: 'ડિસ્કાઉન્ટ રકમ',
         ),
         onSubmitted: (_) => _submit(),
       ),
@@ -62,7 +70,7 @@ class _DiscountDialogState extends State<DiscountDialog> {
         ),
         ElevatedButton(
           onPressed: _submit,
-          child: const Text('લાગુ કરો'),
+          child: const Text('લાગુ કરો (Enter)'),
         ),
       ],
     );

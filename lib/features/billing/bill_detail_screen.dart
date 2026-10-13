@@ -133,6 +133,9 @@ class _BillDetailScreenState extends ConsumerState<BillDetailScreen> {
     if (bill.discount > 0) {
       buffer.writeln('ડિસ્કાઉન્ટ: -${formatCurrency(bill.discount)}');
     }
+    if (bill.otherCharges > 0) {
+      buffer.writeln('અન્ય ચાર્જ: +${formatCurrency(bill.otherCharges)}');
+    }
     buffer.writeln('કુલ રકમ: ${formatCurrency(bill.totalAmount)}');
     if (bill.paidAmount < bill.totalAmount) {
       buffer.writeln('ચૂકવેલ: ${formatCurrency(bill.paidAmount)}');
@@ -745,6 +748,14 @@ class _BillDetailScreenState extends ConsumerState<BillDetailScreen> {
                 'ડિસ્કાઉન્ટ / છૂટ',
                 '- ${formatCurrency(bill.discount)}',
                 valueColor: const Color(0xFF16A34A),
+              ),
+            ],
+            if (bill.otherCharges > 0) ...[
+              const SizedBox(height: 8),
+              _buildSummaryRow(
+                'અન્ય ચાર્જ (Other Charges)',
+                '+ ${formatCurrency(bill.otherCharges)}',
+                valueColor: const Color(0xFF475569),
               ),
             ],
             if (bill.gstAmount > 0) ...[

@@ -4,6 +4,7 @@ import '../models/bill_line_item.dart';
 class BillingState {
   final List<BillLineItem> billLines;
   final double discount;
+  final double otherCharges;
   final int? customerId;
   final String? customerName;
   final String? shopName;
@@ -13,6 +14,7 @@ class BillingState {
   BillingState({
     this.billLines = const [],
     this.discount = 0.0,
+    this.otherCharges = 0.0,
     this.customerId,
     this.customerName,
     this.shopName,
@@ -21,11 +23,13 @@ class BillingState {
   });
 
   double get subtotal => billLines.fold(0, (sum, line) => sum + line.amount);
-  double get total => subtotal - discount;
+  double get legitTotal => (subtotal - discount).clamp(0.0, double.infinity);
+  double get total => (legitTotal + otherCharges).clamp(0.0, double.infinity);
 
   BillingState copyWith({
     List<BillLineItem>? billLines,
     double? discount,
+    double? otherCharges,
     int? customerId,
     String? customerName,
     String? shopName,
@@ -35,6 +39,7 @@ class BillingState {
     return BillingState(
       billLines: billLines ?? this.billLines,
       discount: discount ?? this.discount,
+      otherCharges: otherCharges ?? this.otherCharges,
       customerId: customerId ?? this.customerId,
       customerName: customerName ?? this.customerName,
       shopName: shopName ?? this.shopName,
@@ -59,17 +64,48 @@ class BillingController extends StateNotifier<BillingState> {
     state = state.copyWith(discount: discount);
   }
 
+  void setOtherCharges(double otherCharges) {
+    state = state.copyWith(otherCharges: otherCharges);
+  }
+
   void startGrandTotalEdit() {
     state = state.copyWith(isEditingGrandTotal: true);
   }
 
+  void cancelGrandTotalEdit() {
+    state = state.copyWith(isEditingGrandTotal: false);
+  }
+
   void commitGrandTotalEdit(double newTotal) {
-    final newDiscount = state.subtotal - newTotal;
-    state = state.copyWith(
-      discount: newDiscount < 0 ? 0 : newDiscount,
-      isEditingGrandTotal: false,
-      isGrandTotalAdjusted: true,
-    );
+    // Legit total is subtotal minus current discount
+    final legitTotal = (state.subtotal - state.discount).clamp(0.0, double.infinity);
+    final diff = newTotal - legitTotal;
+
+    if (diff > 5.0) {
+      // Whenever the user adds more than 5 rupees in the final total above the legit total,
+      // the excess amount is added as other charges in the bill
+      state = state.copyWith(
+        otherCharges: diff,
+        isEditingGrandTotal: false,
+        isGrandTotalAdjusted: true,
+      );
+    } else if (newTotal < legitTotal) {
+      // Amount reduced below legit total -> becomes discount
+      final newDiscount = (state.subtotal - newTotal).clamp(0.0, double.infinity);
+      state = state.copyWith(
+        discount: newDiscount,
+        otherCharges: 0.0,
+        isEditingGrandTotal: false,
+        isGrandTotalAdjusted: true,
+      );
+    } else {
+      // Diff is between 0 and 5 rupees above legit total -> not more than 5 rupees
+      state = state.copyWith(
+        otherCharges: 0.0,
+        isEditingGrandTotal: false,
+        isGrandTotalAdjusted: diff != 0,
+      );
+    }
   }
 
   void clearBill() {

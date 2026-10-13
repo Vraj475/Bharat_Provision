@@ -29,6 +29,7 @@ class BillRepository {
     String? customerNameSnapshot,
     required List<BillItem> items,
     required double discountAmount,
+    double otherCharges = 0.0,
     required double paidAmount,
     required String paymentMode,
     int? userId,
@@ -42,7 +43,7 @@ class BillRepository {
     for (final i in items) {
       subtotal += i.qty * i.sellPriceSnapshot!;
     }
-    final totalAmount = subtotal - discountAmount;
+    final totalAmount = subtotal - discountAmount + otherCharges;
     final dueAmount = (totalAmount - paidAmount).clamp(0.0, totalAmount);
 
     final db = await _db;
@@ -65,6 +66,11 @@ class BillRepository {
         txn,
         'bills',
         'discount_amount',
+      );
+      final hasOtherCharges = await _columnExists(
+        txn,
+        'bills',
+        'other_charges',
       );
       final hasTaxAmount = await _columnExists(txn, 'bills', 'tax_amount');
       final hasGstAmount = await _columnExists(txn, 'bills', 'gst_amount');
@@ -96,6 +102,9 @@ class BillRepository {
       if (hasDiscount) {
         billValues['discount'] = discountAmount;
       }
+      if (hasOtherCharges) {
+        billValues['other_charges'] = otherCharges;
+      }
       if (hasTaxAmount) {
         billValues['tax_amount'] = 0.0;
       }
@@ -119,6 +128,9 @@ class BillRepository {
                 customerNameSnapshot.trim().isNotEmpty)
             ? customerNameSnapshot.trim()
             : null;
+      }
+      if (otherCharges > 0 && await _columnExists(txn, 'bills', 'notes')) {
+        billValues['notes'] = 'અન્ય ચાર્જ: $otherCharges';
       }
 
       final billId = await txn.insert('bills', billValues);

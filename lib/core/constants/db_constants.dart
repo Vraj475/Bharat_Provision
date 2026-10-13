@@ -47,6 +47,7 @@ class DbConstants {
   static const String colBillSubtotal = 'subtotal';
   static const String colBillDiscount = 'discount';
   static const String colBillGstAmount = 'gst_amount';
+  static const String colBillOtherCharges = 'other_charges';
   static const String colBillTotalAmount = 'total_amount';
   static const String colBillPaidAmount = 'paid_amount';
   static const String colBillPaymentMode = 'payment_mode';

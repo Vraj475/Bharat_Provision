@@ -7,6 +7,7 @@ class Bill {
   final double subtotal;
   final double discount;
   final double gstAmount;
+  final double otherCharges;
   final double totalAmount;
   final double paidAmount;
   final String? paymentMode; // cash | upi | card | split
@@ -27,6 +28,7 @@ class Bill {
     required this.subtotal,
     required this.discount,
     required this.gstAmount,
+    this.otherCharges = 0.0,
     required this.totalAmount,
     required this.paidAmount,
     this.paymentMode,
@@ -58,6 +60,7 @@ class Bill {
           0,
       gstAmount:
           ((map['gst_amount'] ?? map['tax_amount']) as num?)?.toDouble() ?? 0,
+      otherCharges: (map['other_charges'] as num?)?.toDouble() ?? 0.0,
       totalAmount: (map['total_amount'] as num?)?.toDouble() ?? 0,
       paidAmount: (map['paid_amount'] as num?)?.toDouble() ?? 0,
       paymentMode: map['payment_mode'] as String?,
@@ -80,6 +83,7 @@ class Bill {
       'subtotal': subtotal,
       'discount': discount,
       'gst_amount': gstAmount,
+      'other_charges': otherCharges,
       'total_amount': totalAmount,
       'paid_amount': paidAmount,
       'payment_mode': paymentMode,

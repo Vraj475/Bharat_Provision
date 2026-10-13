@@ -223,6 +223,7 @@ class DatabaseHelper {
         subtotal REAL NOT NULL,
         discount REAL DEFAULT 0,
         gst_amount REAL DEFAULT 0,
+        other_charges REAL DEFAULT 0,
         total_amount REAL NOT NULL,
         paid_amount REAL DEFAULT 0,
         payment_mode TEXT,
@@ -442,6 +443,12 @@ class DatabaseHelper {
         balance_at_time REAL NOT NULL
       );
     ''');
+
+    try {
+      await db.execute('ALTER TABLE bills ADD COLUMN other_charges REAL DEFAULT 0;');
+    } catch (_) {
+      // Column already exists
+    }
   }
 
   Future<void> _insertDefaultData(dynamic db) async {

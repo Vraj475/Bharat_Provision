@@ -139,6 +139,7 @@ class _BillingHomeScreenState extends ConsumerState<BillingHomeScreen> {
 
     final linesSnapshot = ref.read(billingControllerProvider).billLines;
     final discountSnapshot = ref.read(billingControllerProvider).discount;
+    final otherChargesSnapshot = ref.read(billingControllerProvider).otherCharges;
     final customerIdSnapshot = selectedCustomerId;
     final customerNameSnapshot = _normalizedCustomerName(_customerName);
     final productIds = linesSnapshot
@@ -157,8 +158,9 @@ class _BillingHomeScreenState extends ConsumerState<BillingHomeScreen> {
             : customerNameSnapshot,
         items: billItems,
         discountAmount: discountSnapshot,
+        otherCharges: otherChargesSnapshot,
         paidAmount:
-            linesSnapshot.fold(0.0, (s, l) => s + l.amount) - discountSnapshot,
+            linesSnapshot.fold(0.0, (s, l) => s + l.amount) - discountSnapshot + otherChargesSnapshot,
         paymentMode: transactionType,
         userId: null,
       );

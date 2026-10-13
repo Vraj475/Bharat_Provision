@@ -11,6 +11,7 @@ import '../billing_providers.dart';
 import '../controllers/billing_controller.dart';
 import '../models/bill_line_item.dart';
 import 'dialogs/discount_dialog.dart';
+import 'dialogs/grand_total_dialog.dart';
 import 'dialogs/product_addition_dialog.dart';
 
 /// Express 1-Screen Billing View for Mobile / Android.
@@ -261,6 +262,14 @@ class _MobileExpressBillingViewState
         ),
       ),
     );
+  }
+
+  Future<void> _editGrandTotalOnMobile() async {
+    final billingState = ref.read(billingControllerProvider);
+    final newTotal = await GrandTotalDialog.show(context, billingState.total);
+    if (newTotal != null && mounted) {
+      ref.read(billingControllerProvider.notifier).commitGrandTotalEdit(newTotal);
+    }
   }
 
   void _showCustomerSelectionSheet() {
@@ -788,16 +797,52 @@ class _MobileExpressBillingViewState
                               ],
                             ),
                           ),
-                          Row(
+                          Column(
+                            crossAxisAlignment: CrossAxisAlignment.end,
                             mainAxisSize: MainAxisSize.min,
                             children: [
-                              const Text('કુલ: ', style: TextStyle(fontSize: 13)),
-                              Text(
-                                formatCurrency(billingState.total),
-                                style: TextStyle(
-                                  fontSize: 18,
-                                  fontWeight: FontWeight.w900,
-                                  color: Colors.green.shade800,
+                              if (billingState.otherCharges > 0)
+                                Padding(
+                                  padding: const EdgeInsets.only(bottom: 2),
+                                  child: Text(
+                                    'અન્ય ચાર્જ: +${formatCurrency(billingState.otherCharges)}',
+                                    style: TextStyle(
+                                      fontSize: 11,
+                                      fontWeight: FontWeight.bold,
+                                      color: Colors.blueGrey.shade800,
+                                    ),
+                                  ),
+                                ),
+                              InkWell(
+                                onTap: _editGrandTotalOnMobile,
+                                borderRadius: BorderRadius.circular(6),
+                                child: Row(
+                                  mainAxisSize: MainAxisSize.min,
+                                  children: [
+                                    if (billingState.isGrandTotalAdjusted)
+                                      Padding(
+                                        padding: const EdgeInsets.only(right: 4),
+                                        child: Text(
+                                          'સુધારેલ',
+                                          style: TextStyle(
+                                            fontSize: 10,
+                                            color: Colors.green.shade700,
+                                            fontWeight: FontWeight.w600,
+                                          ),
+                                        ),
+                                      ),
+                                    const Text('કુલ: ', style: TextStyle(fontSize: 13)),
+                                    Text(
+                                      formatCurrency(billingState.total),
+                                      style: TextStyle(
+                                        fontSize: 18,
+                                        fontWeight: FontWeight.w900,
+                                        color: Colors.green.shade800,
+                                        decoration: TextDecoration.underline,
+                                        decorationColor: Colors.grey.shade400,
+                                      ),
+                                    ),
+                                  ],
                                 ),
                               ),
                             ],

@@ -47,6 +47,7 @@ class BillDraft {
   BillDraft({
     this.lines = const [],
     this.discountAmount = 0,
+    this.otherCharges = 0,
     this.customerId,
     this.customerName,
     this.transactionType = 'cash',
@@ -54,16 +55,18 @@ class BillDraft {
 
   final List<BillLine> lines;
   final double discountAmount;
+  final double otherCharges;
   final int? customerId;
   final String? customerName;
   final String transactionType; // 'cash'
 
   double get subtotal => lines.fold(0, (s, l) => s + l.amount);
-  double get total => subtotal - discountAmount;
+  double get total => subtotal - discountAmount + otherCharges;
 
   BillDraft copyWith({
     List<BillLine>? lines,
     double? discountAmount,
+    double? otherCharges,
     int? customerId,
     String? customerName,
     String? transactionType,
@@ -71,6 +74,7 @@ class BillDraft {
     return BillDraft(
       lines: lines ?? this.lines,
       discountAmount: discountAmount ?? this.discountAmount,
+      otherCharges: otherCharges ?? this.otherCharges,
       customerId: customerId ?? this.customerId,
       customerName: customerName ?? this.customerName,
       transactionType: transactionType ?? this.transactionType,
@@ -78,7 +82,7 @@ class BillDraft {
   }
 
   bool get isEmpty =>
-      lines.isEmpty && discountAmount == 0 && customerId == null;
+      lines.isEmpty && discountAmount == 0 && otherCharges == 0 && customerId == null;
 }
 
 /// Overall billing tabs state – holds five independent drafts.
@@ -144,6 +148,13 @@ class BillingTabsNotifier extends Notifier<BillingTabsState> {
     final drafts = [...state.drafts];
     final current = drafts[state.activeIndex];
     drafts[state.activeIndex] = current.copyWith(discountAmount: amount);
+    state = state.copyWith(drafts: drafts);
+  }
+
+  void setOtherChargesForActive(double amount) {
+    final drafts = [...state.drafts];
+    final current = drafts[state.activeIndex];
+    drafts[state.activeIndex] = current.copyWith(otherCharges: amount);
     state = state.copyWith(drafts: drafts);
   }
 

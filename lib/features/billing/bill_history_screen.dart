@@ -7,6 +7,7 @@ import 'package:intl/intl.dart';
 
 import '../../core/utils/currency_format.dart';
 import '../../routing/app_router.dart';
+import '../../shared/models/bill_model.dart';
 import 'bill_history_providers.dart';
 import 'bill_history_widgets.dart';
 
@@ -73,6 +74,49 @@ class _BillHistoryScreenState extends ConsumerState<BillHistoryScreen> {
   String _formatFilterDate(DateTime? date, String fallback) {
     if (date == null) return fallback;
     return DateFormat('dd/MM/yyyy').format(date);
+  }
+
+  /// Determines if a bill belongs to the current calendar day (today).
+  bool _isBillFromToday(Bill bill) {
+    final now = DateTime.now();
+    final todayDateOnly = DateTime(now.year, now.month, now.day);
+
+    bool isSameCalendarDay(DateTime dt) {
+      final local = dt.toLocal();
+      return local.year == todayDateOnly.year &&
+          local.month == todayDateOnly.month &&
+          local.day == todayDateOnly.day;
+    }
+
+    final todayIsoPrefix = DateFormat('yyyy-MM-dd').format(now);
+    final rawDate = bill.billDate.trim();
+    if (rawDate.isNotEmpty) {
+      if (rawDate.startsWith(todayIsoPrefix)) {
+        return true;
+      }
+      final parsed = DateTime.tryParse(rawDate);
+      if (parsed != null) {
+        return isSameCalendarDay(parsed);
+      }
+      final epochMs = int.tryParse(rawDate);
+      if (epochMs != null && epochMs > 100000000000) {
+        final dt = DateTime.fromMillisecondsSinceEpoch(epochMs);
+        return isSameCalendarDay(dt);
+      }
+    }
+
+    final rawCreated = bill.createdAt.trim();
+    if (rawCreated.isNotEmpty) {
+      if (rawCreated.startsWith(todayIsoPrefix)) {
+        return true;
+      }
+      final parsedCreated = DateTime.tryParse(rawCreated);
+      if (parsedCreated != null) {
+        return isSameCalendarDay(parsedCreated);
+      }
+    }
+
+    return false;
   }
 
   @override
@@ -142,7 +186,30 @@ class _BillHistoryScreenState extends ConsumerState<BillHistoryScreen> {
                     );
                   }
 
-                  final totalSum = bills.fold<double>(0, (sum, b) => sum + b.totalAmount);
+                  final hasDateFilter = _fromDate != null && _toDate != null;
+                  final isSearching = _query.trim().isNotEmpty;
+
+                  final String countLabel;
+                  final String totalLabel;
+
+                  if (hasDateFilter) {
+                    final totalSum = bills.fold<double>(0, (sum, b) => sum + b.totalAmount);
+                    countLabel = 'કુલ બિલ: ${bills.length}';
+                    totalLabel = 'કુલ રકમ: ${formatCurrency(totalSum)}';
+                  } else if (isSearching) {
+                    final totalSum = bills.fold<double>(0, (sum, b) => sum + b.totalAmount);
+                    countLabel = 'શોધેલ બિલ: ${bills.length}';
+                    totalLabel = 'કુલ રકમ: ${formatCurrency(totalSum)}';
+                  } else {
+                    // Default view: 1 day (today's) total amount only.
+                    // When the calendar day changes, this total turns to zero (₹0.00).
+                    final todayBills = bills.where(_isBillFromToday).toList();
+                    final todayTotal = todayBills.fold<double>(0, (sum, b) => sum + b.totalAmount);
+                    countLabel = todayBills.length == bills.length
+                        ? 'આજના બિલ: ${todayBills.length}'
+                        : 'આજના બિલ: ${todayBills.length} (કુલ: ${bills.length})';
+                    totalLabel = 'આજની કુલ રકમ: ${formatCurrency(todayTotal)}';
+                  }
 
                   return Column(
                     crossAxisAlignment: CrossAxisAlignment.stretch,
@@ -152,16 +219,20 @@ class _BillHistoryScreenState extends ConsumerState<BillHistoryScreen> {
                         child: Row(
                           mainAxisAlignment: MainAxisAlignment.spaceBetween,
                           children: [
-                            Text(
-                              'કુલ બિલ: ${bills.length}',
-                              style: const TextStyle(
-                                fontSize: 13,
-                                fontWeight: FontWeight.w700,
-                                color: Color(0xFF475569),
+                            Flexible(
+                              child: Text(
+                                countLabel,
+                                style: const TextStyle(
+                                  fontSize: 13,
+                                  fontWeight: FontWeight.w700,
+                                  color: Color(0xFF475569),
+                                ),
+                                overflow: TextOverflow.ellipsis,
                               ),
                             ),
+                            const SizedBox(width: 8),
                             Text(
-                              'કુલ રકમ: ${formatCurrency(totalSum)}',
+                              totalLabel,
                               style: const TextStyle(
                                 fontSize: 13,
                                 fontWeight: FontWeight.w800,
@@ -172,19 +243,24 @@ class _BillHistoryScreenState extends ConsumerState<BillHistoryScreen> {
                         ),
                       ),
                       Expanded(
-                        child: ListView.builder(
-                          itemCount: bills.length,
-                          itemBuilder: (context, index) {
-                            final bill = bills[index];
-                            return BillHistoryCard(
-                              bill: bill,
-                              onTap: () {
-                                if (bill.id != null) {
-                                  context.push(AppRouter.billDetail, extra: bill.id!);
-                                }
-                              },
-                            );
+                        child: RefreshIndicator(
+                          onRefresh: () async {
+                            ref.invalidate(billHistoryProvider(params));
                           },
+                          child: ListView.builder(
+                            itemCount: bills.length,
+                            itemBuilder: (context, index) {
+                              final bill = bills[index];
+                              return BillHistoryCard(
+                                bill: bill,
+                                onTap: () {
+                                  if (bill.id != null) {
+                                    context.push(AppRouter.billDetail, extra: bill.id!);
+                                  }
+                                },
+                              );
+                            },
+                          ),
                         ),
                       ),
                     ],

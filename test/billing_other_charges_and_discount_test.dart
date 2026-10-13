@@ -1,3 +1,5 @@
+// ignore_for_file: deprecated_member_use
+
 import 'package:flutter_test/flutter_test.dart';
 import 'package:bharat_provision/features/billing/controllers/billing_controller.dart';
 import 'package:bharat_provision/features/billing/models/bill_line_item.dart';

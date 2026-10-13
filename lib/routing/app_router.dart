@@ -156,7 +156,7 @@ final appRouter = GoRouter(
             ? state.extra as int
             : int.tryParse(state.extra?.toString() ?? '') ?? 0;
         return RoleGuard(
-          allowedRoles: ['admin'],
+          allowedRoles: const ['admin', 'superadmin'],
           child: CustomerKhataDetailScreen(customerId: id),
         );
       },
@@ -213,14 +213,14 @@ final appRouter = GoRouter(
     GoRoute(
       path: AppRouter.plReport,
       builder: (context, state) => const RoleGuard(
-        allowedRoles: ['admin'],
+        allowedRoles: ['admin', 'superadmin'],
         child: PLReportScreen(),
       ),
     ),
     GoRoute(
       path: AppRouter.dailyReport,
       builder: (context, state) => const RoleGuard(
-        allowedRoles: ['admin'],
+        allowedRoles: ['admin', 'superadmin'],
         child: DailyReportScreen(),
       ),
     ),

@@ -1,5 +1,6 @@
 import 'package:flutter/material.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
+import '../../features/settings/providers/auth_provider.dart';
 import 'role_provider.dart';
 import 'unauthorized_screen.dart';
 
@@ -13,11 +14,12 @@ class RoleGuard extends ConsumerWidget {
 
   @override
   Widget build(BuildContext context, WidgetRef ref) {
-    final role = ref.watch(currentRoleProvider);
+    final session = ref.watch(authSessionProvider);
+    final role = session?.role ?? ref.watch(currentRoleProvider);
 
     if (!allowedRoles.contains(role)) {
       return UnauthorizedScreen(
-        attemptedRole: role,
+        attemptedRole: role ?? 'cashier',
         requiredRoles: allowedRoles,
       );
     }

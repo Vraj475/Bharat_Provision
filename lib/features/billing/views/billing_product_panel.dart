@@ -1,10 +1,12 @@
 import 'package:flutter/material.dart';
+import 'package:flutter/services.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 
 import '../../../core/constants/app_strings.dart' as strings;
 import '../../../core/errors/error_handler.dart';
 import '../../../core/errors/error_logger.dart';
 import '../../../core/errors/error_types.dart';
+import '../../../core/theme/app_colors.dart';
 import '../../../shared/models/product_model.dart';
 import '../../../shared/widgets/errors/error_dialogue.dart';
 import '../billing_providers.dart';
@@ -42,11 +44,90 @@ class _BillingProductPanelState extends ConsumerState<BillingProductPanel> {
   bool _lowStockPopupShown = false;
   int _draftLineCounter = 0;
   int? _selectedCategoryId;
+  int _highlightedIndex = -1;
+
+  @override
+  void initState() {
+    super.initState();
+    widget.productSearchFocusNode.onKeyEvent = _handleSearchKeyEvent;
+  }
+
+  @override
+  void didUpdateWidget(covariant BillingProductPanel oldWidget) {
+    super.didUpdateWidget(oldWidget);
+    if (oldWidget.productSearchFocusNode != widget.productSearchFocusNode) {
+      oldWidget.productSearchFocusNode.onKeyEvent = null;
+      widget.productSearchFocusNode.onKeyEvent = _handleSearchKeyEvent;
+    }
+  }
+
+  @override
+  void dispose() {
+    widget.productSearchFocusNode.onKeyEvent = null;
+    super.dispose();
+  }
+
+  KeyEventResult _handleSearchKeyEvent(FocusNode node, KeyEvent event) {
+    if (event is! KeyDownEvent) return KeyEventResult.ignored;
+
+    final isDropdownVisible = _activeDropdown == BillingDropdownType.product &&
+        widget.searchController.text.trim().isNotEmpty;
+    if (!isDropdownVisible) return KeyEventResult.ignored;
+
+    final state = ref.read(billingItemsProvider);
+    final products = (state.valueOrNull ?? const <Product>[]).take(8).toList();
+    if (products.isEmpty) return KeyEventResult.ignored;
+
+    if (event.logicalKey == LogicalKeyboardKey.arrowDown) {
+      setState(() {
+        if (_highlightedIndex < products.length - 1) {
+          _highlightedIndex++;
+        } else {
+          _highlightedIndex = 0;
+        }
+      });
+      return KeyEventResult.handled;
+    } else if (event.logicalKey == LogicalKeyboardKey.arrowUp) {
+      setState(() {
+        if (_highlightedIndex > 0) {
+          _highlightedIndex--;
+        } else {
+          _highlightedIndex = products.length - 1;
+        }
+      });
+      return KeyEventResult.handled;
+    } else if (event.logicalKey == LogicalKeyboardKey.enter ||
+        event.logicalKey == LogicalKeyboardKey.numpadEnter) {
+      final selectedIndex = _highlightedIndex >= 0 ? _highlightedIndex : 0;
+      if (selectedIndex < products.length) {
+        final item = products[selectedIndex];
+        if (!_isOutOfStock(item)) {
+          _closeAllDropdowns();
+          WidgetsBinding.instance.addPostFrameCallback((_) {
+            if (!mounted) return;
+            _addProductToBill(item);
+          });
+          return KeyEventResult.handled;
+        } else {
+          ScaffoldMessenger.of(context).showSnackBar(
+            const SnackBar(content: Text('સ્ટોક ઉપલબ્ધ નથી')),
+          );
+          return KeyEventResult.handled;
+        }
+      }
+    } else if (event.logicalKey == LogicalKeyboardKey.escape) {
+      _closeAllDropdowns();
+      return KeyEventResult.handled;
+    }
+
+    return KeyEventResult.ignored;
+  }
 
   void _openDropdown(BillingDropdownType type) {
     if (!mounted) return;
     setState(() {
       _activeDropdown = type;
+      _highlightedIndex = -1;
     });
   }
 
@@ -54,6 +135,7 @@ class _BillingProductPanelState extends ConsumerState<BillingProductPanel> {
     if (!mounted) return;
     setState(() {
       _activeDropdown = BillingDropdownType.none;
+      _highlightedIndex = -1;
     });
   }
 
@@ -254,44 +336,78 @@ class _BillingProductPanelState extends ConsumerState<BillingProductPanel> {
     if (query.isEmpty) return const SizedBox.shrink();
 
     final productRows = products.take(8).toList();
-    final children = productRows.map((item) {
+    if (productRows.isEmpty) {
+      return const SizedBox.shrink();
+    }
+
+    final children = productRows.asMap().entries.map((entry) {
+      final index = entry.key;
+      final item = entry.value;
       final outOfStock = _isOutOfStock(item);
-      return Opacity(
-        opacity: outOfStock ? 0.5 : 1,
-        child: InkWell(
-          onTap: outOfStock
-              ? null
-              : () {
-                  if (!mounted) return;
-                  _closeAllDropdowns();
-                  WidgetsBinding.instance.addPostFrameCallback((_) {
+      final isHighlighted = index == _highlightedIndex;
+
+      return Container(
+        decoration: BoxDecoration(
+          color: isHighlighted
+              ? AppColors.primarySurface
+              : (outOfStock ? Colors.grey.shade50 : Colors.white),
+          border: isHighlighted
+              ? Border(
+                  left: BorderSide(
+                    color: Theme.of(context).primaryColor,
+                    width: 4,
+                  ),
+                )
+              : null,
+        ),
+        child: Opacity(
+          opacity: outOfStock ? 0.5 : 1,
+          child: InkWell(
+            onTap: outOfStock
+                ? null
+                : () {
                     if (!mounted) return;
-                    _addProductToBill(item);
-                  });
-                },
-          child: Padding(
-            padding: const EdgeInsets.symmetric(horizontal: 12, vertical: 10),
-            child: Column(
-              crossAxisAlignment: CrossAxisAlignment.start,
-              children: [
-                _buildProductNameLine(item),
-                const SizedBox(height: 4),
-                Text(
-                  '₹${item.sellPrice.toStringAsFixed(2)} | સ്ടોક: ${item.stockQty.toStringAsFixed(2)} ${item.unitType}',
-                  maxLines: 1,
-                  overflow: TextOverflow.ellipsis,
-                  style: TextStyle(color: Colors.grey.shade700, fontSize: 12),
-                ),
-              ],
+                    _closeAllDropdowns();
+                    WidgetsBinding.instance.addPostFrameCallback((_) {
+                      if (!mounted) return;
+                      _addProductToBill(item);
+                    });
+                  },
+            child: Padding(
+              padding: const EdgeInsets.symmetric(horizontal: 12, vertical: 10),
+              child: Row(
+                children: [
+                  if (isHighlighted)
+                    Padding(
+                      padding: const EdgeInsets.only(right: 6),
+                      child: Icon(
+                        Icons.arrow_right,
+                        size: 20,
+                        color: Theme.of(context).primaryColor,
+                      ),
+                    ),
+                  Expanded(
+                    child: Column(
+                      crossAxisAlignment: CrossAxisAlignment.start,
+                      children: [
+                        _buildProductNameLine(item),
+                        const SizedBox(height: 4),
+                        Text(
+                          '₹${item.sellPrice.toStringAsFixed(2)} | સ્ટોક: ${item.stockQty.toStringAsFixed(2)} ${item.unitType}',
+                          maxLines: 1,
+                          overflow: TextOverflow.ellipsis,
+                          style: TextStyle(color: Colors.grey.shade700, fontSize: 12),
+                        ),
+                      ],
+                    ),
+                  ),
+                ],
+              ),
             ),
           ),
         ),
       );
     }).toList();
-
-    if (children.isEmpty) {
-      return const SizedBox.shrink();
-    }
 
     return Positioned(
       left: anchorRect.left,
@@ -338,7 +454,7 @@ class _BillingProductPanelState extends ConsumerState<BillingProductPanel> {
                       focusNode: widget.productSearchFocusNode,
                       decoration: const InputDecoration(
                         prefixIcon: Icon(Icons.search),
-                        hintText: strings.AppStrings.searchHintProducts,
+                        hintText: '${strings.AppStrings.searchHintProducts} (Ctrl+F)',
                         border: OutlineInputBorder(),
                         contentPadding: EdgeInsets.symmetric(horizontal: 14, vertical: 12),
                       ),
@@ -353,6 +469,9 @@ class _BillingProductPanelState extends ConsumerState<BillingProductPanel> {
                           _closeAllDropdowns();
                         } else {
                           _openDropdown(BillingDropdownType.product);
+                          setState(() {
+                            _highlightedIndex = -1;
+                          });
                         }
                       },
                     ),

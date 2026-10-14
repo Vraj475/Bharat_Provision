@@ -1,7 +1,10 @@
 import 'package:flutter/material.dart';
+import 'package:flutter/services.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 import 'package:go_router/go_router.dart';
 
+import '../core/shortcuts/app_intents.dart';
+import '../core/shortcuts/app_shortcuts.dart';
 import '../core/widgets/app_scaffold.dart';
 import '../core/auth/role_provider.dart';
 import '../core/auth/role_guard.dart';
@@ -365,25 +368,88 @@ class AppRouter {
   }
 }
 
-class _ShellRoute extends ConsumerWidget {
+class _ShellRoute extends ConsumerStatefulWidget {
   const _ShellRoute({required this.currentRoute, required this.child});
 
   final String currentRoute;
   final Widget child;
 
   @override
-  Widget build(BuildContext context, WidgetRef ref) {
+  ConsumerState<_ShellRoute> createState() => _ShellRouteState();
+}
+
+class _ShellRouteState extends ConsumerState<_ShellRoute> {
+  @override
+  void initState() {
+    super.initState();
+    HardwareKeyboard.instance.addHandler(_handleModuleKey);
+  }
+
+  @override
+  void dispose() {
+    HardwareKeyboard.instance.removeHandler(_handleModuleKey);
+    super.dispose();
+  }
+
+  bool _handleModuleKey(KeyEvent event) {
+    if (!mounted || event is! KeyDownEvent) return false;
+    final key = event.logicalKey;
+    int? targetIndex;
+    if (key == LogicalKeyboardKey.f1) {
+      targetIndex = 0;
+    } else if (key == LogicalKeyboardKey.f2) {
+      targetIndex = 1;
+    } else if (key == LogicalKeyboardKey.f3) {
+      targetIndex = 2;
+    } else if (key == LogicalKeyboardKey.f4) {
+      targetIndex = 3;
+    } else if (key == LogicalKeyboardKey.f5) {
+      targetIndex = 4;
+    } else if (key == LogicalKeyboardKey.f6) {
+      targetIndex = 5;
+    }
+
+    if (targetIndex != null) {
+      final role = ref.read(currentRoleProvider);
+      final routes = AppRouter._mainRoutesForRole(role);
+      if (targetIndex >= 0 && targetIndex < routes.length) {
+        GoRouter.of(context).go(routes[targetIndex]);
+        return true;
+      }
+    }
+    return false;
+  }
+
+  @override
+  Widget build(BuildContext context) {
     final role = ref.watch(currentRoleProvider);
     final routes = AppRouter._mainRoutesForRole(role);
-    final currentIndex = AppRouter.indexForRoute(currentRoute, role: role);
+    final currentIndex =
+        AppRouter.indexForRoute(widget.currentRoute, role: role);
 
-    return AppScaffold(
-      currentIndex: currentIndex,
-      onDestinationSelected: (i) {
-        if (i < 0 || i >= routes.length) return;
-        GoRouter.of(context).go(routes[i]);
-      },
-      child: child,
+    return Shortcuts(
+      shortcuts: AppShortcuts.moduleShortcuts,
+      child: Actions(
+        actions: {
+          NavigateToModuleIntent: CallbackAction<NavigateToModuleIntent>(
+            onInvoke: (intent) {
+              if (intent.moduleIndex >= 0 &&
+                  intent.moduleIndex < routes.length) {
+                GoRouter.of(context).go(routes[intent.moduleIndex]);
+              }
+              return null;
+            },
+          ),
+        },
+        child: AppScaffold(
+          currentIndex: currentIndex,
+          onDestinationSelected: (i) {
+            if (i < 0 || i >= routes.length) return;
+            GoRouter.of(context).go(routes[i]);
+          },
+          child: widget.child,
+        ),
+      ),
     );
   }
 }

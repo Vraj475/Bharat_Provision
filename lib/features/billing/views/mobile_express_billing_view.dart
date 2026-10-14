@@ -1,5 +1,6 @@
 import 'dart:async';
 import 'package:flutter/material.dart';
+import 'package:flutter/services.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 
 import '../../../core/theme/app_colors.dart';
@@ -60,11 +61,13 @@ class _MobileExpressBillingViewState
   List<Product> _searchResults = [];
   bool _isSearching = false;
   bool _showDropdown = false;
+  int _highlightedIndex = -1;
 
   @override
   void initState() {
     super.initState();
     _searchController.addListener(_onSearchChanged);
+    _searchFocusNode.onKeyEvent = _handleSearchKeyEvent;
   }
 
   @override
@@ -72,8 +75,51 @@ class _MobileExpressBillingViewState
     _debounceTimer?.cancel();
     _searchController.removeListener(_onSearchChanged);
     _searchController.dispose();
+    _searchFocusNode.onKeyEvent = null;
     _searchFocusNode.dispose();
     super.dispose();
+  }
+
+  KeyEventResult _handleSearchKeyEvent(FocusNode node, KeyEvent event) {
+    if (event is! KeyDownEvent || !_showDropdown || _searchResults.isEmpty) {
+      return KeyEventResult.ignored;
+    }
+
+    if (event.logicalKey == LogicalKeyboardKey.arrowDown) {
+      setState(() {
+        if (_highlightedIndex < _searchResults.length - 1) {
+          _highlightedIndex++;
+        } else {
+          _highlightedIndex = 0;
+        }
+      });
+      return KeyEventResult.handled;
+    } else if (event.logicalKey == LogicalKeyboardKey.arrowUp) {
+      setState(() {
+        if (_highlightedIndex > 0) {
+          _highlightedIndex--;
+        } else {
+          _highlightedIndex = _searchResults.length - 1;
+        }
+      });
+      return KeyEventResult.handled;
+    } else if (event.logicalKey == LogicalKeyboardKey.enter ||
+        event.logicalKey == LogicalKeyboardKey.numpadEnter) {
+      final selectedIndex = _highlightedIndex >= 0 ? _highlightedIndex : 0;
+      if (selectedIndex < _searchResults.length) {
+        final item = _searchResults[selectedIndex];
+        _promptAndAddProduct(item);
+        return KeyEventResult.handled;
+      }
+    } else if (event.logicalKey == LogicalKeyboardKey.escape) {
+      setState(() {
+        _showDropdown = false;
+        _highlightedIndex = -1;
+      });
+      return KeyEventResult.handled;
+    }
+
+    return KeyEventResult.ignored;
   }
 
   void _onSearchChanged() {
@@ -84,6 +130,7 @@ class _MobileExpressBillingViewState
         _searchResults = [];
         _isSearching = false;
         _showDropdown = false;
+        _highlightedIndex = -1;
       });
       return;
     }
@@ -100,6 +147,7 @@ class _MobileExpressBillingViewState
             _searchResults = results;
             _isSearching = false;
             _showDropdown = true;
+            _highlightedIndex = -1;
           });
         }
       } catch (_) {
@@ -1008,24 +1056,47 @@ class _MobileExpressBillingViewState
                                 const Divider(height: 1),
                             itemBuilder: (ctx, i) {
                               final item = _searchResults[i];
-                              return ListTile(
-                                dense: true,
-                                title: Text(
-                                  item.nameGujarati,
-                                  style: const TextStyle(
-                                    fontWeight: FontWeight.bold,
+                              final isHighlighted = i == _highlightedIndex;
+                              return Container(
+                                decoration: BoxDecoration(
+                                  color: isHighlighted
+                                      ? AppColors.primarySurface
+                                      : null,
+                                  border: isHighlighted
+                                      ? Border(
+                                          left: BorderSide(
+                                            color: Theme.of(context).primaryColor,
+                                            width: 4,
+                                          ),
+                                        )
+                                      : null,
+                                ),
+                                child: ListTile(
+                                  dense: true,
+                                  leading: isHighlighted
+                                      ? Icon(
+                                          Icons.arrow_right,
+                                          color: Theme.of(context).primaryColor,
+                                          size: 24,
+                                        )
+                                      : null,
+                                  title: Text(
+                                    item.nameGujarati,
+                                    style: const TextStyle(
+                                      fontWeight: FontWeight.bold,
+                                    ),
                                   ),
+                                  subtitle: Text(
+                                    '₹${item.sellPrice.toStringAsFixed(2)} / ${item.unitType}'
+                                    '  •  સ્ટોક: ${item.stockQty % 1 == 0 ? item.stockQty.toInt() : item.stockQty.toStringAsFixed(2)}',
+                                  ),
+                                  trailing: const Icon(
+                                    Icons.add_circle,
+                                    color: AppColors.primary,
+                                    size: 24,
+                                  ),
+                                  onTap: () => _promptAndAddProduct(item),
                                 ),
-                                subtitle: Text(
-                                  '₹${item.sellPrice.toStringAsFixed(2)} / ${item.unitType}'
-                                  '  •  સ્ટોક: ${item.stockQty % 1 == 0 ? item.stockQty.toInt() : item.stockQty.toStringAsFixed(2)}',
-                                ),
-                                trailing: const Icon(
-                                  Icons.add_circle,
-                                  color: AppColors.primary,
-                                  size: 24,
-                                ),
-                                onTap: () => _promptAndAddProduct(item),
                               );
                             },
                           ),

@@ -1,5 +1,6 @@
 import 'dart:async';
 import 'package:flutter/material.dart';
+import 'package:flutter/services.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 import 'package:go_router/go_router.dart';
 import 'package:intl/intl.dart';
@@ -63,12 +64,14 @@ class _ReturnReplaceScreenState extends ConsumerState<ReturnReplaceScreen> {
   List<Product> _catalogSearchResults = [];
   bool _isSearchingCatalog = false;
   Timer? _catalogSearchDebounce;
+  int _replaceHighlightedIndex = -1;
 
   // ─── Lifecycle ─────────────────────────────────────────────────────────────
 
   @override
   void initState() {
     super.initState();
+    _replaceSearchFocusNode.onKeyEvent = _handleReplaceSearchKeyEvent;
     _loadCatalogProducts();
   }
 
@@ -79,9 +82,53 @@ class _ReturnReplaceScreenState extends ConsumerState<ReturnReplaceScreen> {
     _searchCtrl.dispose();
     _scrollController.dispose();
     _catalogSearchCtrl.dispose();
+    _replaceSearchFocusNode.onKeyEvent = null;
     _replaceSearchFocusNode.dispose();
     _disposeReturnControllers();
     super.dispose();
+  }
+
+  KeyEventResult _handleReplaceSearchKeyEvent(FocusNode node, KeyEvent event) {
+    if (event is! KeyDownEvent || _catalogSearchResults.isEmpty) {
+      return KeyEventResult.ignored;
+    }
+
+    if (event.logicalKey == LogicalKeyboardKey.arrowDown) {
+      setState(() {
+        if (_replaceHighlightedIndex < _catalogSearchResults.length - 1) {
+          _replaceHighlightedIndex++;
+        } else {
+          _replaceHighlightedIndex = 0;
+        }
+      });
+      return KeyEventResult.handled;
+    } else if (event.logicalKey == LogicalKeyboardKey.arrowUp) {
+      setState(() {
+        if (_replaceHighlightedIndex > 0) {
+          _replaceHighlightedIndex--;
+        } else {
+          _replaceHighlightedIndex = _catalogSearchResults.length - 1;
+        }
+      });
+      return KeyEventResult.handled;
+    } else if (event.logicalKey == LogicalKeyboardKey.enter ||
+        event.logicalKey == LogicalKeyboardKey.numpadEnter) {
+      final selectedIndex =
+          _replaceHighlightedIndex >= 0 ? _replaceHighlightedIndex : 0;
+      if (selectedIndex < _catalogSearchResults.length) {
+        final item = _catalogSearchResults[selectedIndex];
+        _onSelectProductForReplace(item);
+        return KeyEventResult.handled;
+      }
+    } else if (event.logicalKey == LogicalKeyboardKey.escape) {
+      setState(() {
+        _showReplaceSuggestions = false;
+        _replaceHighlightedIndex = -1;
+      });
+      return KeyEventResult.handled;
+    }
+
+    return KeyEventResult.ignored;
   }
 
   void _disposeReturnControllers() {
@@ -139,6 +186,9 @@ class _ReturnReplaceScreenState extends ConsumerState<ReturnReplaceScreen> {
 
   void _scheduleCatalogSearch(String q) {
     _catalogSearchDebounce?.cancel();
+    setState(() {
+      _replaceHighlightedIndex = -1;
+    });
     _catalogSearchDebounce = Timer(const Duration(milliseconds: 200), () {
       if (!mounted) return;
       _loadCatalogProducts(query: q);
@@ -2804,24 +2854,47 @@ class _ReturnReplaceScreenState extends ConsumerState<ReturnReplaceScreen> {
                             itemBuilder: (ctx, idx) {
                               final item = _catalogSearchResults[idx];
                               final u = _unitName(item.unitType);
-                              return ListTile(
-                                dense: true,
-                                title: Text(
-                                  item.nameGujarati,
-                                  style: const TextStyle(
-                                    fontWeight: FontWeight.bold,
+                              final isHighlighted = idx == _replaceHighlightedIndex;
+                              return Container(
+                                decoration: BoxDecoration(
+                                  color: isHighlighted
+                                      ? AppColors.primarySurface
+                                      : null,
+                                  border: isHighlighted
+                                      ? Border(
+                                          left: BorderSide(
+                                            color: Theme.of(context).primaryColor,
+                                            width: 4,
+                                          ),
+                                        )
+                                      : null,
+                                ),
+                                child: ListTile(
+                                  dense: true,
+                                  leading: isHighlighted
+                                      ? Icon(
+                                          Icons.arrow_right,
+                                          color: Theme.of(context).primaryColor,
+                                          size: 24,
+                                        )
+                                      : null,
+                                  title: Text(
+                                    item.nameGujarati,
+                                    style: const TextStyle(
+                                      fontWeight: FontWeight.bold,
+                                    ),
                                   ),
+                                  subtitle: Text(
+                                    '₹${item.sellPrice.toStringAsFixed(2)} / $u'
+                                    '  •  સ્ટોક: ${item.stockQty % 1 == 0 ? item.stockQty.toInt() : item.stockQty.toStringAsFixed(2)} $u',
+                                  ),
+                                  trailing: const Icon(
+                                    Icons.add_circle,
+                                    color: AppColors.primary,
+                                    size: 24,
+                                  ),
+                                  onTap: () => _onSelectProductForReplace(item),
                                 ),
-                                subtitle: Text(
-                                  '₹${item.sellPrice.toStringAsFixed(2)} / $u'
-                                  '  •  સ્ટોક: ${item.stockQty % 1 == 0 ? item.stockQty.toInt() : item.stockQty.toStringAsFixed(2)} $u',
-                                ),
-                                trailing: const Icon(
-                                  Icons.add_circle,
-                                  color: AppColors.primary,
-                                  size: 24,
-                                ),
-                                onTap: () => _onSelectProductForReplace(item),
                               );
                             },
                           ),
@@ -2897,6 +2970,7 @@ class _ReturnReplaceScreenState extends ConsumerState<ReturnReplaceScreen> {
         const SizedBox(height: 8),
         TextField(
           controller: _catalogSearchCtrl,
+          focusNode: _replaceSearchFocusNode,
           decoration: InputDecoration(
             prefixIcon: const Icon(Icons.search),
             hintText: 'ઉત્પાદન શોધો (ગુજરાતી / અંગ્રેજી / બારકોડ)...',
@@ -2933,13 +3007,19 @@ class _ReturnReplaceScreenState extends ConsumerState<ReturnReplaceScreen> {
                   itemBuilder: (context, index) {
                     final p = _catalogSearchResults[index];
                     final u = _unitName(p.unitType);
+                    final isHighlighted = index == _replaceHighlightedIndex;
                     return Card(
-                      elevation: 0,
+                      elevation: isHighlighted ? 2 : 0,
                       margin: EdgeInsets.zero,
+                      color: isHighlighted ? AppColors.primarySurface : Colors.white,
                       shape: RoundedRectangleBorder(
                         borderRadius: BorderRadius.circular(10),
-                        side: const BorderSide(
-                            color: Color(0xFFCBD5E1), width: 1.2),
+                        side: BorderSide(
+                          color: isHighlighted
+                              ? Theme.of(context).primaryColor
+                              : const Color(0xFFCBD5E1),
+                          width: isHighlighted ? 2.0 : 1.2,
+                        ),
                       ),
                       child: InkWell(
                         borderRadius: BorderRadius.circular(10),
@@ -2949,6 +3029,15 @@ class _ReturnReplaceScreenState extends ConsumerState<ReturnReplaceScreen> {
                               horizontal: 12, vertical: 10),
                           child: Row(
                             children: [
+                              if (isHighlighted)
+                                Padding(
+                                  padding: const EdgeInsets.only(right: 6),
+                                  child: Icon(
+                                    Icons.arrow_right,
+                                    color: Theme.of(context).primaryColor,
+                                    size: 24,
+                                  ),
+                                ),
                               Expanded(
                                 child: Column(
                                   crossAxisAlignment:

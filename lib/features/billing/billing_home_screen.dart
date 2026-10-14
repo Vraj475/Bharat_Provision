@@ -1,11 +1,14 @@
 import 'dart:async';
 
 import 'package:flutter/material.dart';
+import 'package:flutter/services.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 
 import '../../core/constants/app_strings.dart' as strings;
 import '../../core/errors/error_logger.dart';
 import '../../core/errors/error_types.dart';
+import '../../core/shortcuts/app_intents.dart';
+import '../../core/shortcuts/app_shortcuts.dart';
 
 import '../../shared/widgets/errors/error_dialog.dart';
 import '../../shared/widgets/customer_search_field.dart';
@@ -29,6 +32,8 @@ import 'views/billing_product_panel.dart';
 import 'views/mobile_express_billing_view.dart';
 import 'controllers/billing_controller.dart';
 import '../../core/auth/role_provider.dart';
+import 'views/dialogs/discount_dialog.dart';
+import 'views/dialogs/grand_total_dialog.dart';
 import 'package:go_router/go_router.dart';
 
 /// Simplified single-screen billing - Create bills and print them.
@@ -42,10 +47,13 @@ class BillingHomeScreen extends ConsumerStatefulWidget {
 class _BillingHomeScreenState extends ConsumerState<BillingHomeScreen> {
   final _billBoundaryDesktopKey = GlobalKey();
   final _billBoundaryMobileKey = GlobalKey();
+  final _billLinesKey = GlobalKey<BillLinesPanelState>();
+  final _billSummaryKey = GlobalKey<BillSummaryPanelState>();
   final BillingPrintService _billingPrintService = BillingPrintService();
   final _customerController = TextEditingController();
   final _searchController = TextEditingController();
   final _productSearchFocusNode = FocusNode();
+  final _customerSearchFocusNode = FocusNode();
   
   String? _bannerMessage;
   String? _customerName;
@@ -54,6 +62,7 @@ class _BillingHomeScreenState extends ConsumerState<BillingHomeScreen> {
   @override
   void initState() {
     super.initState();
+    HardwareKeyboard.instance.addHandler(_handleGlobalHardwareKey);
     WidgetsBinding.instance.addPostFrameCallback((_) {
       if (!mounted) return;
       ref.read(billingSearchProvider.notifier).state = '';
@@ -63,22 +72,387 @@ class _BillingHomeScreenState extends ConsumerState<BillingHomeScreen> {
 
   @override
   void dispose() {
+    HardwareKeyboard.instance.removeHandler(_handleGlobalHardwareKey);
     _customerController.dispose();
     _searchController.dispose();
     _productSearchFocusNode.dispose();
+    _customerSearchFocusNode.dispose();
     super.dispose();
   }
 
-  Future<void> _saveBill() async {
-    if (ref.read(billingControllerProvider).billLines.isEmpty) {
+  bool _handleGlobalHardwareKey(KeyEvent event) {
+    if (!mounted) return false;
+    if (event is! KeyDownEvent) {
+      return false;
+    }
+
+    final isShiftPressed = HardwareKeyboard.instance.isShiftPressed;
+    final isAltPressed = HardwareKeyboard.instance.isAltPressed;
+    final isCtrlOrCmd = HardwareKeyboard.instance.isControlPressed ||
+        HardwareKeyboard.instance.isMetaPressed;
+    final key = event.logicalKey;
+
+    // ── Alt Shortcuts ──
+    if (isAltPressed && !isCtrlOrCmd) {
+      // Alt + 1: Udhaar (Khata) Mode
+      if (key == LogicalKeyboardKey.digit1 || key == LogicalKeyboardKey.numpad1) {
+        _setUdhaarMode();
+        return true;
+      }
+      // Alt + 2: Cash Mode
+      if (key == LogicalKeyboardKey.digit2 || key == LogicalKeyboardKey.numpad2) {
+        _setCashMode();
+        return true;
+      }
+      return false;
+    }
+
+    // ── Escape Key ──
+    if (key == LogicalKeyboardKey.escape && !isCtrlOrCmd && !isAltPressed) {
+      _handleEscape();
+      return true;
+    }
+
+    if (isShiftPressed) {
+      return false;
+    }
+
+    // ── Ctrl / Cmd Shortcuts ──
+    if (isCtrlOrCmd) {
+      // 1. Ctrl + F: Focus on finding products in billing page
+      if (key == LogicalKeyboardKey.keyF) {
+        _focusProductSearch();
+        return true;
+      }
+
+      // 2. Ctrl + R: Focus on editing weight of first product
+      if (key == LogicalKeyboardKey.keyR) {
+        _focusFirstItemWeight();
+        return true;
+      }
+
+      // 3. Ctrl + D: Edit discount amount in billing
+      if (key == LogicalKeyboardKey.keyD) {
+        _editDiscount();
+        return true;
+      }
+
+      // 4. Ctrl + G: Edit final total in bill
+      if (key == LogicalKeyboardKey.keyG) {
+        _editGrandTotal();
+        return true;
+      }
+
+      // 5. Ctrl + C: Clear the bill
+      if (key == LogicalKeyboardKey.keyC) {
+        _clearBillFromShortcut();
+        return true;
+      }
+
+      // 6. Ctrl + X: Add customer name in the bill from khata module (focus customer name textbox)
+      if (key == LogicalKeyboardKey.keyX) {
+        _focusCustomerSearch();
+        return true;
+      }
+
+      // 7. Ctrl + S: Save the bill
+      if (key == LogicalKeyboardKey.keyS) {
+        _saveBill();
+        return true;
+      }
+
+      // 8. Ctrl + P: Print the bill
+      if (key == LogicalKeyboardKey.keyP) {
+        _printBill();
+        return true;
+      }
+
+      // 9. Ctrl + Enter / Ctrl + NumpadEnter: Save & Print the bill
+      if (key == LogicalKeyboardKey.enter ||
+          key == LogicalKeyboardKey.numpadEnter) {
+        _saveAndPrintBill();
+        return true;
+      }
+
+      // 10. Ctrl + Delete: Delete selected product row
+      if (key == LogicalKeyboardKey.delete) {
+        _deleteSelectedProductLine();
+        return true;
+      }
+    }
+
+    // ── Non-modifier Shortcuts (when text fields don't have focus) ──
+    final isFocusInTextField = _productSearchFocusNode.hasFocus ||
+        _customerSearchFocusNode.hasFocus;
+    if (!isFocusInTextField && !isCtrlOrCmd && !isAltPressed) {
+      if (key == LogicalKeyboardKey.add ||
+          key == LogicalKeyboardKey.equal ||
+          key == LogicalKeyboardKey.numpadAdd) {
+        _billLinesKey.currentState?.incrementSelectedRowQty();
+        return true;
+      }
+      if (key == LogicalKeyboardKey.minus ||
+          key == LogicalKeyboardKey.numpadSubtract) {
+        _billLinesKey.currentState?.decrementSelectedRowQty();
+        return true;
+      }
+      if (key == LogicalKeyboardKey.delete) {
+        _deleteSelectedProductLine();
+        return true;
+      }
+      if (key == LogicalKeyboardKey.arrowDown) {
+        _billLinesKey.currentState?.selectNextRow();
+        return true;
+      }
+      if (key == LogicalKeyboardKey.arrowUp) {
+        _billLinesKey.currentState?.selectPreviousRow();
+        return true;
+      }
+    }
+
+    return false;
+  }
+
+  void _focusProductSearch() {
+    if (!mounted) return;
+    _productSearchFocusNode.requestFocus();
+    _searchController.selection = TextSelection(
+      baseOffset: 0,
+      extentOffset: _searchController.text.length,
+    );
+    WidgetsBinding.instance.addPostFrameCallback((_) {
       if (!mounted) return;
+      _productSearchFocusNode.requestFocus();
+    });
+  }
+
+  void _focusFirstItemWeight() {
+    if (!mounted) return;
+    final lines = ref.read(billingControllerProvider).billLines;
+    if (lines.isEmpty) {
+      ScaffoldMessenger.of(context).hideCurrentSnackBar();
       ScaffoldMessenger.of(context).showSnackBar(
-        const SnackBar(content: Text('બિલ ખાલી છે. કૃપયા આઇટમ ઉમેરો.')),
+        const SnackBar(
+          content: Text('કાર્ટ ખાલી છે. પહેલા ઉત્પાદન ઉમેરો (Ctrl+F).'),
+          duration: Duration(seconds: 2),
+        ),
+      );
+      _focusProductSearch();
+      return;
+    }
+    _billLinesKey.currentState?.startEditingFirstItemWeight();
+  }
+
+  void _editDiscount() {
+    if (!mounted) return;
+    if (_billSummaryKey.currentState != null) {
+      _billSummaryKey.currentState?.startDiscountEdit();
+    } else {
+      _openMobileDiscountDialog();
+    }
+  }
+
+  void _editGrandTotal() {
+    if (!mounted) return;
+    if (_billSummaryKey.currentState != null) {
+      _billSummaryKey.currentState?.startGrandTotalEdit();
+    } else {
+      _openMobileGrandTotalDialog();
+    }
+  }
+
+  Future<void> _openMobileDiscountDialog() async {
+    final currentDiscount = ref.read(billingControllerProvider).discount;
+    final result = await DiscountDialog.show(
+      context,
+      currentDiscount,
+    );
+    if (result != null && mounted) {
+      ref.read(billingControllerProvider.notifier).setDiscount(result);
+    }
+  }
+
+  Future<void> _openMobileGrandTotalDialog() async {
+    final total = ref.read(billingControllerProvider).total;
+    final newTotal = await GrandTotalDialog.show(context, total);
+    if (newTotal != null && mounted) {
+      ref.read(billingControllerProvider.notifier).commitGrandTotalEdit(newTotal);
+    }
+  }
+
+  void _clearBillFromShortcut() {
+    if (!mounted) return;
+    final lines = ref.read(billingControllerProvider).billLines;
+    final hasCustomer = _customerId != null ||
+        (_customerName != null && _customerName!.trim().isNotEmpty);
+    if (lines.isEmpty && !hasCustomer) {
+      ScaffoldMessenger.of(context).hideCurrentSnackBar();
+      ScaffoldMessenger.of(context).showSnackBar(
+        const SnackBar(
+          content: Text('બિલ પહેલેથી જ ખાલી છે.'),
+          duration: Duration(seconds: 2),
+        ),
       );
       return;
     }
+    _clearCurrentBillDraft();
+    ScaffoldMessenger.of(context).hideCurrentSnackBar();
+    ScaffoldMessenger.of(context).showSnackBar(
+      const SnackBar(
+        content: Text('બિલ ક્લીયર થઈ ગયું.'),
+        duration: Duration(seconds: 2),
+      ),
+    );
+  }
+
+  void _focusCustomerSearch() {
+    if (!mounted) return;
+    _customerSearchFocusNode.requestFocus();
+    _customerController.selection = TextSelection(
+      baseOffset: 0,
+      extentOffset: _customerController.text.length,
+    );
+    WidgetsBinding.instance.addPostFrameCallback((_) {
+      if (!mounted) return;
+      _customerSearchFocusNode.requestFocus();
+    });
+  }
+
+  void _setUdhaarMode() {
+    ref.read(billingTabsProvider.notifier).setTransactionTypeForActive('khata');
+    final messenger = ScaffoldMessenger.of(context);
+    messenger.hideCurrentSnackBar();
+    messenger.showSnackBar(
+      const SnackBar(
+        content: Text('ઉધાર (ખાતા) મોડ પસંદ થયો. ગ્રાહકનું નામ ઉમેરો (Ctrl+X).'),
+        duration: Duration(seconds: 2),
+      ),
+    );
+    final name = _normalizedCustomerName(_customerName);
+    if (name == null || name.isEmpty) {
+      _focusCustomerSearch();
+    }
+  }
+
+  void _setCashMode() {
+    ref.read(billingTabsProvider.notifier).setTransactionTypeForActive('cash');
+    final messenger = ScaffoldMessenger.of(context);
+    messenger.hideCurrentSnackBar();
+    messenger.showSnackBar(
+      const SnackBar(
+        content: Text('રોકડ (Cash) મોડ પસંદ થયો.'),
+        duration: Duration(seconds: 2),
+      ),
+    );
+  }
+
+  void _handleEscape() {
+    _billLinesKey.currentState?.deselectRow();
+    _productSearchFocusNode.unfocus();
+    _customerSearchFocusNode.unfocus();
+  }
+
+  void _deleteSelectedProductLine() {
+    if (!mounted) return;
+    _billLinesKey.currentState?.deleteSelectedRow();
+  }
+
+  Future<void> _saveBill() async {
+    if (_billLinesKey.currentState != null) {
+      await _billLinesKey.currentState?.commitCurrentEdit();
+    }
+    _billSummaryKey.currentState?.commitActiveEdits();
+
+    if (ref.read(billingControllerProvider).billLines.isEmpty) {
+      if (!mounted) return;
+      ScaffoldMessenger.of(context).hideCurrentSnackBar();
+      ScaffoldMessenger.of(context).showSnackBar(
+        const SnackBar(
+          content: Text('બિલ ખાલી છે. કૃપયા આઇટમ ઉમેરો (Ctrl+F).'),
+          duration: Duration(seconds: 2),
+        ),
+      );
+      _focusProductSearch();
+      return;
+    }
+
+    final billingState = ref.read(billingTabsProvider);
+    final transactionType = billingState.activeDraft.transactionType;
+    if (transactionType == 'khata') {
+      final customerNameSnapshot = _normalizedCustomerName(_customerName);
+      if (customerNameSnapshot == null || customerNameSnapshot.isEmpty) {
+        final messenger = ScaffoldMessenger.of(context);
+        messenger.hideCurrentSnackBar();
+        messenger.showSnackBar(
+          const SnackBar(
+            content: Text('ઉધાર (ખાતા) બિલ માટે ગ્રાહકનું નામ જરૂરી છે (Ctrl+X).'),
+            backgroundColor: Colors.red,
+            duration: Duration(seconds: 3),
+          ),
+        );
+        _focusCustomerSearch();
+        return;
+      }
+    }
 
     await _saveBillToDatabase(showSuccessMessage: true, clearDraft: true);
+  }
+
+  Future<void> _saveAndPrintBill() async {
+    final messenger = ScaffoldMessenger.of(context);
+    if (_billLinesKey.currentState != null) {
+      await _billLinesKey.currentState?.commitCurrentEdit();
+    }
+    _billSummaryKey.currentState?.commitActiveEdits();
+
+    if (ref.read(billingControllerProvider).billLines.isEmpty) {
+      messenger.hideCurrentSnackBar();
+      messenger.showSnackBar(
+        const SnackBar(
+          content: Text('બિલ ખાલી છે. કૃપયા આઇટમ ઉમેરો (Ctrl+F).'),
+          duration: Duration(seconds: 2),
+        ),
+      );
+      _focusProductSearch();
+      return;
+    }
+
+    final billingState = ref.read(billingTabsProvider);
+    final transactionType = billingState.activeDraft.transactionType;
+    if (transactionType == 'khata') {
+      final customerNameSnapshot = _normalizedCustomerName(_customerName);
+      if (customerNameSnapshot == null || customerNameSnapshot.isEmpty) {
+        messenger.hideCurrentSnackBar();
+        messenger.showSnackBar(
+          const SnackBar(
+            content: Text('ઉધાર (ખાતા) બિલ માટે ગ્રાહકનું નામ જરૂરી છે (Ctrl+X).'),
+            backgroundColor: Colors.red,
+            duration: Duration(seconds: 3),
+          ),
+        );
+        _focusCustomerSearch();
+        return;
+      }
+    }
+
+    final billId = await _saveBillToDatabase(
+      showSuccessMessage: false,
+      clearDraft: false,
+    );
+    if (billId == null) {
+      return;
+    }
+
+    await _billingPrintService.attemptPrintSavedBill(
+      messenger,
+      ref,
+      billId: billId,
+      allowRetry: true,
+      desktopKey: _billBoundaryDesktopKey,
+      mobileKey: _billBoundaryMobileKey,
+      isMounted: () => mounted,
+      onClearDraft: _clearCurrentBillDraft,
+    );
   }
 
   double _toStockUnitQuantity(BillLineItem line) {
@@ -132,6 +506,11 @@ class _BillingHomeScreenState extends ConsumerState<BillingHomeScreen> {
     required bool showSuccessMessage,
     required bool clearDraft,
   }) async {
+    if (_billLinesKey.currentState != null) {
+      await _billLinesKey.currentState?.commitCurrentEdit();
+    }
+    _billSummaryKey.currentState?.commitActiveEdits();
+
     final billingState = ref.read(billingTabsProvider);
     final transactionType = billingState.activeDraft.transactionType;
     final selectedCustomerId =
@@ -291,12 +670,41 @@ class _BillingHomeScreenState extends ConsumerState<BillingHomeScreen> {
 
   Future<void> _printBill() async {
     final messenger = ScaffoldMessenger.of(context);
+    if (_billLinesKey.currentState != null) {
+      await _billLinesKey.currentState?.commitCurrentEdit();
+    }
+    _billSummaryKey.currentState?.commitActiveEdits();
+
     if (ref.read(billingControllerProvider).billLines.isEmpty) {
+      messenger.hideCurrentSnackBar();
       messenger.showSnackBar(
-        const SnackBar(content: Text('બિલ ખાલી છે. કૃપયા આઇટમ ઉમેરો.')),
+        const SnackBar(
+          content: Text('બિલ ખાલી છે. કૃપયા આઇટમ ઉમેરો (Ctrl+F).'),
+          duration: Duration(seconds: 2),
+        ),
       );
+      _focusProductSearch();
       return;
     }
+
+    final billingState = ref.read(billingTabsProvider);
+    final transactionType = billingState.activeDraft.transactionType;
+    if (transactionType == 'khata') {
+      final customerNameSnapshot = _normalizedCustomerName(_customerName);
+      if (customerNameSnapshot == null || customerNameSnapshot.isEmpty) {
+        messenger.hideCurrentSnackBar();
+        messenger.showSnackBar(
+          const SnackBar(
+            content: Text('ઉધાર (ખાતા) બિલ માટે ગ્રાહકનું નામ જરૂરી છે (Ctrl+X).'),
+            backgroundColor: Colors.red,
+            duration: Duration(seconds: 3),
+          ),
+        );
+        _focusCustomerSearch();
+        return;
+      }
+    }
+
     final billId = await _saveBillToDatabase(
       showSuccessMessage: false,
       clearDraft: false,
@@ -341,121 +749,225 @@ class _BillingHomeScreenState extends ConsumerState<BillingHomeScreen> {
     final roleLabelGu = _currentRoleGujaratiLabel();
     final avatarText = _roleInitialForAvatar(roleLabelGu);
     final billLineCount = ref.watch(billingControllerProvider).billLines.length;
-    return Scaffold(
-      resizeToAvoidBottomInset: true,
-      appBar: AppBar(
-        title: const Text(strings.AppStrings.billingTitle),
-        actions: [
-          SizedBox(
-            width: 40,
-            height: 40,
-            child: IconButton(
-              padding: EdgeInsets.zero,
-              constraints: const BoxConstraints(
-                minWidth: 40,
-                minHeight: 40,
-                maxWidth: 40,
-                maxHeight: 40,
-              ),
-              icon: const Icon(Icons.save),
-              onPressed: _saveBill,
-              tooltip: 'બિલ સાચવો',
-            ),
-          ),
-          const SizedBox(width: 4),
-          SizedBox(
-            width: 40,
-            height: 40,
-            child: IconButton(
-              padding: EdgeInsets.zero,
-              constraints: const BoxConstraints(
-                minWidth: 40,
-                minHeight: 40,
-                maxWidth: 40,
-                maxHeight: 40,
-              ),
-              icon: const Icon(Icons.print),
-              onPressed: _printBill,
-              tooltip: 'બિલ છાપો',
-            ),
-          ),
-          PopupMenuButton<String>(
-            onSelected: (value) {
-              if (value == 'returns') {
-                context.push(AppRouter.returnsNew);
-              }
+
+    return Shortcuts(
+      shortcuts: AppShortcuts.billingShortcuts,
+      child: Actions(
+        actions: {
+          FocusProductSearchIntent: CallbackAction<FocusProductSearchIntent>(
+            onInvoke: (_) {
+              _focusProductSearch();
+              return null;
             },
-            itemBuilder: (context) => [
-              const PopupMenuItem(value: 'returns', child: Text('રિટર્ન / બદલો')),
-            ],
           ),
-          if (!isWide)
-            PopupMenuButton<String>(
-              tooltip: 'એકાઉન્ટ',
-              onSelected: (value) {
-                if (value == 'logout') {
-                  _logoutFromBilling();
-                }
-              },
-              itemBuilder: (context) => [
-                PopupMenuItem<String>(
-                  enabled: false,
-                  child: Text(
-                    roleLabelGu,
-                    style: TextStyle(color: Colors.grey.shade600),
+          FocusFirstItemWeightIntent: CallbackAction<FocusFirstItemWeightIntent>(
+            onInvoke: (_) {
+              _focusFirstItemWeight();
+              return null;
+            },
+          ),
+          EditDiscountIntent: CallbackAction<EditDiscountIntent>(
+            onInvoke: (_) {
+              _editDiscount();
+              return null;
+            },
+          ),
+          EditGrandTotalIntent: CallbackAction<EditGrandTotalIntent>(
+            onInvoke: (_) {
+              _editGrandTotal();
+              return null;
+            },
+          ),
+          ClearBillIntent: CallbackAction<ClearBillIntent>(
+            onInvoke: (_) {
+              _clearBillFromShortcut();
+              return null;
+            },
+          ),
+          FocusCustomerSearchIntent: CallbackAction<FocusCustomerSearchIntent>(
+            onInvoke: (_) {
+              _focusCustomerSearch();
+              return null;
+            },
+          ),
+          SaveBillIntent: CallbackAction<SaveBillIntent>(
+            onInvoke: (_) {
+              _saveBill();
+              return null;
+            },
+          ),
+          PrintBillIntent: CallbackAction<PrintBillIntent>(
+            onInvoke: (_) {
+              _printBill();
+              return null;
+            },
+          ),
+          SaveAndPrintBillIntent: CallbackAction<SaveAndPrintBillIntent>(
+            onInvoke: (_) {
+              _saveAndPrintBill();
+              return null;
+            },
+          ),
+          DeleteSelectedProductIntent:
+              CallbackAction<DeleteSelectedProductIntent>(
+            onInvoke: (_) {
+              _deleteSelectedProductLine();
+              return null;
+            },
+          ),
+          SetUdhaarModeIntent: CallbackAction<SetUdhaarModeIntent>(
+            onInvoke: (_) {
+              _setUdhaarMode();
+              return null;
+            },
+          ),
+          SetCashModeIntent: CallbackAction<SetCashModeIntent>(
+            onInvoke: (_) {
+              _setCashMode();
+              return null;
+            },
+          ),
+          EscapeIntent: CallbackAction<EscapeIntent>(
+            onInvoke: (_) {
+              _handleEscape();
+              return null;
+            },
+          ),
+          IncrementProductQtyIntent:
+              CallbackAction<IncrementProductQtyIntent>(
+            onInvoke: (_) {
+              _billLinesKey.currentState?.incrementSelectedRowQty();
+              return null;
+            },
+          ),
+          DecrementProductQtyIntent:
+              CallbackAction<DecrementProductQtyIntent>(
+            onInvoke: (_) {
+              _billLinesKey.currentState?.decrementSelectedRowQty();
+              return null;
+            },
+          ),
+        },
+        child: Focus(
+          autofocus: true,
+          child: Scaffold(
+            resizeToAvoidBottomInset: true,
+            appBar: AppBar(
+              title: const Text(strings.AppStrings.billingTitle),
+              actions: [
+                SizedBox(
+                  width: 40,
+                  height: 40,
+                  child: IconButton(
+                    padding: EdgeInsets.zero,
+                    constraints: const BoxConstraints(
+                      minWidth: 40,
+                      minHeight: 40,
+                      maxWidth: 40,
+                      maxHeight: 40,
+                    ),
+                    icon: const Icon(Icons.save),
+                    onPressed: _saveBill,
+                    tooltip: 'બિલ સાચવો (Ctrl+S)',
                   ),
                 ),
-                const PopupMenuDivider(),
-                const PopupMenuItem<String>(
-                  value: 'logout',
-                  child: Row(
-                    children: [
-                      Icon(Icons.logout, color: Colors.red),
-                      SizedBox(width: 8),
-                      Text('લૉગ આઉટ', style: TextStyle(color: Colors.red)),
+                const SizedBox(width: 4),
+                SizedBox(
+                  width: 40,
+                  height: 40,
+                  child: IconButton(
+                    padding: EdgeInsets.zero,
+                    constraints: const BoxConstraints(
+                      minWidth: 40,
+                      minHeight: 40,
+                      maxWidth: 40,
+                      maxHeight: 40,
+                    ),
+                    icon: const Icon(Icons.print),
+                    onPressed: _printBill,
+                    tooltip: 'બિલ છાપો (Ctrl+P)',
+                  ),
+                ),
+                PopupMenuButton<String>(
+                  onSelected: (value) {
+                    if (value == 'returns') {
+                      context.push(AppRouter.returnsNew);
+                    }
+                  },
+                  itemBuilder: (context) => [
+                    const PopupMenuItem(value: 'returns', child: Text('રિટર્ન / બદલો')),
+                  ],
+                ),
+                if (!isWide)
+                  PopupMenuButton<String>(
+                    tooltip: 'એકાઉન્ટ',
+                    onSelected: (value) {
+                      if (value == 'logout') {
+                        _logoutFromBilling();
+                      }
+                    },
+                    itemBuilder: (context) => [
+                      PopupMenuItem<String>(
+                        enabled: false,
+                        child: Text(
+                          roleLabelGu,
+                          style: TextStyle(color: Colors.grey.shade600),
+                        ),
+                      ),
+                      const PopupMenuDivider(),
+                      const PopupMenuItem<String>(
+                        value: 'logout',
+                        child: Row(
+                          children: [
+                            Icon(Icons.logout, color: Colors.red),
+                            SizedBox(width: 8),
+                            Text('લૉગ આઉટ', style: TextStyle(color: Colors.red)),
+                          ],
+                        ),
+                      ),
                     ],
-                  ),
-                ),
-              ],
-              child: Padding(
-                padding: const EdgeInsets.symmetric(horizontal: 8),
-                child: CircleAvatar(
-                  radius: 15,
-                  child: Text(
-                    avatarText,
-                    style: const TextStyle(fontWeight: FontWeight.w700),
-                  ),
-                ),
-              ),
-            ),
-        ],
-      ),
-      body: Column(
-        children: [
-          if (_bannerMessage != null)
-            Container(
-              color: Colors.red.shade100,
-              padding: const EdgeInsets.all(8),
-              child: Row(
-                children: [
-                  const Icon(Icons.warning, color: Colors.red),
-                  const SizedBox(width: 8),
-                  Expanded(
-                    child: Text(
-                      _bannerMessage!,
-                      style: const TextStyle(
-                        color: Colors.red,
-                        fontWeight: FontWeight.bold,
+                    child: Padding(
+                      padding: const EdgeInsets.symmetric(horizontal: 8),
+                      child: CircleAvatar(
+                        radius: 15,
+                        child: Text(
+                          avatarText,
+                          style: const TextStyle(fontWeight: FontWeight.w700),
+                        ),
                       ),
                     ),
                   ),
-                ],
-              ),
+              ],
             ),
-          Expanded(
-            child: isWide ? _buildDesktopLayout() : _buildMobileLayout(billLineCount),
+            body: Column(
+              children: [
+                if (_bannerMessage != null)
+                  Container(
+                    color: Colors.red.shade100,
+                    padding: const EdgeInsets.all(8),
+                    child: Row(
+                      children: [
+                        const Icon(Icons.warning, color: Colors.red),
+                        const SizedBox(width: 8),
+                        Expanded(
+                          child: Text(
+                            _bannerMessage!,
+                            style: const TextStyle(
+                              color: Colors.red,
+                              fontWeight: FontWeight.bold,
+                            ),
+                          ),
+                        ),
+                      ],
+                    ),
+                  ),
+                Expanded(
+                  child: isWide ? _buildDesktopLayout() : _buildMobileLayout(billLineCount),
+                ),
+              ],
+            ),
           ),
-        ],
+        ),
       ),
     );
   }
@@ -534,7 +1046,8 @@ class _BillingHomeScreenState extends ConsumerState<BillingHomeScreen> {
                   constraints: const BoxConstraints(maxWidth: 300),
                   child: CustomerSearchField(
                     controller: _customerController,
-                    hintText: 'ગ્રાહક ઉમેરો',
+                    focusNode: _customerSearchFocusNode,
+                    hintText: 'ગ્રાહક ઉમેરો (Ctrl+X)',
                     onCustomerSelected: (customerId, customerName) {
                       ref
                           .read(billingTabsProvider.notifier)
@@ -580,14 +1093,17 @@ class _BillingHomeScreenState extends ConsumerState<BillingHomeScreen> {
         else
           Expanded(
             child: BillLinesPanel(
+              key: _billLinesKey,
               checkStock: _hasEnoughStockForDraft,
             ),
           ),
         const Divider(height: 1),
         BillSummaryPanel(
-          onClearBill: () {
-            _clearCurrentBillDraft();
-          },
+          key: _billSummaryKey,
+          onClearBill: _clearCurrentBillDraft,
+          onSaveBill: _saveBill,
+          onPrintBill: _printBill,
+          onSaveAndPrintBill: _saveAndPrintBill,
         ),
       ],
     );

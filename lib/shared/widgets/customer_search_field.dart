@@ -12,12 +12,14 @@ class CustomerSearchField extends ConsumerStatefulWidget {
   final String hintText;
   final Function(int customerId, String customerName) onCustomerSelected;
   final TextEditingController controller;
+  final FocusNode? focusNode;
 
   const CustomerSearchField({
     super.key,
     required this.hintText,
     required this.onCustomerSelected,
     required this.controller,
+    this.focusNode,
   });
 
   @override
@@ -42,7 +44,8 @@ class _CustomerSearchResult {
 }
 
 class _CustomerSearchFieldState extends ConsumerState<CustomerSearchField> {
-  final FocusNode _textFocusNode = FocusNode();
+  late FocusNode _textFocusNode;
+  bool _ownsFocusNode = false;
   final FocusNode _keyboardFocusNode = FocusNode();
   final List<_CustomerSearchResult> _results = [];
   Timer? _searchDebounce;
@@ -53,14 +56,46 @@ class _CustomerSearchFieldState extends ConsumerState<CustomerSearchField> {
   @override
   void initState() {
     super.initState();
+    if (widget.focusNode != null) {
+      _textFocusNode = widget.focusNode!;
+      _ownsFocusNode = false;
+    } else {
+      _textFocusNode = FocusNode();
+      _ownsFocusNode = true;
+    }
     _textFocusNode.addListener(_handleFocusChange);
+    _textFocusNode.onKeyEvent = (node, event) => _handleKeyEvent(event);
+  }
+
+  @override
+  void didUpdateWidget(covariant CustomerSearchField oldWidget) {
+    super.didUpdateWidget(oldWidget);
+    if (oldWidget.focusNode != widget.focusNode) {
+      _textFocusNode.removeListener(_handleFocusChange);
+      _textFocusNode.onKeyEvent = null;
+      if (_ownsFocusNode) {
+        _textFocusNode.dispose();
+      }
+      if (widget.focusNode != null) {
+        _textFocusNode = widget.focusNode!;
+        _ownsFocusNode = false;
+      } else {
+        _textFocusNode = FocusNode();
+        _ownsFocusNode = true;
+      }
+      _textFocusNode.addListener(_handleFocusChange);
+      _textFocusNode.onKeyEvent = (node, event) => _handleKeyEvent(event);
+    }
   }
 
   @override
   void dispose() {
     _searchDebounce?.cancel();
     _textFocusNode.removeListener(_handleFocusChange);
-    _textFocusNode.dispose();
+    _textFocusNode.onKeyEvent = null;
+    if (_ownsFocusNode) {
+      _textFocusNode.dispose();
+    }
     _keyboardFocusNode.dispose();
     super.dispose();
   }
@@ -189,75 +224,88 @@ class _CustomerSearchFieldState extends ConsumerState<CustomerSearchField> {
     });
   }
 
-  void _handleKeyEvent(KeyEvent event) {
+  KeyEventResult _handleKeyEvent(KeyEvent event) {
     if (event is! KeyDownEvent || !_isDropdownOpen || _results.isEmpty) {
-      return;
+      return KeyEventResult.ignored;
     }
 
     if (event.logicalKey == LogicalKeyboardKey.arrowDown) {
       _moveHighlight(1);
+      return KeyEventResult.handled;
     } else if (event.logicalKey == LogicalKeyboardKey.arrowUp) {
       _moveHighlight(-1);
+      return KeyEventResult.handled;
     } else if (event.logicalKey == LogicalKeyboardKey.enter ||
         event.logicalKey == LogicalKeyboardKey.numpadEnter) {
-      if (_highlightedIndex >= 0 && _highlightedIndex < _results.length) {
-        _selectCustomer(_results[_highlightedIndex]);
+      final selectedIndex = _highlightedIndex >= 0 ? _highlightedIndex : 0;
+      if (selectedIndex < _results.length) {
+        _selectCustomer(_results[selectedIndex]);
+        return KeyEventResult.handled;
       }
     } else if (event.logicalKey == LogicalKeyboardKey.escape) {
       _clearResults();
+      return KeyEventResult.handled;
     }
+    return KeyEventResult.ignored;
   }
 
   @override
   Widget build(BuildContext context) {
-    return KeyboardListener(
-      focusNode: _keyboardFocusNode,
-      onKeyEvent: _handleKeyEvent,
-      child: Column(
-        crossAxisAlignment: CrossAxisAlignment.stretch,
-        children: [
-          TextField(
-            controller: widget.controller,
-            focusNode: _textFocusNode,
-            textInputAction: TextInputAction.search,
-            decoration: InputDecoration(
-              hintText: widget.hintText,
-              prefixIcon: const Icon(Icons.person),
-              suffixIcon: widget.controller.text.isEmpty
-                  ? null
-                  : IconButton(
-                      onPressed: () {
-                        widget.controller.clear();
-                        _clearResults();
-                      },
-                      icon: const Icon(Icons.close),
-                    ),
-              border: const OutlineInputBorder(),
-            ),
-            onChanged: _searchCustomers,
+    return Column(
+      crossAxisAlignment: CrossAxisAlignment.stretch,
+      children: [
+        TextField(
+          controller: widget.controller,
+          focusNode: _textFocusNode,
+          textInputAction: TextInputAction.search,
+          decoration: InputDecoration(
+            hintText: widget.hintText,
+            prefixIcon: const Icon(Icons.person),
+            suffixIcon: widget.controller.text.isEmpty
+                ? null
+                : IconButton(
+                    onPressed: () {
+                      widget.controller.clear();
+                      _clearResults();
+                    },
+                    icon: const Icon(Icons.close),
+                  ),
+            border: const OutlineInputBorder(),
           ),
-          if (_isDropdownOpen && _results.isNotEmpty)
-            Material(
-              elevation: 8,
-              color: Colors.white,
-              child: ConstrainedBox(
-                constraints: const BoxConstraints(maxHeight: 240),
-                child: ListView.separated(
-                  shrinkWrap: true,
-                  itemCount: _results.length,
-                  separatorBuilder: (context, separatorIndex) =>
-                      const Divider(height: 1),
-                  itemBuilder: (context, index) {
-                    final customer = _results[index];
-                    final highlighted = index == _highlightedIndex;
-                    return InkWell(
-                      onTap: () => _selectCustomer(customer),
-                      child: Container(
+          onChanged: _searchCustomers,
+        ),
+        if (_isDropdownOpen && _results.isNotEmpty)
+          Material(
+            elevation: 8,
+            color: Colors.white,
+            child: ConstrainedBox(
+              constraints: const BoxConstraints(maxHeight: 240),
+              child: ListView.separated(
+                shrinkWrap: true,
+                itemCount: _results.length,
+                separatorBuilder: (context, separatorIndex) =>
+                    const Divider(height: 1),
+                itemBuilder: (context, index) {
+                  final customer = _results[index];
+                  final highlighted = index == _highlightedIndex;
+                  return InkWell(
+                    onTap: () => _selectCustomer(customer),
+                    child: Container(
+                      decoration: BoxDecoration(
                         color: highlighted ? AppColors.primarySurface : null,
-                        padding: const EdgeInsets.symmetric(
-                          horizontal: 12,
-                          vertical: 10,
-                        ),
+                        border: highlighted
+                            ? Border(
+                                left: BorderSide(
+                                  color: Theme.of(context).primaryColor,
+                                  width: 4,
+                                ),
+                              )
+                            : null,
+                      ),
+                      padding: const EdgeInsets.symmetric(
+                        horizontal: 12,
+                        vertical: 10,
+                      ),
                         child: Row(
                           children: [
                             Expanded(
@@ -316,7 +364,6 @@ class _CustomerSearchFieldState extends ConsumerState<CustomerSearchField> {
               ),
             ),
         ],
-      ),
-    );
+      );
   }
 }

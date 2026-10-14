@@ -17,15 +17,141 @@ class BillLinesPanel extends ConsumerStatefulWidget {
   });
 
   @override
-  ConsumerState<BillLinesPanel> createState() => _BillLinesPanelState();
+  ConsumerState<BillLinesPanel> createState() => BillLinesPanelState();
 }
 
-class _BillLinesPanelState extends ConsumerState<BillLinesPanel> {
+class BillLinesPanelState extends ConsumerState<BillLinesPanel> {
   final Map<String, TextEditingController> _lineEditControllers = {};
   final Map<String, FocusNode> _lineEditFocusNodes = {};
   String? _editingLineKey;
   _DraftEditableField? _editingField;
   bool _isCommittingInlineEdit = false;
+  int? _selectedRowIndex;
+
+  int? get selectedRowIndex => _selectedRowIndex;
+
+  void selectRow(int index) {
+    final lines = ref.read(billingControllerProvider).billLines;
+    if (index >= 0 && index < lines.length) {
+      setState(() => _selectedRowIndex = index);
+    }
+  }
+
+  void deselectRow() {
+    setState(() => _selectedRowIndex = null);
+  }
+
+  void selectNextRow() {
+    final lines = ref.read(billingControllerProvider).billLines;
+    if (lines.isEmpty) return;
+    setState(() {
+      if (_selectedRowIndex == null) {
+        _selectedRowIndex = 0;
+      } else if (_selectedRowIndex! < lines.length - 1) {
+        _selectedRowIndex = _selectedRowIndex! + 1;
+      } else {
+        _selectedRowIndex = 0;
+      }
+    });
+  }
+
+  void selectPreviousRow() {
+    final lines = ref.read(billingControllerProvider).billLines;
+    if (lines.isEmpty) return;
+    setState(() {
+      if (_selectedRowIndex == null) {
+        _selectedRowIndex = lines.length - 1;
+      } else if (_selectedRowIndex! > 0) {
+        _selectedRowIndex = _selectedRowIndex! - 1;
+      } else {
+        _selectedRowIndex = lines.length - 1;
+      }
+    });
+  }
+
+  Future<void> deleteSelectedRow() async {
+    final lines = ref.read(billingControllerProvider).billLines;
+    if (lines.isEmpty) return;
+    final targetIndex = _selectedRowIndex ?? 0;
+    if (targetIndex >= 0 && targetIndex < lines.length) {
+      await _deleteLineWithUndo(targetIndex);
+    }
+  }
+
+  Future<void> incrementSelectedRowQty() async {
+    final lines = ref.read(billingControllerProvider).billLines;
+    if (lines.isEmpty) return;
+    final targetIndex = _selectedRowIndex ?? 0;
+    if (targetIndex < 0 || targetIndex >= lines.length) return;
+    final line = lines[targetIndex];
+    final isWeight = _isWeightItem(line);
+    final step = isWeight ? 250.0 : 1.0;
+    final newQty = line.qtyGrams + step;
+
+    final itemId = line.item.id;
+    if (itemId != null) {
+      final hasStock = await widget.checkStock(
+        itemId: itemId,
+        newQtyGrams: newQty,
+        excludeLineIndex: targetIndex,
+      );
+      if (!hasStock) {
+        if (!mounted) return;
+        ScaffoldMessenger.of(context).showSnackBar(
+          const SnackBar(content: Text('સ્ટોક ઉપલબ્ધ નથી')),
+        );
+        return;
+      }
+    }
+
+    final unitPrice = _lineUnitPrice(line);
+    final newAmount =
+        isWeight ? (newQty / 1000.0) * unitPrice : newQty * unitPrice;
+    ref.read(billingControllerProvider.notifier).updateLine(
+          targetIndex,
+          line.copyWith(qtyGrams: newQty, amount: newAmount),
+        );
+  }
+
+  Future<void> decrementSelectedRowQty() async {
+    final lines = ref.read(billingControllerProvider).billLines;
+    if (lines.isEmpty) return;
+    final targetIndex = _selectedRowIndex ?? 0;
+    if (targetIndex < 0 || targetIndex >= lines.length) return;
+    final line = lines[targetIndex];
+    final isWeight = _isWeightItem(line);
+    final step = isWeight ? 250.0 : 1.0;
+    final newQty = line.qtyGrams - step;
+
+    if (newQty <= 0) {
+      await deleteSelectedRow();
+      return;
+    }
+
+    final unitPrice = _lineUnitPrice(line);
+    final newAmount =
+        isWeight ? (newQty / 1000.0) * unitPrice : newQty * unitPrice;
+    ref.read(billingControllerProvider.notifier).updateLine(
+          targetIndex,
+          line.copyWith(qtyGrams: newQty, amount: newAmount),
+        );
+  }
+
+  /// Shortcut action: focus on editing the weight of the first product in cart (Ctrl + R)
+  void startEditingFirstItemWeight() {
+    final lines = ref.read(billingControllerProvider).billLines;
+    if (lines.isEmpty) {
+      ScaffoldMessenger.of(context).showSnackBar(
+        const SnackBar(content: Text('કાર્ટ ખાલી છે. પહેલા ઉત્પાદન ઉમેરો.')),
+      );
+      return;
+    }
+    _selectedRowIndex = 0;
+    _startInlineEdit(0, _DraftEditableField.quantity);
+  }
+
+  /// Commits any currently active inline edit in the bill lines table
+  Future<bool> commitCurrentEdit() => _commitInlineEdit();
 
   @override
   void dispose() {
@@ -42,7 +168,22 @@ class _BillLinesPanelState extends ConsumerState<BillLinesPanel> {
     _lineEditControllers[lineKey] = TextEditingController(
       text: initialText ?? '',
     );
-    _lineEditFocusNodes[lineKey] = FocusNode();
+    final focusNode = FocusNode();
+    focusNode.onKeyEvent = (node, event) {
+      if (event is KeyDownEvent) {
+        if (event.logicalKey == LogicalKeyboardKey.tab) {
+          final isShift = HardwareKeyboard.instance.isShiftPressed;
+          _moveToNextInlineEditField(reverse: isShift);
+          return KeyEventResult.handled;
+        }
+        if (event.logicalKey == LogicalKeyboardKey.escape) {
+          _clearInlineEditState();
+          return KeyEventResult.handled;
+        }
+      }
+      return KeyEventResult.ignored;
+    };
+    _lineEditFocusNodes[lineKey] = focusNode;
   }
 
   void _disposeLineResources(String lineKey) {
@@ -81,11 +222,16 @@ class _BillLinesPanelState extends ConsumerState<BillLinesPanel> {
     return (qtyGrams / 1000.0).toStringAsFixed(3);
   }
 
-  void _startInlineEdit(int index, _DraftEditableField field) {
+  Future<void> _startInlineEdit(
+    int index,
+    _DraftEditableField field, {
+    bool commitExisting = true,
+  }) async {
     if (index < 0 || index >= ref.read(billingControllerProvider).billLines.length) return;
 
-    if (_editingLineKey != null) {
-      _commitInlineEdit();
+    if (commitExisting && _editingLineKey != null) {
+      final success = await _commitInlineEdit();
+      if (!success || !mounted) return;
     }
 
     final line = ref.read(billingControllerProvider).billLines[index];
@@ -126,16 +272,16 @@ class _BillLinesPanelState extends ConsumerState<BillLinesPanel> {
     });
   }
 
-  Future<void> _commitInlineEdit() async {
-    if (_isCommittingInlineEdit) return;
+  Future<bool> _commitInlineEdit({bool clearStateOnSuccess = true}) async {
+    if (_isCommittingInlineEdit) return false;
     _isCommittingInlineEdit = true;
 
     try {
       final editingLineKey = _editingLineKey;
       final editingField = _editingField;
       if (editingLineKey == null) {
-        _clearInlineEditState();
-        return;
+        if (clearStateOnSuccess) _clearInlineEditState();
+        return true;
       }
       final controller = _lineEditControllers[editingLineKey];
       final editingIndex = ref.read(billingControllerProvider).billLines.indexWhere(
@@ -146,8 +292,8 @@ class _BillLinesPanelState extends ConsumerState<BillLinesPanel> {
           controller == null ||
           editingIndex < 0 ||
           editingIndex >= ref.read(billingControllerProvider).billLines.length) {
-        _clearInlineEditState();
-        return;
+        if (clearStateOnSuccess) _clearInlineEditState();
+        return true;
       }
 
       final line = ref.read(billingControllerProvider).billLines[editingIndex];
@@ -163,7 +309,7 @@ class _BillLinesPanelState extends ConsumerState<BillLinesPanel> {
               context,
             ).showSnackBar(const SnackBar(content: Text('વજન શૂન્ય ન હોઈ શકે')));
             setState(_clearInlineEditState);
-            return;
+            return false;
           }
 
           final newQtyGrams = parsed * 1000.0;
@@ -174,7 +320,7 @@ class _BillLinesPanelState extends ConsumerState<BillLinesPanel> {
               newQtyGrams: newQtyGrams,
               excludeLineIndex: editingIndex,
             );
-            if (!mounted) return;
+            if (!mounted) return false;
             if (!hasStock) {
               ScaffoldMessenger.of(context).showSnackBar(
                 const SnackBar(
@@ -184,7 +330,7 @@ class _BillLinesPanelState extends ConsumerState<BillLinesPanel> {
                 ),
               );
               setState(_clearInlineEditState);
-              return;
+              return false;
             }
           }
 
@@ -199,7 +345,7 @@ class _BillLinesPanelState extends ConsumerState<BillLinesPanel> {
               const SnackBar(content: Text('સંખ્યા શૂન્ય ન હોઈ શકે')),
             );
             setState(_clearInlineEditState);
-            return;
+            return false;
           }
 
           final newQtyGrams = parsed.toDouble();
@@ -210,7 +356,7 @@ class _BillLinesPanelState extends ConsumerState<BillLinesPanel> {
               newQtyGrams: newQtyGrams,
               excludeLineIndex: editingIndex,
             );
-            if (!mounted) return;
+            if (!mounted) return false;
             if (!hasStock) {
               ScaffoldMessenger.of(context).showSnackBar(
                 const SnackBar(
@@ -220,7 +366,7 @@ class _BillLinesPanelState extends ConsumerState<BillLinesPanel> {
                 ),
               );
               setState(_clearInlineEditState);
-              return;
+              return false;
             }
           }
 
@@ -235,7 +381,7 @@ class _BillLinesPanelState extends ConsumerState<BillLinesPanel> {
             const SnackBar(content: Text('કિંમત શૂન્ય ન હોઈ શકે')),
           );
           setState(_clearInlineEditState);
-          return;
+          return false;
         }
 
         final roundedQty = line.qtyGrams.roundToDouble().clamp(1.0, double.infinity);
@@ -253,7 +399,7 @@ class _BillLinesPanelState extends ConsumerState<BillLinesPanel> {
             context,
           ).showSnackBar(const SnackBar(content: Text('રકમ શૂન્ય ન હોઈ શકે')));
           setState(_clearInlineEditState);
-          return;
+          return false;
         }
 
         final unitPrice = _lineUnitPrice(line);
@@ -262,7 +408,7 @@ class _BillLinesPanelState extends ConsumerState<BillLinesPanel> {
             const SnackBar(content: Text('કિંમત શૂન્ય ન હોઈ શકે')),
           );
           setState(_clearInlineEditState);
-          return;
+          return false;
         }
 
         final newQtyGrams = isWeight
@@ -272,12 +418,84 @@ class _BillLinesPanelState extends ConsumerState<BillLinesPanel> {
       }
 
       ref.read(billingControllerProvider.notifier).updateLine(editingIndex, updatedLine);
-      setState(() {
-        _clearInlineEditState();
-      });
+      if (clearStateOnSuccess) {
+        setState(() {
+          _clearInlineEditState();
+        });
+      }
+      return true;
     } finally {
       _isCommittingInlineEdit = false;
     }
+  }
+
+  /// Move focus sequentially through fields:
+  /// (Product 0: Qty -> Price -> Total) -> (Product 1: Qty -> Price -> Total) -> ...
+  Future<void> _moveToNextInlineEditField({bool reverse = false}) async {
+    final currentLineKey = _editingLineKey;
+    final currentField = _editingField;
+    if (currentLineKey == null || currentField == null) return;
+
+    final lines = ref.read(billingControllerProvider).billLines;
+    final currentIndex = lines.indexWhere((l) => l.draftKey == currentLineKey);
+    if (currentIndex < 0) return;
+
+    // Commit current edit without clearing state yet
+    final success = await _commitInlineEdit(clearStateOnSuccess: false);
+    if (!success || !mounted) return;
+
+    final currentLines = ref.read(billingControllerProvider).billLines;
+    if (currentLines.isEmpty) return;
+    final safeIndex = currentIndex.clamp(0, currentLines.length - 1);
+
+    int nextIndex = safeIndex;
+    _DraftEditableField nextField;
+
+    if (!reverse) {
+      switch (currentField) {
+        case _DraftEditableField.quantity:
+          nextField = _DraftEditableField.price;
+          break;
+        case _DraftEditableField.price:
+          nextField = _DraftEditableField.amount;
+          break;
+        case _DraftEditableField.amount:
+          if (safeIndex + 1 < currentLines.length) {
+            nextIndex = safeIndex + 1;
+            nextField = _DraftEditableField.quantity;
+          } else {
+            // Last field of last item reached: complete editing cleanly
+            setState(() {
+              _clearInlineEditState();
+            });
+            return;
+          }
+          break;
+      }
+    } else {
+      switch (currentField) {
+        case _DraftEditableField.amount:
+          nextField = _DraftEditableField.price;
+          break;
+        case _DraftEditableField.price:
+          nextField = _DraftEditableField.quantity;
+          break;
+        case _DraftEditableField.quantity:
+          if (safeIndex - 1 >= 0) {
+            nextIndex = safeIndex - 1;
+            nextField = _DraftEditableField.amount;
+          } else {
+            // Before first item
+            setState(() {
+              _clearInlineEditState();
+            });
+            return;
+          }
+          break;
+      }
+    }
+
+    await _startInlineEdit(nextIndex, nextField, commitExisting: false);
   }
 
   Future<void> _deleteLineWithUndo(int index) async {
@@ -294,6 +512,12 @@ class _BillLinesPanelState extends ConsumerState<BillLinesPanel> {
         if (_editingLineKey == removedKey) {
           _clearInlineEditState();
         }
+      }
+      final newLines = ref.read(billingControllerProvider).billLines;
+      if (newLines.isEmpty) {
+        _selectedRowIndex = null;
+      } else if (_selectedRowIndex != null && _selectedRowIndex! >= newLines.length) {
+        _selectedRowIndex = newLines.length - 1;
       }
     });
     _disposeLineResources(removedKey);
@@ -336,35 +560,52 @@ class _BillLinesPanelState extends ConsumerState<BillLinesPanel> {
     required TextInputType keyboardType,
     String? prefixText,
     bool allowDecimal = true,
+    String? tooltip,
   }) {
     if (isEditing) {
       return SizedBox(
         width: 106,
-        child: TextField(
-          controller: controller,
-          focusNode: focusNode,
-          keyboardType: keyboardType,
-          textInputAction: TextInputAction.done,
-          inputFormatters: [
-            FilteringTextInputFormatter.allow(
-              allowDecimal ? RegExp(r'^\d*\.?\d*') : RegExp(r'^\d+'),
-            ),
-          ],
-          onSubmitted: onSubmitted,
-          onTapOutside: (_) => _commitInlineEdit(),
-          decoration: InputDecoration(
-            isDense: true,
-            prefixText: prefixText,
-            contentPadding: const EdgeInsets.symmetric(
-              horizontal: 10,
-              vertical: 8,
+        child: Focus(
+          onKeyEvent: (node, event) {
+            if (event is KeyDownEvent) {
+              if (event.logicalKey == LogicalKeyboardKey.tab) {
+                final isShift = HardwareKeyboard.instance.isShiftPressed;
+                _moveToNextInlineEditField(reverse: isShift);
+                return KeyEventResult.handled;
+              }
+              if (event.logicalKey == LogicalKeyboardKey.escape) {
+                _clearInlineEditState();
+                return KeyEventResult.handled;
+              }
+            }
+            return KeyEventResult.ignored;
+          },
+          child: TextField(
+            controller: controller,
+            focusNode: focusNode,
+            keyboardType: keyboardType,
+            textInputAction: TextInputAction.done,
+            inputFormatters: [
+              FilteringTextInputFormatter.allow(
+                allowDecimal ? RegExp(r'^\d*\.?\d*') : RegExp(r'^\d+'),
+              ),
+            ],
+            onSubmitted: onSubmitted,
+            onTapOutside: (_) => _commitInlineEdit(),
+            decoration: InputDecoration(
+              isDense: true,
+              prefixText: prefixText,
+              contentPadding: const EdgeInsets.symmetric(
+                horizontal: 10,
+                vertical: 8,
+              ),
             ),
           ),
         ),
       );
     }
 
-    return InkWell(
+    final chip = InkWell(
       onTap: onTap,
       borderRadius: BorderRadius.circular(14),
       child: Container(
@@ -387,6 +628,11 @@ class _BillLinesPanelState extends ConsumerState<BillLinesPanel> {
         ),
       ),
     );
+
+    if (tooltip != null) {
+      return Tooltip(message: tooltip, child: chip);
+    }
+    return chip;
   }
 
   Widget _buildBillLineTile(BillLineItem line, int index) {
@@ -406,113 +652,183 @@ class _BillLinesPanelState extends ConsumerState<BillLinesPanel> {
         : '${line.qtyGrams.toInt()} ${line.item.unitType}';
     final priceDisplay = '₹${_lineUnitPrice(line).toStringAsFixed(2)}';
 
-    return Container(
-      margin: const EdgeInsets.symmetric(horizontal: 8, vertical: 4),
-      padding: const EdgeInsets.symmetric(horizontal: 10, vertical: 8),
-      decoration: BoxDecoration(
-        color: isEditingRow ? AppColors.surface : Colors.transparent,
-        borderRadius: BorderRadius.circular(10),
-      ),
-      child: Row(
-        children: [
-          Expanded(
-            child: Column(
-              crossAxisAlignment: CrossAxisAlignment.start,
-              children: [
-                Text(
-                  line.item.nameGujarati,
-                  maxLines: 1,
-                  overflow: TextOverflow.ellipsis,
-                  style: const TextStyle(fontWeight: FontWeight.w700),
+    final isSelectedRow = _selectedRowIndex == index;
+
+    return InkWell(
+      borderRadius: BorderRadius.circular(10),
+      onTap: () {
+        setState(() {
+          _selectedRowIndex = index;
+        });
+      },
+      child: Container(
+        margin: const EdgeInsets.symmetric(horizontal: 8, vertical: 4),
+        padding: const EdgeInsets.symmetric(horizontal: 10, vertical: 8),
+        decoration: BoxDecoration(
+          color: isEditingRow
+              ? AppColors.surface
+              : (isSelectedRow ? AppColors.primarySurface : Colors.transparent),
+          borderRadius: BorderRadius.circular(10),
+          border: isSelectedRow
+              ? Border.all(color: Theme.of(context).primaryColor, width: 1.5)
+              : (isEditingRow
+                  ? Border.all(color: AppColors.divider)
+                  : Border.all(color: Colors.grey.shade200)),
+        ),
+        child: Row(
+          children: [
+            if (isSelectedRow)
+              Padding(
+                padding: const EdgeInsets.only(right: 6),
+                child: Icon(
+                  Icons.arrow_right,
+                  color: Theme.of(context).primaryColor,
+                  size: 22,
                 ),
-                const SizedBox(height: 6),
-                Wrap(
-                  spacing: 8,
-                  runSpacing: 6,
-                  children: [
-                    _buildEditableValueChip(
-                      isEditing: isEditingQty,
-                      controller: lineController,
-                      focusNode: lineFocusNode,
-                      value: qtyDisplay,
-                      onTap: () =>
-                          _startInlineEdit(index, _DraftEditableField.quantity),
-                      onSubmitted: (_) => _commitInlineEdit(),
-                      keyboardType: isWeight
-                          ? const TextInputType.numberWithOptions(decimal: true)
-                          : TextInputType.number,
-                      allowDecimal: isWeight,
+              ),
+            Expanded(
+              child: Column(
+                crossAxisAlignment: CrossAxisAlignment.start,
+                children: [
+                  Text(
+                    line.item.nameGujarati,
+                    maxLines: 1,
+                    overflow: TextOverflow.ellipsis,
+                    style: TextStyle(
+                      fontWeight:
+                          isSelectedRow ? FontWeight.w800 : FontWeight.w700,
                     ),
-                    _buildEditableValueChip(
-                      isEditing: isEditingPrice,
-                      controller: lineController,
-                      focusNode: lineFocusNode,
-                      value: priceDisplay,
-                      onTap: () =>
-                          _startInlineEdit(index, _DraftEditableField.price),
-                      onSubmitted: (_) => _commitInlineEdit(),
-                      keyboardType: const TextInputType.numberWithOptions(
-                        decimal: true,
+                  ),
+                  const SizedBox(height: 6),
+                  Wrap(
+                    spacing: 8,
+                    runSpacing: 6,
+                    children: [
+                      _buildEditableValueChip(
+                        isEditing: isEditingQty,
+                        controller: lineController,
+                        focusNode: lineFocusNode,
+                        value: qtyDisplay,
+                        tooltip: 'વજન / સંખ્યા બદલો (Ctrl+R)',
+                        onTap: () => _startInlineEdit(
+                            index, _DraftEditableField.quantity),
+                        onSubmitted: (_) => _commitInlineEdit(),
+                        keyboardType: isWeight
+                            ? const TextInputType.numberWithOptions(
+                                decimal: true)
+                            : TextInputType.number,
+                        allowDecimal: isWeight,
                       ),
-                      prefixText: isEditingPrice ? '₹' : null,
-                    ),
-                    _buildEditableValueChip(
-                      isEditing: isEditingAmount,
-                      controller: lineController,
-                      focusNode: lineFocusNode,
-                      value: formatCurrency(line.amount),
-                      onTap: () =>
-                          _startInlineEdit(index, _DraftEditableField.amount),
-                      onSubmitted: (_) => _commitInlineEdit(),
-                      keyboardType: const TextInputType.numberWithOptions(
-                        decimal: true,
+                      _buildEditableValueChip(
+                        isEditing: isEditingPrice,
+                        controller: lineController,
+                        focusNode: lineFocusNode,
+                        value: priceDisplay,
+                        tooltip: 'કિંમત બદલો',
+                        onTap: () =>
+                            _startInlineEdit(index, _DraftEditableField.price),
+                        onSubmitted: (_) => _commitInlineEdit(),
+                        keyboardType: const TextInputType.numberWithOptions(
+                          decimal: true,
+                        ),
+                        prefixText: isEditingPrice ? '₹' : null,
                       ),
-                    ),
-                  ],
-                ),
-              ],
+                      _buildEditableValueChip(
+                        isEditing: isEditingAmount,
+                        controller: lineController,
+                        focusNode: lineFocusNode,
+                        value: formatCurrency(line.amount),
+                        tooltip: 'કુલ રકમ બદલો',
+                        onTap: () =>
+                            _startInlineEdit(index, _DraftEditableField.amount),
+                        onSubmitted: (_) => _commitInlineEdit(),
+                        keyboardType: const TextInputType.numberWithOptions(
+                          decimal: true,
+                        ),
+                      ),
+                    ],
+                  ),
+                ],
+              ),
             ),
-          ),
-          if (isEditingRow)
+            if (isSelectedRow && !isEditingRow) ...[
+              SizedBox(
+                width: 32,
+                child: IconButton(
+                  padding: EdgeInsets.zero,
+                  constraints:
+                      const BoxConstraints.tightFor(width: 32, height: 32),
+                  icon: const Icon(
+                    Icons.remove_circle_outline,
+                    color: Colors.blueGrey,
+                    size: 20,
+                  ),
+                  tooltip: 'જથ્થો ઘટાડો (-)',
+                  onPressed: () => decrementSelectedRowQty(),
+                ),
+              ),
+              SizedBox(
+                width: 32,
+                child: IconButton(
+                  padding: EdgeInsets.zero,
+                  constraints:
+                      const BoxConstraints.tightFor(width: 32, height: 32),
+                  icon: Icon(
+                    Icons.add_circle_outline,
+                    color: Theme.of(context).primaryColor,
+                    size: 20,
+                  ),
+                  tooltip: 'જથ્થો વધારો (+)',
+                  onPressed: () => incrementSelectedRowQty(),
+                ),
+              ),
+            ],
+            if (isEditingRow)
+              SizedBox(
+                width: 36,
+                child: IconButton(
+                  padding: EdgeInsets.zero,
+                  constraints: const BoxConstraints.tightFor(
+                    width: 36,
+                    height: 36,
+                  ),
+                  icon: const Icon(
+                    Icons.check_circle,
+                    color: Colors.green,
+                    size: 20,
+                  ),
+                  tooltip: 'સાચવો',
+                  onPressed: () {
+                    _commitInlineEdit();
+                  },
+                ),
+              ),
             SizedBox(
               width: 36,
               child: IconButton(
                 padding: EdgeInsets.zero,
-                constraints: const BoxConstraints.tightFor(
-                  width: 36,
-                  height: 36,
-                ),
-                icon: const Icon(
-                  Icons.check_circle,
-                  color: Colors.green,
-                  size: 20,
-                ),
-                onPressed: () {
-                  _commitInlineEdit();
+                constraints:
+                    const BoxConstraints.tightFor(width: 36, height: 36),
+                icon: const Icon(Icons.delete, color: Colors.red, size: 20),
+                tooltip: 'કાઢી નાખો (Ctrl+Delete)',
+                onPressed: () async {
+                  await _deleteLineWithUndo(index);
                 },
               ),
             ),
-          SizedBox(
-            width: 36,
-            child: IconButton(
-              padding: EdgeInsets.zero,
-              constraints: const BoxConstraints.tightFor(width: 36, height: 36),
-              icon: const Icon(Icons.delete, color: Colors.red, size: 20),
-              onPressed: () async {
-                await _deleteLineWithUndo(index);
-              },
-            ),
-          ),
-        ],
+          ],
+        ),
       ),
     );
   }
 
-
   @override
   Widget build(BuildContext context) {
     final billLines = ref.watch(billingControllerProvider).billLines;
-    
+    if (_selectedRowIndex != null && _selectedRowIndex! >= billLines.length) {
+      _selectedRowIndex = billLines.isEmpty ? null : billLines.length - 1;
+    }
+
     return ListView.builder(
       itemCount: billLines.length,
       itemBuilder: (ctx, i) {

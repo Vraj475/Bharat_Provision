@@ -1,7 +1,9 @@
 import 'package:flutter/material.dart';
+import 'package:flutter/services.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 import 'package:intl/intl.dart';
 
+import '../../core/theme/app_colors.dart';
 import '../../shared/models/expense_account_model.dart';
 import '../../shared/models/product_model.dart';
 import '../inventory/inventory_providers.dart';
@@ -361,13 +363,16 @@ class _ProductDropdown extends StatefulWidget {
 
 class _ProductDropdownState extends State<_ProductDropdown> {
   final _ctrl = TextEditingController();
+  final _focusNode = FocusNode();
   OverlayEntry? _overlay;
   final _key = GlobalKey();
   List<Product> _filtered = [];
+  int _highlightedIndex = -1;
 
   @override
   void initState() {
     super.initState();
+    _focusNode.onKeyEvent = _handleKeyEvent;
     if (widget.selectedProduct != null) {
       _ctrl.text = widget.selectedProduct!.nameGujarati;
     }
@@ -376,6 +381,8 @@ class _ProductDropdownState extends State<_ProductDropdown> {
   @override
   void dispose() {
     _removeOverlay();
+    _focusNode.onKeyEvent = null;
+    _focusNode.dispose();
     _ctrl.dispose();
     super.dispose();
   }
@@ -383,6 +390,50 @@ class _ProductDropdownState extends State<_ProductDropdown> {
   void _removeOverlay() {
     _overlay?.remove();
     _overlay = null;
+    _highlightedIndex = -1;
+  }
+
+  KeyEventResult _handleKeyEvent(FocusNode node, KeyEvent event) {
+    if (event is! KeyDownEvent || _overlay == null || _filtered.isEmpty) {
+      return KeyEventResult.ignored;
+    }
+
+    if (event.logicalKey == LogicalKeyboardKey.arrowDown) {
+      setState(() {
+        if (_highlightedIndex < _filtered.length - 1) {
+          _highlightedIndex++;
+        } else {
+          _highlightedIndex = 0;
+        }
+      });
+      _overlay?.markNeedsBuild();
+      return KeyEventResult.handled;
+    } else if (event.logicalKey == LogicalKeyboardKey.arrowUp) {
+      setState(() {
+        if (_highlightedIndex > 0) {
+          _highlightedIndex--;
+        } else {
+          _highlightedIndex = _filtered.length - 1;
+        }
+      });
+      _overlay?.markNeedsBuild();
+      return KeyEventResult.handled;
+    } else if (event.logicalKey == LogicalKeyboardKey.enter ||
+        event.logicalKey == LogicalKeyboardKey.numpadEnter) {
+      final selectedIndex = _highlightedIndex >= 0 ? _highlightedIndex : 0;
+      if (selectedIndex < _filtered.length) {
+        final p = _filtered[selectedIndex];
+        _ctrl.text = p.nameGujarati;
+        widget.onChanged(p);
+        _removeOverlay();
+        return KeyEventResult.handled;
+      }
+    } else if (event.logicalKey == LogicalKeyboardKey.escape) {
+      _removeOverlay();
+      return KeyEventResult.handled;
+    }
+
+    return KeyEventResult.ignored;
   }
 
   void _showOverlay(List<Product> items) {
@@ -405,19 +456,48 @@ class _ProductDropdownState extends State<_ProductDropdown> {
             child: ListView.builder(
               shrinkWrap: true,
               itemCount: items.length,
-              itemBuilder: (_, i) => ListTile(
-                dense: true,
-                title: Text(items[i].nameGujarati),
-                subtitle: Text(
-                  'સ્ટોક: ${items[i].stockQty.toStringAsFixed(1)}',
-                  style: const TextStyle(fontSize: 11),
-                ),
-                onTap: () {
-                  _ctrl.text = items[i].nameGujarati;
-                  widget.onChanged(items[i]);
-                  _removeOverlay();
-                },
-              ),
+              itemBuilder: (_, i) {
+                final isHighlighted = i == _highlightedIndex;
+                return Container(
+                  decoration: BoxDecoration(
+                    color: isHighlighted ? AppColors.primarySurface : null,
+                    border: isHighlighted
+                        ? Border(
+                            left: BorderSide(
+                              color: Theme.of(context).primaryColor,
+                              width: 4,
+                            ),
+                          )
+                        : null,
+                  ),
+                  child: ListTile(
+                    dense: true,
+                    leading: isHighlighted
+                        ? Icon(
+                            Icons.arrow_right,
+                            color: Theme.of(context).primaryColor,
+                            size: 24,
+                          )
+                        : null,
+                    title: Text(
+                      items[i].nameGujarati,
+                      style: TextStyle(
+                        fontWeight:
+                            isHighlighted ? FontWeight.bold : FontWeight.normal,
+                      ),
+                    ),
+                    subtitle: Text(
+                      'સ્ટોક: ${items[i].stockQty.toStringAsFixed(1)}',
+                      style: const TextStyle(fontSize: 11),
+                    ),
+                    onTap: () {
+                      _ctrl.text = items[i].nameGujarati;
+                      widget.onChanged(items[i]);
+                      _removeOverlay();
+                    },
+                  ),
+                );
+              },
             ),
           ),
         ),
@@ -431,6 +511,7 @@ class _ProductDropdownState extends State<_ProductDropdown> {
     return TextField(
       key: _key,
       controller: _ctrl,
+      focusNode: _focusNode,
       decoration: InputDecoration(
         border: const OutlineInputBorder(),
         hintText: 'ઉત્પાદ શોધો...',
@@ -452,6 +533,7 @@ class _ProductDropdownState extends State<_ProductDropdown> {
               (p.nameEnglish?.toLowerCase().contains(q) ?? false) ||
               p.transliterationKeys.toLowerCase().contains(q);
         }).toList();
+        _highlightedIndex = -1;
         if (_filtered.isNotEmpty && v.isNotEmpty) {
           _showOverlay(_filtered);
         } else {
@@ -461,6 +543,7 @@ class _ProductDropdownState extends State<_ProductDropdown> {
       onTap: () {
         if (_ctrl.text.isEmpty) {
           _filtered = widget.products;
+          _highlightedIndex = -1;
           _showOverlay(_filtered);
         }
       },

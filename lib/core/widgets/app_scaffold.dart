@@ -299,12 +299,12 @@ class AppScaffold extends ConsumerWidget {
 
   List<_NavItem> _navItems(bool isAdmin) {
     return [
-      const _NavItem(AppStrings.navBilling, Icons.point_of_sale),
-      if (isAdmin) const _NavItem('બિલ ઇતિહાસ', Icons.receipt_long),
-      const _NavItem(AppStrings.navInventory, Icons.inventory_2),
-      const _NavItem(AppStrings.navKhata, Icons.people),
-      const _NavItem(AppStrings.navReports, Icons.assessment),
-      const _NavItem(AppStrings.navSettings, Icons.settings),
+      const _NavItem('${AppStrings.navBilling} (F1)', Icons.point_of_sale),
+      if (isAdmin) const _NavItem('બિલ ઇતિહાસ (F2)', Icons.receipt_long),
+      _NavItem('${AppStrings.navInventory} (${isAdmin ? 'F3' : 'F2'})', Icons.inventory_2),
+      _NavItem('${AppStrings.navKhata} (${isAdmin ? 'F4' : 'F3'})', Icons.people),
+      _NavItem('${AppStrings.navReports} (${isAdmin ? 'F5' : 'F4'})', Icons.assessment),
+      _NavItem('${AppStrings.navSettings} (${isAdmin ? 'F6' : 'F5'})', Icons.settings),
     ];
   }
 }

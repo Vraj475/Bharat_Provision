@@ -8,6 +8,57 @@ import '../../../core/utils/currency_format.dart';
 
 enum _DraftEditableField { quantity, price, amount }
 
+class _LineFieldResources {
+  final TextEditingController qtyController = TextEditingController();
+  late final FocusNode qtyFocusNode;
+  final TextEditingController priceController = TextEditingController();
+  late final FocusNode priceFocusNode;
+  final TextEditingController amountController = TextEditingController();
+  late final FocusNode amountFocusNode;
+
+  _LineFieldResources({
+    required KeyEventResult Function(FocusNode, KeyEvent, _DraftEditableField) onKeyEvent,
+  }) {
+    qtyFocusNode = FocusNode(debugLabel: 'QtyNode')
+      ..onKeyEvent = (node, event) => onKeyEvent(node, event, _DraftEditableField.quantity);
+    priceFocusNode = FocusNode(debugLabel: 'PriceNode')
+      ..onKeyEvent = (node, event) => onKeyEvent(node, event, _DraftEditableField.price);
+    amountFocusNode = FocusNode(debugLabel: 'AmountNode')
+      ..onKeyEvent = (node, event) => onKeyEvent(node, event, _DraftEditableField.amount);
+  }
+
+  TextEditingController controllerFor(_DraftEditableField field) {
+    switch (field) {
+      case _DraftEditableField.quantity:
+        return qtyController;
+      case _DraftEditableField.price:
+        return priceController;
+      case _DraftEditableField.amount:
+        return amountController;
+    }
+  }
+
+  FocusNode focusNodeFor(_DraftEditableField field) {
+    switch (field) {
+      case _DraftEditableField.quantity:
+        return qtyFocusNode;
+      case _DraftEditableField.price:
+        return priceFocusNode;
+      case _DraftEditableField.amount:
+        return amountFocusNode;
+    }
+  }
+
+  void dispose() {
+    qtyController.dispose();
+    qtyFocusNode.dispose();
+    priceController.dispose();
+    priceFocusNode.dispose();
+    amountController.dispose();
+    amountFocusNode.dispose();
+  }
+}
+
 class BillLinesPanel extends ConsumerStatefulWidget {
   final Future<bool> Function({required int itemId, required double newQtyGrams, int? excludeLineIndex}) checkStock;
   final VoidCallback? onInlineEditCompleted;
@@ -23,8 +74,7 @@ class BillLinesPanel extends ConsumerStatefulWidget {
 }
 
 class BillLinesPanelState extends ConsumerState<BillLinesPanel> {
-  final Map<String, TextEditingController> _lineEditControllers = {};
-  final Map<String, FocusNode> _lineEditFocusNodes = {};
+  final Map<String, _LineFieldResources> _lineResources = {};
   String? _editingLineKey;
   _DraftEditableField? _editingField;
   bool _isCommittingInlineEdit = false;
@@ -165,48 +215,48 @@ class BillLinesPanelState extends ConsumerState<BillLinesPanel> {
 
   @override
   void dispose() {
-    for (final controller in _lineEditControllers.values) {
-      controller.dispose();
+    for (final res in _lineResources.values) {
+      res.dispose();
     }
-    for (final focusNode in _lineEditFocusNodes.values) {
-      focusNode.dispose();
-    }
+    _lineResources.clear();
     super.dispose();
   }
 
-  void _registerLineResources(String lineKey, {String? initialText}) {
-    _lineEditControllers[lineKey] = TextEditingController(
-      text: initialText ?? '',
+  _LineFieldResources _getOrCreateLineResources(String lineKey) {
+    return _lineResources.putIfAbsent(
+      lineKey,
+      () => _LineFieldResources(
+        onKeyEvent: (node, event, field) => _handleFieldKeyEvent(node, event, field),
+      ),
     );
-    final focusNode = FocusNode();
-    focusNode.onKeyEvent = (node, event) {
-      if (event is KeyDownEvent) {
-        if (event.logicalKey == LogicalKeyboardKey.arrowUp) {
-          if (_editingField == _DraftEditableField.amount) {
-            _navigateAmountRow(reverse: true);
-            return KeyEventResult.handled;
-          }
-        }
-        if (event.logicalKey == LogicalKeyboardKey.arrowDown) {
-          if (_editingField == _DraftEditableField.amount) {
-            _navigateAmountRow(reverse: false);
-            return KeyEventResult.handled;
-          }
-        }
-        if (event.logicalKey == LogicalKeyboardKey.tab) {
-          final isShift = HardwareKeyboard.instance.isShiftPressed;
-          _moveToNextInlineEditField(reverse: isShift);
-          return KeyEventResult.handled;
-        }
-        if (event.logicalKey == LogicalKeyboardKey.escape) {
-          _commitInlineEdit(clearStateOnSuccess: true);
-          widget.onInlineEditCompleted?.call();
+  }
+
+  KeyEventResult _handleFieldKeyEvent(FocusNode node, KeyEvent event, _DraftEditableField field) {
+    if (event is KeyDownEvent) {
+      if (event.logicalKey == LogicalKeyboardKey.arrowUp) {
+        if (field == _DraftEditableField.amount) {
+          _navigateAmountRow(reverse: true);
           return KeyEventResult.handled;
         }
       }
-      return KeyEventResult.ignored;
-    };
-    _lineEditFocusNodes[lineKey] = focusNode;
+      if (event.logicalKey == LogicalKeyboardKey.arrowDown) {
+        if (field == _DraftEditableField.amount) {
+          _navigateAmountRow(reverse: false);
+          return KeyEventResult.handled;
+        }
+      }
+      if (event.logicalKey == LogicalKeyboardKey.tab) {
+        final isShift = HardwareKeyboard.instance.isShiftPressed;
+        _moveToNextInlineEditField(reverse: isShift);
+        return KeyEventResult.handled;
+      }
+      if (event.logicalKey == LogicalKeyboardKey.escape) {
+        _commitInlineEdit(clearStateOnSuccess: true);
+        widget.onInlineEditCompleted?.call();
+        return KeyEventResult.handled;
+      }
+    }
+    return KeyEventResult.ignored;
   }
 
   Future<void> _navigateAmountRow({required bool reverse}) async {
@@ -240,14 +290,14 @@ class BillLinesPanelState extends ConsumerState<BillLinesPanel> {
   }
 
   void _disposeLineResources(String lineKey) {
-    _lineEditControllers.remove(lineKey)?.dispose();
-    _lineEditFocusNodes.remove(lineKey)?.dispose();
+    _lineResources.remove(lineKey)?.dispose();
   }
 
   void _clearInlineEditState() {
     final key = _editingLineKey;
-    if (key != null) {
-      _lineEditFocusNodes[key]?.unfocus();
+    final field = _editingField;
+    if (key != null && field != null && _lineResources.containsKey(key)) {
+      _lineResources[key]!.focusNodeFor(field).unfocus();
     }
     _editingLineKey = null;
     _editingField = null;
@@ -280,21 +330,29 @@ class BillLinesPanelState extends ConsumerState<BillLinesPanel> {
     _DraftEditableField field, {
     bool commitExisting = true,
   }) async {
-    if (index < 0 || index >= ref.read(billingControllerProvider).billLines.length) return;
+    final lines = ref.read(billingControllerProvider).billLines;
+    if (index < 0 || index >= lines.length) return;
 
     if (commitExisting && _editingLineKey != null) {
-      final success = await _commitInlineEdit();
+      final success = await _commitInlineEdit(clearStateOnSuccess: false);
       if (!success || !mounted) return;
     }
 
-    final line = ref.read(billingControllerProvider).billLines[index];
+    final currentLines = ref.read(billingControllerProvider).billLines;
+    if (index >= currentLines.length) return;
+    final line = currentLines[index];
     final lineKey = line.draftKey;
-    if (!_lineEditControllers.containsKey(lineKey) ||
-        !_lineEditFocusNodes.containsKey(lineKey)) {
-      _registerLineResources(lineKey);
+
+    // Unfocus any currently focused field before activating the new one
+    final prevKey = _editingLineKey;
+    final prevField = _editingField;
+    if (prevKey != null && prevField != null && _lineResources.containsKey(prevKey)) {
+      _lineResources[prevKey]!.focusNodeFor(prevField).unfocus();
     }
-    final lineController = _lineEditControllers[lineKey]!;
-    final lineFocusNode = _lineEditFocusNodes[lineKey]!;
+
+    final res = _getOrCreateLineResources(lineKey);
+    final targetController = res.controllerFor(field);
+    final targetFocusNode = res.focusNodeFor(field);
 
     final isWeight = _isWeightItem(line);
     final initialValue = switch (field) {
@@ -304,23 +362,27 @@ class BillLinesPanelState extends ConsumerState<BillLinesPanel> {
       _DraftEditableField.amount => line.amount.toStringAsFixed(2),
     };
 
+    targetController.value = TextEditingValue(
+      text: initialValue,
+      selection: TextSelection(
+        baseOffset: 0,
+        extentOffset: initialValue.length,
+      ),
+    );
+
     setState(() {
+      _selectedRowIndex = index;
       _editingLineKey = lineKey;
       _editingField = field;
-      lineController.value = TextEditingValue(
-        text: initialValue,
-        selection: TextSelection.collapsed(offset: initialValue.length),
-      );
     });
 
+    targetFocusNode.requestFocus();
     WidgetsBinding.instance.addPostFrameCallback((_) {
-      if (!mounted) {
-        return;
-      }
-      lineFocusNode.requestFocus();
-      lineController.selection = TextSelection(
+      if (!mounted) return;
+      targetFocusNode.requestFocus();
+      targetController.selection = TextSelection(
         baseOffset: 0,
-        extentOffset: lineController.text.length,
+        extentOffset: targetController.text.length,
       );
     });
   }
@@ -332,17 +394,17 @@ class BillLinesPanelState extends ConsumerState<BillLinesPanel> {
     try {
       final editingLineKey = _editingLineKey;
       final editingField = _editingField;
-      if (editingLineKey == null) {
+      if (editingLineKey == null || editingField == null) {
         if (clearStateOnSuccess) _clearInlineEditState();
         return true;
       }
-      final controller = _lineEditControllers[editingLineKey];
+      final res = _lineResources[editingLineKey];
+      final controller = res?.controllerFor(editingField);
       final editingIndex = ref.read(billingControllerProvider).billLines.indexWhere(
         (l) => l.draftKey == editingLineKey,
       );
 
-      if (editingField == null ||
-          controller == null ||
+      if (controller == null ||
           editingIndex < 0 ||
           editingIndex >= ref.read(billingControllerProvider).billLines.length) {
         if (clearStateOnSuccess) _clearInlineEditState();
@@ -585,10 +647,7 @@ class BillLinesPanelState extends ConsumerState<BillLinesPanel> {
           label: 'Undo',
           onPressed: () {
             if (!mounted) return;
-            if (!_lineEditControllers.containsKey(removedKey) ||
-                !_lineEditFocusNodes.containsKey(removedKey)) {
-              _registerLineResources(removedKey);
-            }
+            _getOrCreateLineResources(removedKey);
             ref.read(billingControllerProvider.notifier).insertLine(index, removedLine);
             if (mounted) {
               setState(() {});
@@ -618,40 +677,25 @@ class BillLinesPanelState extends ConsumerState<BillLinesPanel> {
     if (isEditing) {
       return SizedBox(
         width: 106,
-        child: Focus(
-          onKeyEvent: (node, event) {
-            if (event is KeyDownEvent) {
-              if (event.logicalKey == LogicalKeyboardKey.tab) {
-                final isShift = HardwareKeyboard.instance.isShiftPressed;
-                _moveToNextInlineEditField(reverse: isShift);
-                return KeyEventResult.handled;
-              }
-              if (event.logicalKey == LogicalKeyboardKey.escape) {
-                _clearInlineEditState();
-                return KeyEventResult.handled;
-              }
-            }
-            return KeyEventResult.ignored;
-          },
-          child: TextField(
-            controller: controller,
-            focusNode: focusNode,
-            keyboardType: keyboardType,
-            textInputAction: TextInputAction.done,
-            inputFormatters: [
-              FilteringTextInputFormatter.allow(
-                allowDecimal ? RegExp(r'^\d*\.?\d*') : RegExp(r'^\d+'),
-              ),
-            ],
-            onSubmitted: onSubmitted,
-            onTapOutside: (_) => _commitInlineEdit(),
-            decoration: InputDecoration(
-              isDense: true,
-              prefixText: prefixText,
-              contentPadding: const EdgeInsets.symmetric(
-                horizontal: 10,
-                vertical: 8,
-              ),
+        child: TextField(
+          controller: controller,
+          focusNode: focusNode,
+          autofocus: true,
+          keyboardType: keyboardType,
+          textInputAction: TextInputAction.done,
+          inputFormatters: [
+            FilteringTextInputFormatter.allow(
+              allowDecimal ? RegExp(r'^\d*\.?\d*') : RegExp(r'^\d+'),
+            ),
+          ],
+          onSubmitted: onSubmitted,
+          onTapOutside: (_) => _commitInlineEdit(),
+          decoration: InputDecoration(
+            isDense: true,
+            prefixText: prefixText,
+            contentPadding: const EdgeInsets.symmetric(
+              horizontal: 10,
+              vertical: 8,
             ),
           ),
         ),
@@ -689,8 +733,7 @@ class BillLinesPanelState extends ConsumerState<BillLinesPanel> {
   }
 
   Widget _buildBillLineTile(BillLineItem line, int index) {
-    final lineController = _lineEditControllers[line.draftKey];
-    final lineFocusNode = _lineEditFocusNodes[line.draftKey];
+    final res = _getOrCreateLineResources(line.draftKey);
 
     final isEditingRow = _editingLineKey == line.draftKey;
     final isEditingQty =
@@ -759,8 +802,8 @@ class BillLinesPanelState extends ConsumerState<BillLinesPanel> {
                     children: [
                       _buildEditableValueChip(
                         isEditing: isEditingQty,
-                        controller: lineController,
-                        focusNode: lineFocusNode,
+                        controller: res.qtyController,
+                        focusNode: res.qtyFocusNode,
                         value: qtyDisplay,
                         tooltip: 'વજન / સંખ્યા બદલો',
                         onTap: () => _startInlineEdit(
@@ -779,8 +822,8 @@ class BillLinesPanelState extends ConsumerState<BillLinesPanel> {
                       ),
                       _buildEditableValueChip(
                         isEditing: isEditingPrice,
-                        controller: lineController,
-                        focusNode: lineFocusNode,
+                        controller: res.priceController,
+                        focusNode: res.priceFocusNode,
                         value: priceDisplay,
                         tooltip: 'કિંમત બદલો',
                         onTap: () =>
@@ -798,8 +841,8 @@ class BillLinesPanelState extends ConsumerState<BillLinesPanel> {
                       ),
                       _buildEditableValueChip(
                         isEditing: isEditingAmount,
-                        controller: lineController,
-                        focusNode: lineFocusNode,
+                        controller: res.amountController,
+                        focusNode: res.amountFocusNode,
                         value: formatCurrency(line.amount),
                         tooltip: 'કુલ રકમ બદલો',
                         onTap: () =>

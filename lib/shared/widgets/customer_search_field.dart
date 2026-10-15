@@ -229,6 +229,11 @@ class _CustomerSearchFieldState extends ConsumerState<CustomerSearchField> {
       return KeyEventResult.ignored;
     }
 
+    // Pass through Alt shortcuts (Alt+C, Alt+1..6, etc.) to global handlers
+    if (HardwareKeyboard.instance.isAltPressed) {
+      return KeyEventResult.ignored;
+    }
+
     if (event.logicalKey == LogicalKeyboardKey.arrowDown && _isDropdownOpen && _results.isNotEmpty) {
       _moveHighlight(1);
       return KeyEventResult.handled;

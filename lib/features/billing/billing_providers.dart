@@ -50,7 +50,7 @@ class BillDraft {
     this.otherCharges = 0,
     this.customerId,
     this.customerName,
-    this.transactionType = 'khata',
+    this.transactionType = 'cash',
   });
 
   final List<BillLine> lines;
@@ -58,7 +58,7 @@ class BillDraft {
   final double otherCharges;
   final int? customerId;
   final String? customerName;
-  final String transactionType; // 'khata' (udhaar)
+  final String transactionType; // 'cash' (default) or 'khata' (udhaar) or 'online'
 
   double get subtotal => lines.fold(0, (s, l) => s + l.amount);
   double get total => subtotal - discountAmount + otherCharges;

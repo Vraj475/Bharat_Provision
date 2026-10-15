@@ -7,6 +7,7 @@ import 'package:intl/intl.dart';
 
 import '../../core/theme/app_colors.dart';
 import '../../core/utils/currency_format.dart';
+import '../../data/providers.dart';
 import '../../data/repositories/return_repository.dart';
 import '../../shared/models/bill_item_model.dart';
 import '../../shared/models/bill_model.dart';
@@ -15,7 +16,14 @@ import '../billing/views/dialogs/product_addition_dialog.dart';
 import 'returns_providers.dart';
 
 class ReturnReplaceScreen extends ConsumerStatefulWidget {
-  const ReturnReplaceScreen({super.key});
+  const ReturnReplaceScreen({
+    super.key,
+    this.initialBill,
+    this.initialBillId,
+  });
+
+  final Bill? initialBill;
+  final int? initialBillId;
 
   @override
   ConsumerState<ReturnReplaceScreen> createState() => _ReturnReplaceScreenState();
@@ -66,13 +74,70 @@ class _ReturnReplaceScreenState extends ConsumerState<ReturnReplaceScreen> {
   Timer? _catalogSearchDebounce;
   int _replaceHighlightedIndex = -1;
 
+  bool _openedDirectly = false;
+
   // ─── Lifecycle ─────────────────────────────────────────────────────────────
 
   @override
   void initState() {
     super.initState();
+    _openedDirectly = widget.initialBill != null || widget.initialBillId != null;
     _replaceSearchFocusNode.onKeyEvent = _handleReplaceSearchKeyEvent;
     _loadCatalogProducts();
+
+    if (widget.initialBill != null) {
+      _selectedBill = widget.initialBill;
+      _isLoading = true;
+      WidgetsBinding.instance.addPostFrameCallback((_) {
+        if (!mounted) return;
+        _openBill(widget.initialBill!);
+      });
+    } else if (widget.initialBillId != null) {
+      _isLoading = true;
+      WidgetsBinding.instance.addPostFrameCallback((_) {
+        if (!mounted) return;
+        _loadAndOpenBillById(widget.initialBillId!);
+      });
+    }
+  }
+
+  @override
+  void didUpdateWidget(covariant ReturnReplaceScreen oldWidget) {
+    super.didUpdateWidget(oldWidget);
+    if (widget.initialBill != null && widget.initialBill != oldWidget.initialBill) {
+      _openedDirectly = true;
+      _openBill(widget.initialBill!);
+    } else if (widget.initialBillId != null &&
+        widget.initialBillId != oldWidget.initialBillId) {
+      _openedDirectly = true;
+      _loadAndOpenBillById(widget.initialBillId!);
+    }
+  }
+
+  Future<void> _loadAndOpenBillById(int billId) async {
+    setState(() {
+      _isLoading = true;
+      _error = null;
+    });
+    try {
+      final billRepo = ref.read(billRepositoryProvider);
+      final bill = await billRepo.getById(billId);
+      if (!mounted) return;
+      if (bill != null) {
+        await _openBill(bill);
+      } else {
+        setState(() {
+          _isLoading = false;
+          _error = 'બિલ મળ્યું નથી (#$billId)';
+        });
+      }
+    } catch (e) {
+      if (!mounted) return;
+      setState(() {
+        _isLoading = false;
+        _error = 'બિલ લાવવામાં ભૂલ: $e';
+      });
+    }
   }
 
   @override
@@ -231,13 +296,16 @@ class _ReturnReplaceScreenState extends ConsumerState<ReturnReplaceScreen> {
       _replaceCartItems = [];
     });
     _disposeReturnControllers();
-    await _loadBillItems(bill.id!);
+    if (bill.id != null) {
+      await _loadBillItems(bill.id!);
+    }
     if (_catalogSearchResults.isEmpty) {
       _loadCatalogProducts();
     }
   }
 
   void _backToBillList() {
+    _openedDirectly = false;
     _disposeReturnControllers();
     setState(() {
       _selectedBill = null;
@@ -1175,13 +1243,20 @@ class _ReturnReplaceScreenState extends ConsumerState<ReturnReplaceScreen> {
         leading: _selectedBill != null
             ? IconButton(
                 icon: const Icon(Icons.arrow_back),
-                tooltip: 'પાછા જાઓ (બિલ યાદી)',
-                onPressed: _backToBillList,
+                tooltip: 'પાછા જાઓ',
+                onPressed: () {
+                  if (_openedDirectly && Navigator.canPop(context)) {
+                    context.pop();
+                  } else {
+                    _backToBillList();
+                  }
+                },
               )
             : null,
       ),
       body: PopScope(
-        canPop: _selectedBill == null,
+        canPop: _selectedBill == null ||
+            (_openedDirectly && Navigator.canPop(context)),
         onPopInvokedWithResult: (didPop, _) {
           if (!didPop && _selectedBill != null) {
             _backToBillList();
@@ -1479,9 +1554,20 @@ class _ReturnReplaceScreenState extends ConsumerState<ReturnReplaceScreen> {
           alignment: WrapAlignment.spaceBetween,
           crossAxisAlignment: WrapCrossAlignment.center,
           children: [
+            if (_openedDirectly && Navigator.canPop(context))
+              OutlinedButton.icon(
+                onPressed: () => context.pop(),
+                icon: const Icon(Icons.arrow_back),
+                label: const Text('પાછા જાઓ'),
+                style: OutlinedButton.styleFrom(
+                  side: const BorderSide(color: Color(0xFF64748B), width: 1.5),
+                  shape: RoundedRectangleBorder(
+                      borderRadius: BorderRadius.circular(10)),
+                ),
+              ),
             OutlinedButton.icon(
               onPressed: _backToBillList,
-              icon: const Icon(Icons.arrow_back),
+              icon: const Icon(Icons.receipt_long_outlined),
               label: const Text('બિલ યાદી'),
               style: OutlinedButton.styleFrom(
                 side: const BorderSide(color: AppColors.primary, width: 1.5),

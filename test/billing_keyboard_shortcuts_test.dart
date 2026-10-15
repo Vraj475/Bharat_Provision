@@ -30,16 +30,26 @@ void main() {
         map[const SingleActivator(LogicalKeyboardKey.numpadEnter, control: true)],
         isA<SaveBillIntent>(),
       );
+      expect(
+        map[const SingleActivator(LogicalKeyboardKey.keyC, alt: true)],
+        isA<TogglePaymentModeIntent>(),
+      );
     });
 
-    test('Module shortcuts are mapped in AppShortcuts.moduleShortcuts (Ctrl + F1 - F6)', () {
+    test('Module shortcuts are mapped in AppShortcuts.moduleShortcuts (Alt + 1 - 6)', () {
       final moduleMap = AppShortcuts.moduleShortcuts;
-      expect(moduleMap[const SingleActivator(LogicalKeyboardKey.f1, control: true)], isA<NavigateToModuleIntent>());
-      expect(moduleMap[const SingleActivator(LogicalKeyboardKey.f2, control: true)], isA<NavigateToModuleIntent>());
-      expect(moduleMap[const SingleActivator(LogicalKeyboardKey.f3, control: true)], isA<NavigateToModuleIntent>());
-      expect(moduleMap[const SingleActivator(LogicalKeyboardKey.f4, control: true)], isA<NavigateToModuleIntent>());
-      expect(moduleMap[const SingleActivator(LogicalKeyboardKey.f5, control: true)], isA<NavigateToModuleIntent>());
-      expect(moduleMap[const SingleActivator(LogicalKeyboardKey.f6, control: true)], isA<NavigateToModuleIntent>());
+      expect(moduleMap[const SingleActivator(LogicalKeyboardKey.digit1, alt: true)], isA<NavigateToModuleIntent>());
+      expect(moduleMap[const SingleActivator(LogicalKeyboardKey.numpad1, alt: true)], isA<NavigateToModuleIntent>());
+      expect(moduleMap[const SingleActivator(LogicalKeyboardKey.digit2, alt: true)], isA<NavigateToModuleIntent>());
+      expect(moduleMap[const SingleActivator(LogicalKeyboardKey.numpad2, alt: true)], isA<NavigateToModuleIntent>());
+      expect(moduleMap[const SingleActivator(LogicalKeyboardKey.digit3, alt: true)], isA<NavigateToModuleIntent>());
+      expect(moduleMap[const SingleActivator(LogicalKeyboardKey.numpad3, alt: true)], isA<NavigateToModuleIntent>());
+      expect(moduleMap[const SingleActivator(LogicalKeyboardKey.digit4, alt: true)], isA<NavigateToModuleIntent>());
+      expect(moduleMap[const SingleActivator(LogicalKeyboardKey.numpad4, alt: true)], isA<NavigateToModuleIntent>());
+      expect(moduleMap[const SingleActivator(LogicalKeyboardKey.digit5, alt: true)], isA<NavigateToModuleIntent>());
+      expect(moduleMap[const SingleActivator(LogicalKeyboardKey.numpad5, alt: true)], isA<NavigateToModuleIntent>());
+      expect(moduleMap[const SingleActivator(LogicalKeyboardKey.digit6, alt: true)], isA<NavigateToModuleIntent>());
+      expect(moduleMap[const SingleActivator(LogicalKeyboardKey.numpad6, alt: true)], isA<NavigateToModuleIntent>());
     });
   });
 
@@ -473,20 +483,20 @@ void main() {
       );
       await tester.pumpAndSettle();
 
-      // Default transaction type should be udhaar (khata)
-      expect(container.read(billingTabsProvider).activeDraft.transactionType, 'khata');
-
-      // Tap on Cash chip
-      await tester.tap(find.text('💵 કેશ'));
-      await tester.pumpAndSettle();
-
+      // Default transaction type should be cash
       expect(container.read(billingTabsProvider).activeDraft.transactionType, 'cash');
 
       // Tap on Udhaar chip
-      await tester.tap(find.text('📒 ઉધાર'));
+      await tester.tap(find.text('📒 ઉધાર (Credit)'));
       await tester.pumpAndSettle();
 
       expect(container.read(billingTabsProvider).activeDraft.transactionType, 'khata');
+
+      // Tap on Cash chip
+      await tester.tap(find.text('💵 રોકડ (Cash)'));
+      await tester.pumpAndSettle();
+
+      expect(container.read(billingTabsProvider).activeDraft.transactionType, 'cash');
     });
 
     testWidgets('BillSummaryPanel triggers onSaveAndPrintBill callback', (tester) async {
@@ -622,15 +632,18 @@ void main() {
       expect(find.byType(TextField), findsOneWidget);
       final priceField = tester.widget<TextField>(find.byType(TextField));
       expect(priceField.controller?.text, '40.00');
+      expect(priceField.focusNode?.hasFocus, isTrue);
 
-      // Step 4: Submit unit price
+      // Step 4: Type new unit price (45.00) and submit
+      await tester.enterText(find.byType(TextField), '45.00');
       await tester.testTextInput.receiveAction(TextInputAction.done);
       await tester.pumpAndSettle();
 
       // Step 5: Focus automatically moved to Final Price (Amount) TextField
       expect(find.byType(TextField), findsOneWidget);
       final amountField = tester.widget<TextField>(find.byType(TextField));
-      expect(amountField.controller?.text, '80.00'); // 2.0 kg * 40.00
+      expect(amountField.controller?.text, '90.00'); // 2.0 kg * 45.00
+      expect(amountField.focusNode?.hasFocus, isTrue);
 
       // Step 6: Up / Down arrow key moves between product amount fields
       await tester.sendKeyEvent(LogicalKeyboardKey.arrowDown);
@@ -646,7 +659,7 @@ void main() {
       await tester.pumpAndSettle();
       expect(find.byType(TextField), findsOneWidget);
       final row0ReturnAmountField = tester.widget<TextField>(find.byType(TextField));
-      expect(row0ReturnAmountField.controller?.text, '80.00');
+      expect(row0ReturnAmountField.controller?.text, '90.00');
 
       // Step 7: Press Enter on Amount -> commits and calls onInlineEditCompleted
       await tester.testTextInput.receiveAction(TextInputAction.done);

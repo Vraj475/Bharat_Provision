@@ -18,32 +18,48 @@ class AppShortcuts {
         const SaveBillIntent(),
     const SingleActivator(LogicalKeyboardKey.numpadEnter, control: true):
         const SaveBillIntent(),
+
+    // Toggle Payment Mode (Cash / Credit) via Alt + C
+    const SingleActivator(LogicalKeyboardKey.keyC, alt: true):
+        const TogglePaymentModeIntent(),
   };
 
-  /// Global shortcuts for switching between app modules (Ctrl + F1 - F6)
+  /// Global shortcuts for switching between app modules (Alt + 1 - 6)
   static final Map<ShortcutActivator, Intent> moduleShortcuts = {
-    // Ctrl + F1: Billing
-    const SingleActivator(LogicalKeyboardKey.f1, control: true):
+    // Alt + 1: Billing
+    const SingleActivator(LogicalKeyboardKey.digit1, alt: true):
+        const NavigateToModuleIntent(0),
+    const SingleActivator(LogicalKeyboardKey.numpad1, alt: true):
         const NavigateToModuleIntent(0),
 
-    // Ctrl + F2: Bill History
-    const SingleActivator(LogicalKeyboardKey.f2, control: true):
+    // Alt + 2: Bill History / Next module
+    const SingleActivator(LogicalKeyboardKey.digit2, alt: true):
+        const NavigateToModuleIntent(1),
+    const SingleActivator(LogicalKeyboardKey.numpad2, alt: true):
         const NavigateToModuleIntent(1),
 
-    // Ctrl + F3: Inventory
-    const SingleActivator(LogicalKeyboardKey.f3, control: true):
+    // Alt + 3: Inventory / Khata
+    const SingleActivator(LogicalKeyboardKey.digit3, alt: true):
+        const NavigateToModuleIntent(2),
+    const SingleActivator(LogicalKeyboardKey.numpad3, alt: true):
         const NavigateToModuleIntent(2),
 
-    // Ctrl + F4: Khata / Customers
-    const SingleActivator(LogicalKeyboardKey.f4, control: true):
+    // Alt + 4: Khata / Customers / Reports
+    const SingleActivator(LogicalKeyboardKey.digit4, alt: true):
+        const NavigateToModuleIntent(3),
+    const SingleActivator(LogicalKeyboardKey.numpad4, alt: true):
         const NavigateToModuleIntent(3),
 
-    // Ctrl + F5: Reports
-    const SingleActivator(LogicalKeyboardKey.f5, control: true):
+    // Alt + 5: Reports / Settings
+    const SingleActivator(LogicalKeyboardKey.digit5, alt: true):
+        const NavigateToModuleIntent(4),
+    const SingleActivator(LogicalKeyboardKey.numpad5, alt: true):
         const NavigateToModuleIntent(4),
 
-    // Ctrl + F6: Settings
-    const SingleActivator(LogicalKeyboardKey.f6, control: true):
+    // Alt + 6: Settings
+    const SingleActivator(LogicalKeyboardKey.digit6, alt: true):
+        const NavigateToModuleIntent(5),
+    const SingleActivator(LogicalKeyboardKey.numpad6, alt: true):
         const NavigateToModuleIntent(5),
   };
 }

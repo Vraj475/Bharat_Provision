@@ -70,7 +70,7 @@ class SetCashModeIntent extends Intent {
   const SetCashModeIntent();
 }
 
-/// Intent to toggle payment mode between Udhaar, Cash and Online (F4)
+/// Intent to toggle payment mode between Cash and Credit (Alt + C)
 class TogglePaymentModeIntent extends Intent {
   const TogglePaymentModeIntent();
 }

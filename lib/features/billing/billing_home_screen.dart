@@ -74,6 +74,7 @@ class _BillingHomeScreenState extends ConsumerState<BillingHomeScreen> {
               customerId: null,
               customerName: null,
             );
+        if (mounted) setState(() {});
       }
     });
     WidgetsBinding.instance.addPostFrameCallback((_) {
@@ -100,9 +101,16 @@ class _BillingHomeScreenState extends ConsumerState<BillingHomeScreen> {
       return false;
     }
 
+    final isAlt = HardwareKeyboard.instance.isAltPressed;
     final isCtrlOrCmd = HardwareKeyboard.instance.isControlPressed ||
         HardwareKeyboard.instance.isMetaPressed;
     final key = event.logicalKey;
+
+    // ── Payment Mode Shortcut: Alt + C (Cash <-> Credit) ──
+    if (isAlt && !isCtrlOrCmd && key == LogicalKeyboardKey.keyC) {
+      _togglePaymentMode();
+      return true;
+    }
 
     // Check if an editable text field has active focus
     final primaryFocus = FocusManager.instance.primaryFocus;
@@ -251,21 +259,30 @@ class _BillingHomeScreenState extends ConsumerState<BillingHomeScreen> {
     });
   }
 
+  DateTime? _lastPaymentModeToggleTime;
+
   void _togglePaymentMode() {
+    final now = DateTime.now();
+    if (_lastPaymentModeToggleTime != null &&
+        now.difference(_lastPaymentModeToggleTime!).inMilliseconds < 250) {
+      return;
+    }
+    _lastPaymentModeToggleTime = now;
+
     final current = ref.read(billingTabsProvider).activeDraft.transactionType;
     final String nextMode;
     final String message;
-    if (current == 'khata') {
-      nextMode = 'cash';
-      message = 'રોકડ (Cash) મોડ પસંદ થયો (F4).';
-    } else if (current == 'cash') {
-      nextMode = 'online';
-      message = 'ઓનલાઇન (Online) મોડ પસંદ થયો (F4).';
-    } else {
+    if (current == 'cash') {
       nextMode = 'khata';
-      message = 'ઉધાર (ખાતા) મોડ પસંદ થયો (F4). ગ્રાહકનું નામ ઉમેરો (F2).';
+      message = 'ઉધાર (ખાતા) મોડ પસંદ થયો (Alt+C). ગ્રાહકનું નામ ઉમેરો.';
+    } else {
+      nextMode = 'cash';
+      message = 'રોકડ (Cash) મોડ પસંદ થયો (Alt+C).';
     }
     ref.read(billingTabsProvider.notifier).setTransactionTypeForActive(nextMode);
+    if (mounted) {
+      setState(() {});
+    }
     final messenger = ScaffoldMessenger.of(context);
     messenger.hideCurrentSnackBar();
     messenger.showSnackBar(
@@ -276,6 +293,8 @@ class _BillingHomeScreenState extends ConsumerState<BillingHomeScreen> {
       if (name == null || name.isEmpty) {
         _focusCustomerSearch();
       }
+    } else if (nextMode == 'cash') {
+      _focusProductSearch();
     }
   }
 
@@ -884,6 +903,12 @@ class _BillingHomeScreenState extends ConsumerState<BillingHomeScreen> {
               return null;
             },
           ),
+          TogglePaymentModeIntent: CallbackAction<TogglePaymentModeIntent>(
+            onInvoke: (_) {
+              _togglePaymentMode();
+              return null;
+            },
+          ),
           EscapeIntent: CallbackAction<EscapeIntent>(
             onInvoke: (_) {
               _handleEscape();
@@ -1089,27 +1114,109 @@ class _BillingHomeScreenState extends ConsumerState<BillingHomeScreen> {
           child: Row(
             mainAxisAlignment: MainAxisAlignment.spaceBetween,
             children: [
-              const Text(
-                'હાલનો બિલ',
-                style: TextStyle(fontSize: 16, fontWeight: FontWeight.bold),
+              Consumer(
+                builder: (context, ref, _) {
+                  final activeDraft = ref.watch(billingTabsProvider).activeDraft;
+                  final isCash = activeDraft.transactionType == 'cash';
+                  final isKhata = activeDraft.transactionType == 'khata';
+                  return Row(
+                    mainAxisSize: MainAxisSize.min,
+                    children: [
+                      const Text(
+                        'હાલનો બિલ',
+                        style: TextStyle(fontSize: 16, fontWeight: FontWeight.bold),
+                      ),
+                      const SizedBox(width: 8),
+                      Tooltip(
+                        message: 'ચૂકવણી મોડ બદલો (Alt+C)',
+                        child: InkWell(
+                          onTap: _togglePaymentMode,
+                          borderRadius: BorderRadius.circular(10),
+                          child: Container(
+                            padding: const EdgeInsets.symmetric(horizontal: 8, vertical: 3),
+                            decoration: BoxDecoration(
+                              color: isCash
+                                  ? const Color(0xFFDCFCE7)
+                                  : isKhata
+                                      ? const Color(0xFFFEF3C7)
+                                      : const Color(0xFFDBEAFE),
+                              borderRadius: BorderRadius.circular(10),
+                              border: Border.all(
+                                color: isCash
+                                    ? const Color(0xFF16A34A)
+                                    : isKhata
+                                        ? const Color(0xFFD97706)
+                                        : const Color(0xFF2563EB),
+                              ),
+                            ),
+                            child: Row(
+                              mainAxisSize: MainAxisSize.min,
+                              children: [
+                                Text(
+                                  isCash
+                                      ? '💵 રોકડ (Cash)'
+                                      : isKhata
+                                          ? '📒 ઉધાર (Credit)'
+                                          : '📱 ઓનલાઇન',
+                                  style: TextStyle(
+                                    fontSize: 11,
+                                    fontWeight: FontWeight.bold,
+                                    color: isCash
+                                        ? const Color(0xFF15803D)
+                                        : isKhata
+                                            ? const Color(0xFFB45309)
+                                            : const Color(0xFF1D4ED8),
+                                  ),
+                                ),
+                                const SizedBox(width: 4),
+                                Text(
+                                  '(Alt+C)',
+                                  style: TextStyle(
+                                    fontSize: 9.5,
+                                    fontWeight: FontWeight.w600,
+                                    color: isCash
+                                        ? const Color(0xFF15803D).withValues(alpha: 0.8)
+                                        : isKhata
+                                            ? const Color(0xFFB45309).withValues(alpha: 0.8)
+                                            : const Color(0xFF1D4ED8).withValues(alpha: 0.8),
+                                  ),
+                                ),
+                              ],
+                            ),
+                          ),
+                        ),
+                      ),
+                    ],
+                  );
+                },
               ),
               const SizedBox(width: 12),
               Flexible(
                 child: ConstrainedBox(
                   constraints: const BoxConstraints(maxWidth: 300),
-                  child: CustomerSearchField(
-                    controller: _customerController,
-                    focusNode: _customerSearchFocusNode,
-                    hintText: 'ગ્રાહક ઉમેરો',
-                    onCustomerSelected: (customerId, customerName) {
-                      ref
-                          .read(billingTabsProvider.notifier)
-                          .setSelectedCustomer(customerId, customerName);
-                      setState(() {
-                        _customerId = customerId > 0 ? customerId : null;
-                        _customerName = customerName;
-                      });
-                      _focusProductSearch();
+                  child: Consumer(
+                    builder: (context, ref, _) {
+                      final activeDraft = ref.watch(billingTabsProvider).activeDraft;
+                      final isKhata = activeDraft.transactionType == 'khata';
+                      return CustomerSearchField(
+                        controller: _customerController,
+                        focusNode: _customerSearchFocusNode,
+                        hintText: isKhata ? 'ગ્રાહક ઉમેરો (ઉધાર માટે)' : 'ગ્રાહક ઉમેરો (રોકડ)',
+                        onCustomerSelected: (customerId, customerName) {
+                          ref
+                              .read(billingTabsProvider.notifier)
+                              .setSelectedCustomer(customerId, customerName);
+                          // Selecting a customer defaults payment mode to khata (credit)
+                          ref
+                              .read(billingTabsProvider.notifier)
+                              .setTransactionTypeForActive('khata');
+                          setState(() {
+                            _customerId = customerId > 0 ? customerId : null;
+                            _customerName = customerName;
+                          });
+                          _focusProductSearch();
+                        },
+                      );
                     },
                   ),
                 ),

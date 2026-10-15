@@ -151,6 +151,7 @@ class BillSummaryPanelState extends ConsumerState<BillSummaryPanel> {
 
   @override
   Widget build(BuildContext context) {
+    ref.watch(billingTabsProvider);
     final state = ref.watch(billingControllerProvider);
     final subtotal = state.subtotal;
     final discount = state.discount;
@@ -361,46 +362,116 @@ class BillSummaryPanelState extends ConsumerState<BillSummaryPanel> {
             ],
           ),
           const SizedBox(height: 10),
-          // ── Payment Mode Chips ──
+          // ── Payment Mode Chips & Status ──
           Consumer(
             builder: (context, ref, _) {
               final activeDraft = ref.watch(billingTabsProvider).activeDraft;
               final currentMode = activeDraft.transactionType;
-              return Row(
+              final isCash = currentMode == 'cash';
+              final isKhata = currentMode == 'khata';
+              final isOnline = currentMode == 'online';
+
+              return Column(
+                crossAxisAlignment: CrossAxisAlignment.stretch,
+                mainAxisSize: MainAxisSize.min,
                 children: [
-                  const Text(
-                    'ચૂકવણી (F4):',
-                    style: TextStyle(fontWeight: FontWeight.bold, fontSize: 13),
+                  Row(
+                    children: [
+                      const Text(
+                        'ચૂકવણી (Alt+C):',
+                        style: TextStyle(fontWeight: FontWeight.bold, fontSize: 13),
+                      ),
+                      const SizedBox(width: 8),
+                      _buildPaymentChip(
+                        label: '💵 રોકડ (Cash)',
+                        isSelected: isCash,
+                        selectedColor: const Color(0xFF16A34A),
+                        onTap: () {
+                          ref
+                              .read(billingTabsProvider.notifier)
+                              .setTransactionTypeForActive('cash');
+                        },
+                      ),
+                      const SizedBox(width: 6),
+                      _buildPaymentChip(
+                        label: '📒 ઉધાર (Credit)',
+                        isSelected: isKhata,
+                        selectedColor: const Color(0xFFD97706),
+                        onTap: () {
+                          ref
+                              .read(billingTabsProvider.notifier)
+                              .setTransactionTypeForActive('khata');
+                        },
+                      ),
+                      const SizedBox(width: 6),
+                      _buildPaymentChip(
+                        label: '📱 ઓનલાઇન',
+                        isSelected: isOnline,
+                        selectedColor: const Color(0xFF2563EB),
+                        onTap: () {
+                          ref
+                              .read(billingTabsProvider.notifier)
+                              .setTransactionTypeForActive('online');
+                        },
+                      ),
+                    ],
                   ),
-                  const SizedBox(width: 8),
-                  _buildPaymentChip(
-                    label: '📒 ઉધાર',
-                    isSelected: currentMode == 'khata',
-                    onTap: () {
-                      ref
-                          .read(billingTabsProvider.notifier)
-                          .setTransactionTypeForActive('khata');
-                    },
-                  ),
-                  const SizedBox(width: 6),
-                  _buildPaymentChip(
-                    label: '💵 કેશ',
-                    isSelected: currentMode == 'cash',
-                    onTap: () {
-                      ref
-                          .read(billingTabsProvider.notifier)
-                          .setTransactionTypeForActive('cash');
-                    },
-                  ),
-                  const SizedBox(width: 6),
-                  _buildPaymentChip(
-                    label: '📱 ઓનલાઇન',
-                    isSelected: currentMode == 'online',
-                    onTap: () {
-                      ref
-                          .read(billingTabsProvider.notifier)
-                          .setTransactionTypeForActive('online');
-                    },
+                  const SizedBox(height: 6),
+                  AnimatedContainer(
+                    duration: const Duration(milliseconds: 150),
+                    padding: const EdgeInsets.symmetric(horizontal: 10, vertical: 5),
+                    decoration: BoxDecoration(
+                      color: isCash
+                          ? const Color(0xFFF0FDF4)
+                          : isKhata
+                              ? const Color(0xFFFFFBEB)
+                              : const Color(0xFFEFF6FF),
+                      borderRadius: BorderRadius.circular(8),
+                      border: Border.all(
+                        color: isCash
+                            ? const Color(0xFFBBF7D0)
+                            : isKhata
+                                ? const Color(0xFFFDE68A)
+                                : const Color(0xFFBFDBFE),
+                      ),
+                    ),
+                    child: Row(
+                      mainAxisSize: MainAxisSize.min,
+                      children: [
+                        Icon(
+                          isCash
+                              ? Icons.check_circle_rounded
+                              : isKhata
+                                  ? Icons.account_balance_wallet_outlined
+                                  : Icons.phone_android_rounded,
+                          size: 15,
+                          color: isCash
+                              ? const Color(0xFF16A34A)
+                              : isKhata
+                                  ? const Color(0xFFD97706)
+                                  : const Color(0xFF2563EB),
+                        ),
+                        const SizedBox(width: 6),
+                        Expanded(
+                          child: Text(
+                            isCash
+                                ? 'રોકડ ચૂકવણી મોડ (Cash Mode) • કોઈ ખાતા બાકી નહીં'
+                                : isKhata
+                                    ? 'ઉધાર ખાતા મોડ (Credit Mode) • રકમ ગ્રાહકના ખાતામાં લખાશે'
+                                    : 'ઓનલાઇન / UPI ચૂકવણી મોડ (Online Mode)',
+                            style: TextStyle(
+                              fontSize: 11.5,
+                              fontWeight: FontWeight.w700,
+                              color: isCash
+                                  ? const Color(0xFF15803D)
+                                  : isKhata
+                                      ? const Color(0xFFB45309)
+                                      : const Color(0xFF1D4ED8),
+                            ),
+                          ),
+                        ),
+                      ],
+                    ),
                   ),
                 ],
               );
@@ -481,7 +552,9 @@ class BillSummaryPanelState extends ConsumerState<BillSummaryPanel> {
     required String label,
     required bool isSelected,
     required VoidCallback onTap,
+    Color? selectedColor,
   }) {
+    final activeColor = selectedColor ?? AppColors.primary;
     return InkWell(
       onTap: onTap,
       borderRadius: BorderRadius.circular(16),
@@ -489,10 +562,10 @@ class BillSummaryPanelState extends ConsumerState<BillSummaryPanel> {
         duration: const Duration(milliseconds: 150),
         padding: const EdgeInsets.symmetric(horizontal: 10, vertical: 4),
         decoration: BoxDecoration(
-          color: isSelected ? AppColors.primary : Colors.grey.shade100,
+          color: isSelected ? activeColor : Colors.grey.shade100,
           borderRadius: BorderRadius.circular(16),
           border: Border.all(
-            color: isSelected ? AppColors.primary : Colors.grey.shade300,
+            color: isSelected ? activeColor : Colors.grey.shade300,
             width: isSelected ? 1.5 : 1,
           ),
         ),

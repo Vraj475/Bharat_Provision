@@ -39,6 +39,7 @@ import '../features/reports/daily_report_screen.dart';
 import '../features/expenses/add_expense_screen.dart';
 import '../features/expenses/expense_list_screen.dart';
 import '../shared/models/expense_model.dart';
+import '../shared/models/bill_model.dart';
 
 final appRouter = GoRouter(
   initialLocation: '/splash',
@@ -194,17 +195,31 @@ final appRouter = GoRouter(
     ),
     GoRoute(
       path: AppRouter.returnsNew,
-      builder: (context, state) => const RoleGuard(
-        allowedRoles: ['admin'],
-        child: ReturnReplaceScreen(),
-      ),
+      builder: (context, state) {
+        final extra = state.extra;
+        final Bill? bill = extra is Bill ? extra : null;
+        final int? billId = extra is int
+            ? extra
+            : (extra is Map ? extra['billId'] as int? : null);
+        return RoleGuard(
+          allowedRoles: const ['admin'],
+          child: ReturnReplaceScreen(initialBill: bill, initialBillId: billId),
+        );
+      },
     ),
     GoRoute(
       path: AppRouter.returnsReplace,
-      builder: (context, state) => const RoleGuard(
-        allowedRoles: ['admin'],
-        child: ReturnReplaceScreen(),
-      ),
+      builder: (context, state) {
+        final extra = state.extra;
+        final Bill? bill = extra is Bill ? extra : null;
+        final int? billId = extra is int
+            ? extra
+            : (extra is Map ? extra['billId'] as int? : null);
+        return RoleGuard(
+          allowedRoles: const ['admin'],
+          child: ReturnReplaceScreen(initialBill: bill, initialBillId: billId),
+        );
+      },
     ),
     GoRoute(
       path: AppRouter.returnsHistory,
@@ -393,19 +408,29 @@ class _ShellRouteState extends ConsumerState<_ShellRoute> {
 
   bool _handleModuleKey(KeyEvent event) {
     if (!mounted || event is! KeyDownEvent) return false;
+    final isAlt = HardwareKeyboard.instance.isAltPressed;
+    final isCtrl = HardwareKeyboard.instance.isControlPressed;
+    final isMeta = HardwareKeyboard.instance.isMetaPressed;
+    if (!isAlt || isCtrl || isMeta) return false;
+
     final key = event.logicalKey;
     int? targetIndex;
-    if (key == LogicalKeyboardKey.f1) {
+    if (key == LogicalKeyboardKey.digit1 || key == LogicalKeyboardKey.numpad1) {
       targetIndex = 0;
-    } else if (key == LogicalKeyboardKey.f2) {
+    } else if (key == LogicalKeyboardKey.digit2 ||
+        key == LogicalKeyboardKey.numpad2) {
       targetIndex = 1;
-    } else if (key == LogicalKeyboardKey.f3) {
+    } else if (key == LogicalKeyboardKey.digit3 ||
+        key == LogicalKeyboardKey.numpad3) {
       targetIndex = 2;
-    } else if (key == LogicalKeyboardKey.f4) {
+    } else if (key == LogicalKeyboardKey.digit4 ||
+        key == LogicalKeyboardKey.numpad4) {
       targetIndex = 3;
-    } else if (key == LogicalKeyboardKey.f5) {
+    } else if (key == LogicalKeyboardKey.digit5 ||
+        key == LogicalKeyboardKey.numpad5) {
       targetIndex = 4;
-    } else if (key == LogicalKeyboardKey.f6) {
+    } else if (key == LogicalKeyboardKey.digit6 ||
+        key == LogicalKeyboardKey.numpad6) {
       targetIndex = 5;
     }
 

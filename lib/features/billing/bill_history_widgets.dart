@@ -1,8 +1,10 @@
 import 'package:flutter/material.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
+import 'package:go_router/go_router.dart';
 import 'package:intl/intl.dart';
 
 import '../../core/utils/currency_format.dart';
+import '../../routing/app_router.dart';
 import '../../shared/models/bill_model.dart';
 import 'bill_history_providers.dart';
 
@@ -183,6 +185,45 @@ class BillHistoryCard extends ConsumerWidget {
                             ),
                           ),
                           const Spacer(),
+                          InkWell(
+                            onTap: () async {
+                              await context.push(AppRouter.returnsReplace, extra: bill);
+                              ref.invalidate(billsProvider);
+                              ref.invalidate(billHistoryProvider);
+                            },
+                            borderRadius: BorderRadius.circular(6),
+                            child: Container(
+                              padding: const EdgeInsets.symmetric(
+                                horizontal: 7,
+                                vertical: 3,
+                              ),
+                              decoration: BoxDecoration(
+                                color: const Color(0xFFEFF6FF),
+                                borderRadius: BorderRadius.circular(6),
+                                border: Border.all(color: const Color(0xFFBFDBFE)),
+                              ),
+                              child: const Row(
+                                mainAxisSize: MainAxisSize.min,
+                                children: [
+                                  Icon(
+                                    Icons.assignment_return_outlined,
+                                    size: 13,
+                                    color: Color(0xFF2563EB),
+                                  ),
+                                  SizedBox(width: 4),
+                                  Text(
+                                    'પરત / બદલો',
+                                    style: TextStyle(
+                                      fontSize: 11,
+                                      fontWeight: FontWeight.w700,
+                                      color: Color(0xFF1D4ED8),
+                                    ),
+                                  ),
+                                ],
+                              ),
+                            ),
+                          ),
+                          const SizedBox(width: 8),
                           BillHistoryStatusBadge(status: bill.paymentStatus),
                           const SizedBox(width: 6),
                           const Icon(

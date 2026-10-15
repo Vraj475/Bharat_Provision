@@ -243,5 +243,68 @@ void main() {
     expect(find.byIcon(Icons.remove), findsWidgets);
     expect(find.byIcon(Icons.add), findsWidgets);
   });
+
+  testWidgets('ReturnReplaceScreen directly opens given initialBill without requiring bill list selection', (tester) async {
+    final mockRepo = MockReturnRepository();
+
+    final testBill = Bill(
+      id: 99,
+      billNumber: 'BILL-099',
+      subtotal: 350.0,
+      discount: 0.0,
+      gstAmount: 0.0,
+      totalAmount: 350.0,
+      paidAmount: 350.0,
+      paymentMode: 'cash',
+      paymentStatus: 'paid',
+      billDate: '2026-10-15',
+      createdAt: '2026-10-15 10:00:00',
+      customerNameSnapshot: 'ભાવેશભાઈ',
+      isPrinted: false,
+      isReturned: false,
+    );
+
+    final testItems = [
+      const BillItem(
+        id: 101,
+        billId: 99,
+        productId: 50,
+        productNameSnapshot: 'તુવેર દાળ દેશી',
+        unitTypeSnapshot: 'કિલો',
+        sellPriceSnapshot: 175.0,
+        qty: 2.0,
+        amount: 350.0,
+        isReturned: false,
+      ),
+    ];
+
+    when(() => mockRepo.getBillItems(99)).thenAnswer((_) async => testItems);
+    when(() => mockRepo.getProducts(query: any(named: 'query'))).thenAnswer((_) async => []);
+
+    await tester.pumpWidget(
+      ProviderScope(
+        overrides: [
+          returnRepositoryProvider.overrideWithValue(mockRepo),
+        ],
+        child: MaterialApp(
+          home: ReturnReplaceScreen(initialBill: testBill),
+        ),
+      ),
+    );
+
+    await tester.pumpAndSettle();
+
+    // Verify bill header shows directly with bill number
+    expect(find.text('બિલ નં: BILL-099'), findsOneWidget);
+
+    // Verify item from the bill is directly visible
+    expect(find.text('તુવેર દાળ દેશી'), findsOneWidget);
+
+    // Verify Return mode is active by default
+    expect(find.text('↩️ રિટર્ન'), findsOneWidget);
+
+    // Verify 'બિલ યાદી' option is available
+    expect(find.text('બિલ યાદી'), findsOneWidget);
+  });
 }
 

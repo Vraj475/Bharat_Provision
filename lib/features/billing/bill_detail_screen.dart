@@ -871,8 +871,11 @@ class _BillDetailScreenState extends ConsumerState<BillDetailScreen> {
             const SizedBox(width: 10),
             Expanded(
               child: OutlinedButton.icon(
-                onPressed: () {
-                  context.push(AppRouter.returnsReplace);
+                onPressed: () async {
+                  await context.push(AppRouter.returnsReplace, extra: bill);
+                  if (mounted) {
+                    _reload();
+                  }
                 },
                 style: OutlinedButton.styleFrom(
                   padding: const EdgeInsets.symmetric(vertical: 13),

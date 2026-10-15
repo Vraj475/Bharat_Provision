@@ -1142,6 +1142,12 @@ class _MobileExpressBillingViewState
     required String mode,
     required bool isSelected,
   }) {
+    final activeColor = mode == 'cash'
+        ? const Color(0xFF16A34A)
+        : mode == 'khata'
+            ? const Color(0xFFD97706)
+            : const Color(0xFF2563EB);
+
     return InkWell(
       onTap: () {
         ref
@@ -1152,10 +1158,10 @@ class _MobileExpressBillingViewState
       child: Container(
         padding: const EdgeInsets.symmetric(horizontal: 10, vertical: 4),
         decoration: BoxDecoration(
-          color: isSelected ? AppColors.primary : Colors.grey.shade100,
+          color: isSelected ? activeColor : Colors.grey.shade100,
           borderRadius: BorderRadius.circular(16),
           border: Border.all(
-            color: isSelected ? AppColors.primary : Colors.grey.shade300,
+            color: isSelected ? activeColor : Colors.grey.shade300,
           ),
         ),
         child: Text(

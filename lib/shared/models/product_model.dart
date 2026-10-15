@@ -69,6 +69,18 @@ class Product {
 
   bool get isLowStock => minStockQty > 0 ? stockQty <= minStockQty : false;
 
+  bool get isWeightProduct {
+    final u = unitType.trim().toLowerCase();
+    return u.contains('કિલો') ||
+        u == 'kg' ||
+        u.contains('kilo') ||
+        u.contains('ગ્રામ') ||
+        u == 'g' ||
+        u.contains('gram') ||
+        u == 'weight_kg' ||
+        u == 'weight_gram';
+  }
+
   factory Product.fromMap(Map<String, dynamic> map) {
     return Product(
       id: map['id'] as int?,

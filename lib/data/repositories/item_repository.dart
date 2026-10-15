@@ -21,11 +21,29 @@ class ItemRepository {
     var where = 'is_active = 1';
     final args = <Object?>[];
 
-    if (query.trim().isNotEmpty) {
+    final trimmed = query.trim();
+    String orderBy = 'name_gujarati ASC';
+
+    if (trimmed.isNotEmpty) {
       where +=
-          ' AND (name_gujarati LIKE ? OR name_english LIKE ? OR barcode LIKE ? OR transliteration_keys LIKE ?)';
-      final q = '%${query.trim()}%';
-      args.addAll([q, q, q, q]);
+          ' AND (name_gujarati LIKE ? OR name_english LIKE ? OR barcode LIKE ? OR transliteration_keys LIKE ? OR CAST(sell_price AS TEXT) LIKE ? OR CAST(CAST(sell_price AS INTEGER) AS TEXT) LIKE ?)';
+      final q = '%$trimmed%';
+      args.addAll([q, q, q, q, q, q]);
+
+      final numericVal = double.tryParse(trimmed);
+      if (numericVal != null) {
+        orderBy = '''
+          CASE 
+            WHEN CAST(CAST(sell_price AS INTEGER) AS TEXT) = '$trimmed' THEN 0
+            WHEN CAST(CAST(sell_price AS INTEGER) AS TEXT) LIKE '$trimmed%' THEN 1
+            WHEN CAST(sell_price AS TEXT) LIKE '$trimmed%' THEN 2
+            WHEN CAST(CAST(sell_price AS INTEGER) AS TEXT) LIKE '%$trimmed%' THEN 3
+            ELSE 4
+          END,
+          ABS(sell_price - $numericVal) ASC,
+          name_gujarati ASC
+        ''';
+      }
     }
     if (lowStockOnly) {
       where += ' AND stock_qty <= min_stock_qty';
@@ -36,7 +54,7 @@ class ItemRepository {
       'products',
       where: where,
       whereArgs: args.isEmpty ? null : args,
-      orderBy: 'name_gujarati ASC',
+      orderBy: orderBy,
     );
     return maps.map((m) => Product.fromMap(m)).toList();
   }

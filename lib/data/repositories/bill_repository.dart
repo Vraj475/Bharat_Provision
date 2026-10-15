@@ -44,10 +44,37 @@ class BillRepository {
       subtotal += i.qty * i.sellPriceSnapshot!;
     }
     final totalAmount = subtotal - discountAmount + otherCharges;
-    final dueAmount = (totalAmount - paidAmount).clamp(0.0, totalAmount);
+    final effectivePaidAmount = paymentMode == 'khata' ? 0.0 : paidAmount;
+    final dueAmount = (totalAmount - effectivePaidAmount).clamp(0.0, totalAmount);
 
     final db = await _db;
     return db.transaction((txn) async {
+      int? effectiveCustomerId =
+          (customerId != null && customerId > 0) ? customerId : null;
+      if (effectiveCustomerId == null &&
+          customerNameSnapshot != null &&
+          customerNameSnapshot.trim().isNotEmpty) {
+        final trimmedName = customerNameSnapshot.trim();
+        final existingCustomers = await txn.query(
+          'customers',
+          columns: ['id'],
+          where: 'name_gujarati = ? OR name_english = ?',
+          whereArgs: [trimmedName, trimmedName],
+          limit: 1,
+        );
+        if (existingCustomers.isNotEmpty) {
+          effectiveCustomerId = existingCustomers.first['id'] as int?;
+        } else if (paymentMode == 'khata' || dueAmount > 0) {
+          effectiveCustomerId = await txn.insert('customers', {
+            'name_gujarati': trimmedName,
+            'total_outstanding': 0.0,
+            'credit_limit': 2000.0,
+            'is_active': 1,
+            'created_at': nowIso,
+          });
+        }
+      }
+
       final billNumber = await _nextBillNumberInTransaction(txn);
       final itemTable = await _resolveItemTable(txn);
       final itemStockColumn = await _firstExistingColumn(txn, itemTable, [
@@ -83,10 +110,10 @@ class BillRepository {
 
       final billValues = <String, Object?>{
         'bill_number': billNumber.toString(),
-        'customer_id': customerId,
+        'customer_id': effectiveCustomerId,
         'subtotal': subtotal,
         'total_amount': totalAmount,
-        'paid_amount': paidAmount,
+        'paid_amount': effectivePaidAmount,
         'payment_mode': paymentMode,
       };
 
@@ -311,7 +338,7 @@ class BillRepository {
         }
       }
 
-      if (customerId != null && dueAmount > 0) {
+      if (effectiveCustomerId != null && dueAmount > 0) {
         final hasKhataLedger = await _tableExists(txn, 'khata_ledger');
         final hasKhataEntries = await _tableExists(txn, 'khata_entries');
         final hasCustomerOutstanding = await _columnExists(
@@ -320,24 +347,52 @@ class BillRepository {
           'total_outstanding',
         );
 
-        double updatedOutstanding = dueAmount;
-        if (hasCustomerOutstanding) {
+        double currentBalance = 0.0;
+        if (hasKhataEntries) {
+          final lastEntry = await txn.rawQuery(
+            '''
+            SELECT balance_after FROM khata_entries
+            WHERE customer_id = ?
+            ORDER BY date_time DESC, id DESC
+            LIMIT 1
+            ''',
+            [effectiveCustomerId],
+          );
+          if (lastEntry.isNotEmpty) {
+            currentBalance =
+                (lastEntry.first['balance_after'] as num?)?.toDouble() ?? 0.0;
+          } else if (hasCustomerOutstanding) {
+            final customerRows = await txn.query(
+              'customers',
+              columns: ['total_outstanding'],
+              where: 'id = ?',
+              whereArgs: [effectiveCustomerId],
+            );
+            currentBalance =
+                (customerRows.firstOrNull?['total_outstanding'] as num?)
+                    ?.toDouble() ??
+                0.0;
+          }
+        } else if (hasCustomerOutstanding) {
           final customerRows = await txn.query(
             'customers',
             columns: ['total_outstanding'],
             where: 'id = ?',
-            whereArgs: [customerId],
+            whereArgs: [effectiveCustomerId],
           );
-          final currentOutstanding =
+          currentBalance =
               (customerRows.firstOrNull?['total_outstanding'] as num?)
                   ?.toDouble() ??
               0.0;
-          updatedOutstanding = currentOutstanding + dueAmount;
+        }
+
+        final updatedOutstanding = currentBalance + dueAmount;
+        if (hasCustomerOutstanding) {
           await txn.update(
             'customers',
             {'total_outstanding': updatedOutstanding},
             where: 'id = ?',
-            whereArgs: [customerId],
+            whereArgs: [effectiveCustomerId],
           );
         }
 
@@ -345,7 +400,7 @@ class BillRepository {
           await txn.insert('khata_ledger', {
             'entry_type': 'debit',
             'account_name': 'બિલ',
-            'customer_id': customerId,
+            'customer_id': effectiveCustomerId,
             'amount': dueAmount,
             'payment_mode': paymentMode,
             'reference_type': 'bill',
@@ -357,7 +412,7 @@ class BillRepository {
         }
         if (hasKhataEntries) {
           await txn.insert('khata_entries', {
-            'customer_id': customerId,
+            'customer_id': effectiveCustomerId,
             'related_bill_id': billId,
             'date_time': nowEpoch,
             'type': 'debit',

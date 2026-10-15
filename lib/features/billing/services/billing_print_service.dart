@@ -11,6 +11,15 @@ import '../../../data/providers.dart';
 class BillingPrintService {
   final BlueThermalPrinter _bluePrinter = BlueThermalPrinter.instance;
 
+  Future<bool> isPrinterConnected() async {
+    try {
+      final connected = await _bluePrinter.isConnected;
+      return connected ?? false;
+    } catch (_) {
+      return false;
+    }
+  }
+
   Future<void> attemptPrintSavedBill(
     ScaffoldMessengerState messenger,
     WidgetRef ref, {

@@ -70,6 +70,11 @@ class SetCashModeIntent extends Intent {
   const SetCashModeIntent();
 }
 
+/// Intent to toggle payment mode between Udhaar, Cash and Online (F4)
+class TogglePaymentModeIntent extends Intent {
+  const TogglePaymentModeIntent();
+}
+
 /// Intent for Escape key (close dropdowns, deselect, dismiss)
 class EscapeIntent extends Intent {
   const EscapeIntent();

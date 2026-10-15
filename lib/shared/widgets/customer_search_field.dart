@@ -225,21 +225,29 @@ class _CustomerSearchFieldState extends ConsumerState<CustomerSearchField> {
   }
 
   KeyEventResult _handleKeyEvent(KeyEvent event) {
-    if (event is! KeyDownEvent || !_isDropdownOpen || _results.isEmpty) {
+    if (event is! KeyDownEvent) {
       return KeyEventResult.ignored;
     }
 
-    if (event.logicalKey == LogicalKeyboardKey.arrowDown) {
+    if (event.logicalKey == LogicalKeyboardKey.arrowDown && _isDropdownOpen && _results.isNotEmpty) {
       _moveHighlight(1);
       return KeyEventResult.handled;
-    } else if (event.logicalKey == LogicalKeyboardKey.arrowUp) {
+    } else if (event.logicalKey == LogicalKeyboardKey.arrowUp && _isDropdownOpen && _results.isNotEmpty) {
       _moveHighlight(-1);
       return KeyEventResult.handled;
     } else if (event.logicalKey == LogicalKeyboardKey.enter ||
         event.logicalKey == LogicalKeyboardKey.numpadEnter) {
-      final selectedIndex = _highlightedIndex >= 0 ? _highlightedIndex : 0;
-      if (selectedIndex < _results.length) {
-        _selectCustomer(_results[selectedIndex]);
+      if (_isDropdownOpen && _results.isNotEmpty) {
+        final selectedIndex = _highlightedIndex >= 0 ? _highlightedIndex : 0;
+        if (selectedIndex < _results.length) {
+          _selectCustomer(_results[selectedIndex]);
+          return KeyEventResult.handled;
+        }
+      } else if (widget.controller.text.trim().isNotEmpty) {
+        final name = widget.controller.text.trim();
+        _clearResults();
+        widget.onCustomerSelected(0, name);
+        _textFocusNode.unfocus();
         return KeyEventResult.handled;
       }
     } else if (event.logicalKey == LogicalKeyboardKey.escape) {
@@ -273,6 +281,19 @@ class _CustomerSearchFieldState extends ConsumerState<CustomerSearchField> {
             border: const OutlineInputBorder(),
           ),
           onChanged: _searchCustomers,
+          onSubmitted: (value) {
+            final trimmed = value.trim();
+            if (_isDropdownOpen && _results.isNotEmpty) {
+              final selectedIndex = _highlightedIndex >= 0 ? _highlightedIndex : 0;
+              if (selectedIndex < _results.length) {
+                _selectCustomer(_results[selectedIndex]);
+              }
+            } else if (trimmed.isNotEmpty) {
+              _clearResults();
+              widget.onCustomerSelected(0, trimmed);
+              _textFocusNode.unfocus();
+            }
+          },
         ),
         if (_isDropdownOpen && _results.isNotEmpty)
           Material(

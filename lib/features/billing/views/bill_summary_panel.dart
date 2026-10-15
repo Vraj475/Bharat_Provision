@@ -369,27 +369,27 @@ class BillSummaryPanelState extends ConsumerState<BillSummaryPanel> {
               return Row(
                 children: [
                   const Text(
-                    'ચૂકવણી:',
+                    'ચૂકવણી (F4):',
                     style: TextStyle(fontWeight: FontWeight.bold, fontSize: 13),
                   ),
                   const SizedBox(width: 8),
                   _buildPaymentChip(
-                    label: '💵 કેશ (Alt+2)',
-                    isSelected: currentMode == 'cash',
-                    onTap: () {
-                      ref
-                          .read(billingTabsProvider.notifier)
-                          .setTransactionTypeForActive('cash');
-                    },
-                  ),
-                  const SizedBox(width: 6),
-                  _buildPaymentChip(
-                    label: '📒 ઉધાર (Alt+1)',
+                    label: '📒 ઉધાર',
                     isSelected: currentMode == 'khata',
                     onTap: () {
                       ref
                           .read(billingTabsProvider.notifier)
                           .setTransactionTypeForActive('khata');
+                    },
+                  ),
+                  const SizedBox(width: 6),
+                  _buildPaymentChip(
+                    label: '💵 કેશ',
+                    isSelected: currentMode == 'cash',
+                    onTap: () {
+                      ref
+                          .read(billingTabsProvider.notifier)
+                          .setTransactionTypeForActive('cash');
                     },
                   ),
                   const SizedBox(width: 6),
@@ -415,7 +415,7 @@ class BillSummaryPanelState extends ConsumerState<BillSummaryPanel> {
                 child: ElevatedButton.icon(
                   icon: const Icon(Icons.print, size: 18),
                   label: const Text(
-                    'સાચવો & પ્રિન્ટ (Ctrl+Enter)',
+                    'સાચવો & પ્રિન્ટ',
                     style: TextStyle(fontWeight: FontWeight.bold, fontSize: 13),
                   ),
                   style: ElevatedButton.styleFrom(
@@ -442,7 +442,7 @@ class BillSummaryPanelState extends ConsumerState<BillSummaryPanel> {
                 flex: 2,
                 child: OutlinedButton.icon(
                   icon: const Icon(Icons.save, size: 17),
-                  label: const Text('સાચવો (Ctrl+S)', style: TextStyle(fontSize: 12)),
+                  label: const Text('સાચવો (Ctrl+Enter)', style: TextStyle(fontSize: 12)),
                   style: OutlinedButton.styleFrom(
                     padding: const EdgeInsets.symmetric(vertical: 11),
                     shape: RoundedRectangleBorder(
@@ -468,7 +468,7 @@ class BillSummaryPanelState extends ConsumerState<BillSummaryPanel> {
                         ref.read(billingControllerProvider.notifier).clearBill();
                         widget.onClearBill();
                       },
-                child: const Text('સાફ (Ctrl+C)', style: TextStyle(fontSize: 12)),
+                child: const Text('સાફ', style: TextStyle(fontSize: 12)),
               ),
             ],
           ),

@@ -12,6 +12,7 @@ import '../../../shared/widgets/errors/error_dialogue.dart';
 import '../billing_providers.dart';
 import '../controllers/billing_controller.dart';
 import '../models/bill_line_item.dart';
+import '../../../data/providers.dart';
 import 'dialogs/product_addition_dialog.dart';
 import 'package:go_router/go_router.dart';
 
@@ -25,12 +26,14 @@ class BillingProductPanel extends ConsumerStatefulWidget {
   final Future<bool> Function({required int itemId, required double newQtyGrams, int? excludeLineIndex}) checkStock;
   final FocusNode productSearchFocusNode;
   final TextEditingController searchController;
+  final void Function(Product item, int lineIndex, bool isWeight)? onProductAdded;
 
   const BillingProductPanel({
     super.key,
     required this.checkStock,
     required this.productSearchFocusNode,
     required this.searchController,
+    this.onProductAdded,
   });
 
   @override
@@ -67,11 +70,56 @@ class _BillingProductPanelState extends ConsumerState<BillingProductPanel> {
     super.dispose();
   }
 
+  int _calculateExactOrBestMatchIndex(List<Product> products, String query) {
+    final q = query.trim();
+    if (q.isEmpty || products.isEmpty) return -1;
+    final lower = q.toLowerCase();
+
+    // 1. Exact barcode match
+    for (int i = 0; i < products.length; i++) {
+      final barcode = products[i].barcode;
+      if (barcode != null && barcode.trim().toLowerCase() == lower) {
+        return i;
+      }
+    }
+
+    // 2. Exact name match (Gujarati or English)
+    for (int i = 0; i < products.length; i++) {
+      final nameEnglish = products[i].nameEnglish;
+      if (products[i].nameGujarati.trim().toLowerCase() == lower ||
+          (nameEnglish != null && nameEnglish.trim().toLowerCase() == lower)) {
+        return i;
+      }
+    }
+
+    // 3. Exact price match
+    final numeric = double.tryParse(q);
+    if (numeric != null) {
+      for (int i = 0; i < products.length; i++) {
+        if ((products[i].sellPrice - numeric).abs() < 0.001) {
+          return i;
+        }
+      }
+    }
+
+    return -1;
+  }
+
   KeyEventResult _handleSearchKeyEvent(FocusNode node, KeyEvent event) {
     if (event is! KeyDownEvent) return KeyEventResult.ignored;
 
+    final query = widget.searchController.text.trim();
+
+    if (event.logicalKey == LogicalKeyboardKey.enter ||
+        event.logicalKey == LogicalKeyboardKey.numpadEnter) {
+      if (query.isNotEmpty) {
+        _confirmAndAddSelectedProduct();
+        return KeyEventResult.handled;
+      }
+    }
+
     final isDropdownVisible = _activeDropdown == BillingDropdownType.product &&
-        widget.searchController.text.trim().isNotEmpty;
+        query.isNotEmpty;
     if (!isDropdownVisible) return KeyEventResult.ignored;
 
     final state = ref.read(billingItemsProvider);
@@ -80,7 +128,9 @@ class _BillingProductPanelState extends ConsumerState<BillingProductPanel> {
 
     if (event.logicalKey == LogicalKeyboardKey.arrowDown) {
       setState(() {
-        if (_highlightedIndex < products.length - 1) {
+        if (_highlightedIndex < 0) {
+          _highlightedIndex = 0;
+        } else if (_highlightedIndex < products.length - 1) {
           _highlightedIndex++;
         } else {
           _highlightedIndex = 0;
@@ -89,32 +139,13 @@ class _BillingProductPanelState extends ConsumerState<BillingProductPanel> {
       return KeyEventResult.handled;
     } else if (event.logicalKey == LogicalKeyboardKey.arrowUp) {
       setState(() {
-        if (_highlightedIndex > 0) {
-          _highlightedIndex--;
-        } else {
+        if (_highlightedIndex <= 0) {
           _highlightedIndex = products.length - 1;
+        } else {
+          _highlightedIndex--;
         }
       });
       return KeyEventResult.handled;
-    } else if (event.logicalKey == LogicalKeyboardKey.enter ||
-        event.logicalKey == LogicalKeyboardKey.numpadEnter) {
-      final selectedIndex = _highlightedIndex >= 0 ? _highlightedIndex : 0;
-      if (selectedIndex < products.length) {
-        final item = products[selectedIndex];
-        if (!_isOutOfStock(item)) {
-          _closeAllDropdowns();
-          WidgetsBinding.instance.addPostFrameCallback((_) {
-            if (!mounted) return;
-            _addProductToBill(item);
-          });
-          return KeyEventResult.handled;
-        } else {
-          ScaffoldMessenger.of(context).showSnackBar(
-            const SnackBar(content: Text('સ્ટોક ઉપલબ્ધ નથી')),
-          );
-          return KeyEventResult.handled;
-        }
-      }
     } else if (event.logicalKey == LogicalKeyboardKey.escape) {
       _closeAllDropdowns();
       return KeyEventResult.handled;
@@ -123,11 +154,60 @@ class _BillingProductPanelState extends ConsumerState<BillingProductPanel> {
     return KeyEventResult.ignored;
   }
 
+  Future<void> _confirmAndAddSelectedProduct() async {
+    final query = widget.searchController.text.trim();
+    if (query.isEmpty) return;
+
+    final state = ref.read(billingItemsProvider);
+    final products = (state.valueOrNull ?? const <Product>[]).take(8).toList();
+
+    Product? target;
+    if (products.isNotEmpty) {
+      final bestIdx = _calculateExactOrBestMatchIndex(products, query);
+      final idx = (_highlightedIndex >= 0 && _highlightedIndex < products.length)
+          ? _highlightedIndex
+          : (bestIdx >= 0 ? bestIdx : 0);
+      if (idx >= 0 && idx < products.length) {
+        target = products[idx];
+      }
+    }
+
+    if (target == null) {
+      final repo = ref.read(itemRepositoryProvider);
+      final directBarcode = await repo.getByBarcode(query);
+      if (directBarcode != null) {
+        target = directBarcode;
+      } else {
+        final results = await repo.search(query);
+        if (results.isNotEmpty) {
+          final bestIdx = _calculateExactOrBestMatchIndex(results, query);
+          target = bestIdx >= 0 ? results[bestIdx] : results.first;
+        }
+      }
+    }
+
+    if (target != null) {
+      if (_isOutOfStock(target)) {
+        if (!mounted) return;
+        ScaffoldMessenger.of(context).showSnackBar(
+          const SnackBar(content: Text('સ્ટોક ઉપલબ્ધ નથી')),
+        );
+        return;
+      }
+      _closeAllDropdowns();
+      if (!mounted) return;
+      _addProductToBill(target);
+    }
+  }
+
   void _openDropdown(BillingDropdownType type) {
     if (!mounted) return;
+    final query = widget.searchController.text.trim();
+    final products = (ref.read(billingItemsProvider).valueOrNull ?? const <Product>[]).take(8).toList();
+    final defaultIdx = _calculateExactOrBestMatchIndex(products, query);
     setState(() {
       _activeDropdown = type;
-      _highlightedIndex = -1;
+      _highlightedIndex = defaultIdx >= 0 ? defaultIdx : -1;
     });
   }
 
@@ -250,59 +330,62 @@ class _BillingProductPanelState extends ConsumerState<BillingProductPanel> {
     try {
       if (item.stockQty <= 0) {
         ScaffoldMessenger.of(context).showSnackBar(
-          const SnackBar(content: Text('સ્ટોક ઉપલબ્ધ નથી')),
+          const SnackBar(
+            content: Text('સ્ટોક ઉપલબ્ધ નથી'),
+            duration: Duration(seconds: 1),
+          ),
         );
         return;
       }
 
       if (item.isLowStock) {
-        final shouldContinue = await showDialog<bool>(
-          context: context,
-          builder: (ctx) => AlertDialog(
-            title: const Text('લો સ્ટોક ચેતવણી'),
+        ScaffoldMessenger.of(context).showSnackBar(
+          SnackBar(
             content: Text(
-              '${item.nameGujarati} નો સ્ટોક ઓછો છે.\nહાલ સ્ટોક: ${item.stockQty.toStringAsFixed(2)} ${item.unitType}',
+              '${item.nameGujarati} નો સ્ટોક ઓછો છે (${item.stockQty.toStringAsFixed(2)})',
             ),
-            actions: [
-              TextButton(
-                onPressed: () => ctx.pop(false),
-                child: const Text('રદ કરો'),
-              ),
-              ElevatedButton(
-                onPressed: () => ctx.pop(true),
-                child: const Text('ઉમેરો'),
-              ),
-            ],
+            duration: const Duration(seconds: 1),
           ),
         );
-
-        if (shouldContinue != true) return;
       }
 
       if (!mounted) return;
-      final result = await ProductAdditionDialog.show(
-        context,
-        item: item,
-        checkStock: (id, qty) => widget.checkStock(itemId: id, newQtyGrams: qty),
-      );
 
-      if (result != null) {
-        final qtyGrams = result.$1;
-        final amount = result.$2;
+      final isWeight = item.isWeightProduct;
+      final double defaultQty = isWeight ? 1000.0 : 1.0;
+      final double defaultAmount = item.sellPrice;
+
+      final currentLines = ref.read(billingControllerProvider).billLines;
+      final existingIndex =
+          currentLines.indexWhere((l) => l.item.id == item.id);
+
+      int targetIndex;
+      if (existingIndex >= 0 && !isWeight) {
+        final existingLine = currentLines[existingIndex];
+        final newQty = existingLine.qtyGrams + 1.0;
+        final newAmount = newQty * item.sellPrice;
+        ref.read(billingControllerProvider.notifier).updateLine(
+              existingIndex,
+              existingLine.copyWith(qtyGrams: newQty, amount: newAmount),
+            );
+        targetIndex = existingIndex;
+      } else {
         ref.read(billingControllerProvider.notifier).addLine(
-          BillLineItem(
-            draftKey: _nextDraftLineKey(item.id),
-            item: item,
-            qtyGrams: qtyGrams,
-            amount: amount,
-          ),
-        );
-        
-        if (mounted) {
-          widget.productSearchFocusNode.requestFocus();
-          widget.searchController.clear();
-          ref.read(billingSearchProvider.notifier).state = '';
-        }
+              BillLineItem(
+                draftKey: _nextDraftLineKey(item.id),
+                item: item,
+                qtyGrams: defaultQty,
+                amount: defaultAmount,
+              ),
+            );
+        targetIndex = currentLines.length;
+      }
+
+      widget.searchController.clear();
+      ref.read(billingSearchProvider.notifier).state = '';
+
+      if (mounted) {
+        widget.onProductAdded?.call(item, targetIndex, isWeight);
       }
     } catch (error, stack) {
       await ErrorLogger.log(
@@ -340,11 +423,16 @@ class _BillingProductPanelState extends ConsumerState<BillingProductPanel> {
       return const SizedBox.shrink();
     }
 
+    final defaultMatchIndex = _calculateExactOrBestMatchIndex(productRows, query);
+    final effectiveHighlightedIndex = (_highlightedIndex >= 0 && _highlightedIndex < productRows.length)
+        ? _highlightedIndex
+        : (defaultMatchIndex >= 0 ? defaultMatchIndex : -1);
+
     final children = productRows.asMap().entries.map((entry) {
       final index = entry.key;
       final item = entry.value;
       final outOfStock = _isOutOfStock(item);
-      final isHighlighted = index == _highlightedIndex;
+      final isHighlighted = index == effectiveHighlightedIndex;
 
       return Container(
         decoration: BoxDecoration(
@@ -454,7 +542,7 @@ class _BillingProductPanelState extends ConsumerState<BillingProductPanel> {
                       focusNode: widget.productSearchFocusNode,
                       decoration: const InputDecoration(
                         prefixIcon: Icon(Icons.search),
-                        hintText: '${strings.AppStrings.searchHintProducts} (Ctrl+F)',
+                        hintText: strings.AppStrings.searchHintProducts,
                         border: OutlineInputBorder(),
                         contentPadding: EdgeInsets.symmetric(horizontal: 14, vertical: 12),
                       ),
@@ -469,10 +557,10 @@ class _BillingProductPanelState extends ConsumerState<BillingProductPanel> {
                           _closeAllDropdowns();
                         } else {
                           _openDropdown(BillingDropdownType.product);
-                          setState(() {
-                            _highlightedIndex = -1;
-                          });
                         }
+                      },
+                      onSubmitted: (_) {
+                        _confirmAndAddSelectedProduct();
                       },
                     ),
                   ),

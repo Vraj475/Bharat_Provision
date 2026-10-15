@@ -10,10 +10,12 @@ enum _DraftEditableField { quantity, price, amount }
 
 class BillLinesPanel extends ConsumerStatefulWidget {
   final Future<bool> Function({required int itemId, required double newQtyGrams, int? excludeLineIndex}) checkStock;
+  final VoidCallback? onInlineEditCompleted;
 
   const BillLinesPanel({
     super.key,
     required this.checkStock,
+    this.onInlineEditCompleted,
   });
 
   @override
@@ -137,6 +139,14 @@ class BillLinesPanelState extends ConsumerState<BillLinesPanel> {
         );
   }
 
+  /// Focus on editing the weight/quantity of a specific line (e.g. newly added loose item)
+  void startEditingLineQuantity(int index) {
+    final lines = ref.read(billingControllerProvider).billLines;
+    if (index < 0 || index >= lines.length) return;
+    _selectedRowIndex = index;
+    _startInlineEdit(index, _DraftEditableField.quantity);
+  }
+
   /// Shortcut action: focus on editing the weight of the first product in cart (Ctrl + R)
   void startEditingFirstItemWeight() {
     final lines = ref.read(billingControllerProvider).billLines;
@@ -171,19 +181,62 @@ class BillLinesPanelState extends ConsumerState<BillLinesPanel> {
     final focusNode = FocusNode();
     focusNode.onKeyEvent = (node, event) {
       if (event is KeyDownEvent) {
+        if (event.logicalKey == LogicalKeyboardKey.arrowUp) {
+          if (_editingField == _DraftEditableField.amount) {
+            _navigateAmountRow(reverse: true);
+            return KeyEventResult.handled;
+          }
+        }
+        if (event.logicalKey == LogicalKeyboardKey.arrowDown) {
+          if (_editingField == _DraftEditableField.amount) {
+            _navigateAmountRow(reverse: false);
+            return KeyEventResult.handled;
+          }
+        }
         if (event.logicalKey == LogicalKeyboardKey.tab) {
           final isShift = HardwareKeyboard.instance.isShiftPressed;
           _moveToNextInlineEditField(reverse: isShift);
           return KeyEventResult.handled;
         }
         if (event.logicalKey == LogicalKeyboardKey.escape) {
-          _clearInlineEditState();
+          _commitInlineEdit(clearStateOnSuccess: true);
+          widget.onInlineEditCompleted?.call();
           return KeyEventResult.handled;
         }
       }
       return KeyEventResult.ignored;
     };
     _lineEditFocusNodes[lineKey] = focusNode;
+  }
+
+  Future<void> _navigateAmountRow({required bool reverse}) async {
+    final currentKey = _editingLineKey;
+    if (currentKey == null) return;
+    final lines = ref.read(billingControllerProvider).billLines;
+    final currentIndex = lines.indexWhere((l) => l.draftKey == currentKey);
+    if (currentIndex < 0) return;
+
+    final success = await _commitInlineEdit(clearStateOnSuccess: false);
+    if (!success || !mounted) return;
+
+    final updatedLines = ref.read(billingControllerProvider).billLines;
+    if (updatedLines.isEmpty) {
+      _clearInlineEditState();
+      widget.onInlineEditCompleted?.call();
+      return;
+    }
+
+    int nextIndex = currentIndex + (reverse ? -1 : 1);
+    if (nextIndex < 0) {
+      nextIndex = 0;
+    } else if (nextIndex >= updatedLines.length) {
+      nextIndex = updatedLines.length - 1;
+    }
+
+    setState(() {
+      _selectedRowIndex = nextIndex;
+    });
+    await _startInlineEdit(nextIndex, _DraftEditableField.amount, commitExisting: false);
   }
 
   void _disposeLineResources(String lineKey) {
@@ -709,10 +762,15 @@ class BillLinesPanelState extends ConsumerState<BillLinesPanel> {
                         controller: lineController,
                         focusNode: lineFocusNode,
                         value: qtyDisplay,
-                        tooltip: 'વજન / સંખ્યા બદલો (Ctrl+R)',
+                        tooltip: 'વજન / સંખ્યા બદલો',
                         onTap: () => _startInlineEdit(
                             index, _DraftEditableField.quantity),
-                        onSubmitted: (_) => _commitInlineEdit(),
+                        onSubmitted: (_) async {
+                          final ok = await _commitInlineEdit(clearStateOnSuccess: false);
+                          if (ok && mounted) {
+                            _startInlineEdit(index, _DraftEditableField.price, commitExisting: false);
+                          }
+                        },
                         keyboardType: isWeight
                             ? const TextInputType.numberWithOptions(
                                 decimal: true)
@@ -727,7 +785,12 @@ class BillLinesPanelState extends ConsumerState<BillLinesPanel> {
                         tooltip: 'કિંમત બદલો',
                         onTap: () =>
                             _startInlineEdit(index, _DraftEditableField.price),
-                        onSubmitted: (_) => _commitInlineEdit(),
+                        onSubmitted: (_) async {
+                          final ok = await _commitInlineEdit(clearStateOnSuccess: false);
+                          if (ok && mounted) {
+                            _startInlineEdit(index, _DraftEditableField.amount, commitExisting: false);
+                          }
+                        },
                         keyboardType: const TextInputType.numberWithOptions(
                           decimal: true,
                         ),
@@ -741,7 +804,12 @@ class BillLinesPanelState extends ConsumerState<BillLinesPanel> {
                         tooltip: 'કુલ રકમ બદલો',
                         onTap: () =>
                             _startInlineEdit(index, _DraftEditableField.amount),
-                        onSubmitted: (_) => _commitInlineEdit(),
+                        onSubmitted: (_) async {
+                          final ok = await _commitInlineEdit(clearStateOnSuccess: true);
+                          if (ok && mounted) {
+                            widget.onInlineEditCompleted?.call();
+                          }
+                        },
                         keyboardType: const TextInputType.numberWithOptions(
                           decimal: true,
                         ),
@@ -810,7 +878,7 @@ class BillLinesPanelState extends ConsumerState<BillLinesPanel> {
                 constraints:
                     const BoxConstraints.tightFor(width: 36, height: 36),
                 icon: const Icon(Icons.delete, color: Colors.red, size: 20),
-                tooltip: 'કાઢી નાખો (Ctrl+Delete)',
+                tooltip: 'કાઢી નાખો',
                 onPressed: () async {
                   await _deleteLineWithUndo(index);
                 },
@@ -827,6 +895,31 @@ class BillLinesPanelState extends ConsumerState<BillLinesPanel> {
     final billLines = ref.watch(billingControllerProvider).billLines;
     if (_selectedRowIndex != null && _selectedRowIndex! >= billLines.length) {
       _selectedRowIndex = billLines.isEmpty ? null : billLines.length - 1;
+    }
+
+    if (billLines.isEmpty) {
+      return Center(
+        child: Column(
+          mainAxisAlignment: MainAxisAlignment.center,
+          children: [
+            const Icon(
+              Icons.shopping_cart_outlined,
+              size: 48,
+              color: Colors.grey,
+            ),
+            const SizedBox(height: 16),
+            const Text(
+              'બિલ ખાલી છે',
+              style: TextStyle(fontSize: 16, fontWeight: FontWeight.bold),
+            ),
+            const SizedBox(height: 8),
+            Text(
+              'ડાબી બાજુથી ઉત્પાદન પસંદ કરો',
+              style: const TextStyle(color: Colors.grey),
+            ),
+          ],
+        ),
+      );
     }
 
     return ListView.builder(

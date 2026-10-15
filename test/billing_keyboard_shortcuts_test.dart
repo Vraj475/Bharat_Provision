@@ -15,106 +15,31 @@ void main() {
   TestWidgetsFlutterBinding.ensureInitialized();
 
   group('Keyboard Shortcuts Definition Tests', () {
-    test('All 8 shortcuts are mapped in AppShortcuts.billingShortcuts', () {
+    test('Billing shortcuts are mapped to Ctrl+F, Ctrl+Enter and Ctrl+NumpadEnter in AppShortcuts.billingShortcuts', () {
       final map = AppShortcuts.billingShortcuts;
 
-      // 1. Ctrl + F
       expect(
         map[const SingleActivator(LogicalKeyboardKey.keyF, control: true)],
         isA<FocusProductSearchIntent>(),
       );
-
-      // 2. Ctrl + R
-      expect(
-        map[const SingleActivator(LogicalKeyboardKey.keyR, control: true)],
-        isA<FocusFirstItemWeightIntent>(),
-      );
-
-      // 3. Ctrl + D
-      expect(
-        map[const SingleActivator(LogicalKeyboardKey.keyD, control: true)],
-        isA<EditDiscountIntent>(),
-      );
-
-      // 4. Ctrl + G
-      expect(
-        map[const SingleActivator(LogicalKeyboardKey.keyG, control: true)],
-        isA<EditGrandTotalIntent>(),
-      );
-
-      // 5. Ctrl + C
-      expect(
-        map[const SingleActivator(LogicalKeyboardKey.keyC, control: true)],
-        isA<ClearBillIntent>(),
-      );
-
-      // 6. Ctrl + X
-      expect(
-        map[const SingleActivator(LogicalKeyboardKey.keyX, control: true)],
-        isA<FocusCustomerSearchIntent>(),
-      );
-
-      // 7. Ctrl + S
-      expect(
-        map[const SingleActivator(LogicalKeyboardKey.keyS, control: true)],
-        isA<SaveBillIntent>(),
-      );
-
-      // 8. Ctrl + P
-      expect(
-        map[const SingleActivator(LogicalKeyboardKey.keyP, control: true)],
-        isA<PrintBillIntent>(),
-      );
-
-      // 9. Ctrl + Enter
       expect(
         map[const SingleActivator(LogicalKeyboardKey.enter, control: true)],
-        isA<SaveAndPrintBillIntent>(),
-      );
-
-      // 10. Ctrl + Delete
-      expect(
-        map[const SingleActivator(LogicalKeyboardKey.delete, control: true)],
-        isA<DeleteSelectedProductIntent>(),
-      );
-
-      // 11. Alt + 1 (Udhaar)
-      expect(
-        map[const SingleActivator(LogicalKeyboardKey.digit1, alt: true)],
-        isA<SetUdhaarModeIntent>(),
-      );
-
-      // 12. Alt + 2 (Cash)
-      expect(
-        map[const SingleActivator(LogicalKeyboardKey.digit2, alt: true)],
-        isA<SetCashModeIntent>(),
-      );
-
-      // 13. Escape
-      expect(
-        map[const SingleActivator(LogicalKeyboardKey.escape)],
-        isA<EscapeIntent>(),
-      );
-
-      // 14. Plus & Minus
-      expect(
-        map[const SingleActivator(LogicalKeyboardKey.add)],
-        isA<IncrementProductQtyIntent>(),
+        isA<SaveBillIntent>(),
       );
       expect(
-        map[const SingleActivator(LogicalKeyboardKey.minus)],
-        isA<DecrementProductQtyIntent>(),
+        map[const SingleActivator(LogicalKeyboardKey.numpadEnter, control: true)],
+        isA<SaveBillIntent>(),
       );
     });
 
-    test('Module shortcuts are mapped in AppShortcuts.moduleShortcuts (F1 - F6)', () {
+    test('Module shortcuts are mapped in AppShortcuts.moduleShortcuts (Ctrl + F1 - F6)', () {
       final moduleMap = AppShortcuts.moduleShortcuts;
-      expect(moduleMap[const SingleActivator(LogicalKeyboardKey.f1)], isA<NavigateToModuleIntent>());
-      expect(moduleMap[const SingleActivator(LogicalKeyboardKey.f2)], isA<NavigateToModuleIntent>());
-      expect(moduleMap[const SingleActivator(LogicalKeyboardKey.f3)], isA<NavigateToModuleIntent>());
-      expect(moduleMap[const SingleActivator(LogicalKeyboardKey.f4)], isA<NavigateToModuleIntent>());
-      expect(moduleMap[const SingleActivator(LogicalKeyboardKey.f5)], isA<NavigateToModuleIntent>());
-      expect(moduleMap[const SingleActivator(LogicalKeyboardKey.f6)], isA<NavigateToModuleIntent>());
+      expect(moduleMap[const SingleActivator(LogicalKeyboardKey.f1, control: true)], isA<NavigateToModuleIntent>());
+      expect(moduleMap[const SingleActivator(LogicalKeyboardKey.f2, control: true)], isA<NavigateToModuleIntent>());
+      expect(moduleMap[const SingleActivator(LogicalKeyboardKey.f3, control: true)], isA<NavigateToModuleIntent>());
+      expect(moduleMap[const SingleActivator(LogicalKeyboardKey.f4, control: true)], isA<NavigateToModuleIntent>());
+      expect(moduleMap[const SingleActivator(LogicalKeyboardKey.f5, control: true)], isA<NavigateToModuleIntent>());
+      expect(moduleMap[const SingleActivator(LogicalKeyboardKey.f6, control: true)], isA<NavigateToModuleIntent>());
     });
   });
 
@@ -266,10 +191,9 @@ void main() {
   });
 
   group('Shortcut trigger when TextField is focused', () {
-    testWidgets('Ctrl+X, Ctrl+C, Ctrl+S when TextField has focus', (tester) async {
+    testWidgets('Ctrl+Enter when TextField has focus invokes SaveBillIntent', (tester) async {
       final focusNode = FocusNode();
-      bool sPressed = false;
-      bool xPressed = false;
+      bool savePressed = false;
 
       await tester.pumpWidget(
         MaterialApp(
@@ -279,13 +203,7 @@ void main() {
               actions: {
                 SaveBillIntent: CallbackAction<SaveBillIntent>(
                   onInvoke: (_) {
-                    sPressed = true;
-                    return null;
-                  },
-                ),
-                FocusCustomerSearchIntent: CallbackAction<FocusCustomerSearchIntent>(
-                  onInvoke: (_) {
-                    xPressed = true;
+                    savePressed = true;
                     return null;
                   },
                 ),
@@ -304,20 +222,13 @@ void main() {
       await tester.pumpAndSettle();
       expect(focusNode.hasFocus, isTrue);
 
-      // Press Ctrl + S
+      // Press Ctrl + Enter
       await tester.sendKeyDownEvent(LogicalKeyboardKey.controlLeft);
-      await tester.sendKeyEvent(LogicalKeyboardKey.keyS);
+      await tester.sendKeyEvent(LogicalKeyboardKey.enter);
       await tester.sendKeyUpEvent(LogicalKeyboardKey.controlLeft);
       await tester.pumpAndSettle();
 
-      // Press Ctrl + X
-      await tester.sendKeyDownEvent(LogicalKeyboardKey.controlLeft);
-      await tester.sendKeyEvent(LogicalKeyboardKey.keyX);
-      await tester.sendKeyUpEvent(LogicalKeyboardKey.controlLeft);
-      await tester.pumpAndSettle();
-
-      expect(sPressed, isTrue, reason: 'Ctrl+S should be triggered');
-      expect(xPressed, isTrue, reason: 'Ctrl+X should be triggered');
+      expect(savePressed, isTrue, reason: 'Ctrl+Enter should be triggered');
     });
 
     testWidgets('commitCurrentEdit updates quantity on the active line', (tester) async {
@@ -562,20 +473,20 @@ void main() {
       );
       await tester.pumpAndSettle();
 
-      // Default transaction type should be cash
+      // Default transaction type should be udhaar (khata)
+      expect(container.read(billingTabsProvider).activeDraft.transactionType, 'khata');
+
+      // Tap on Cash chip
+      await tester.tap(find.text('💵 કેશ'));
+      await tester.pumpAndSettle();
+
       expect(container.read(billingTabsProvider).activeDraft.transactionType, 'cash');
 
-      // Tap on Udhaar chip (Alt+1)
-      await tester.tap(find.text('📒 ઉધાર (Alt+1)'));
+      // Tap on Udhaar chip
+      await tester.tap(find.text('📒 ઉધાર'));
       await tester.pumpAndSettle();
 
       expect(container.read(billingTabsProvider).activeDraft.transactionType, 'khata');
-
-      // Tap on Cash chip (Alt+2)
-      await tester.tap(find.text('💵 કેશ (Alt+2)'));
-      await tester.pumpAndSettle();
-
-      expect(container.read(billingTabsProvider).activeDraft.transactionType, 'cash');
     });
 
     testWidgets('BillSummaryPanel triggers onSaveAndPrintBill callback', (tester) async {
@@ -619,10 +530,197 @@ void main() {
       await tester.pumpAndSettle();
 
       // Tap Save & Print button
-      await tester.tap(find.text('સાચવો & પ્રિન્ટ (Ctrl+Enter)'));
+      await tester.tap(find.text('સાચવો & પ્રિન્ટ'));
       await tester.pumpAndSettle();
 
       expect(saveAndPrintTriggered, isTrue);
+    });
+  });
+
+  group('Keyboard Traversal Loop (Qty -> Price -> Amount -> Up/Down & Search) Tests', () {
+    testWidgets('Entering quantity advances to price, price advances to amount, enter on amount completes edit', (tester) async {
+      tester.view.physicalSize = const Size(1024, 768);
+      tester.view.devicePixelRatio = 1.0;
+      addTearDown(() {
+        tester.view.resetPhysicalSize();
+        tester.view.resetDevicePixelRatio();
+      });
+
+      final billLinesKey = GlobalKey<BillLinesPanelState>();
+      final container = ProviderContainer();
+      bool editCompleted = false;
+
+      final p1 = const Product(
+        id: 1,
+        nameGujarati: 'ખાંડ',
+        nameEnglish: 'Sugar',
+        barcode: '12345',
+        transliterationKeys: 'khand sugar',
+        unitType: 'કિલો',
+        buyPrice: 38.0,
+        sellPrice: 40.0,
+        stockQty: 100.0,
+        minStockQty: 10.0,
+        isActive: true,
+      );
+
+      final p2 = const Product(
+        id: 2,
+        nameGujarati: 'તેલ',
+        nameEnglish: 'Oil',
+        barcode: '67890',
+        transliterationKeys: 'tel oil',
+        unitType: 'લિટર',
+        buyPrice: 120.0,
+        sellPrice: 150.0,
+        stockQty: 50.0,
+        minStockQty: 5.0,
+        isActive: true,
+      );
+
+      final controller = container.read(billingControllerProvider.notifier);
+      controller.addLine(
+        BillLineItem(draftKey: 'l_sugar', item: p1, qtyGrams: 1000.0, amount: 40.0),
+      );
+      controller.addLine(
+        BillLineItem(draftKey: 'l_oil', item: p2, qtyGrams: 2.0, amount: 300.0),
+      );
+
+      await tester.pumpWidget(
+        UncontrolledProviderScope(
+          container: container,
+          child: MaterialApp(
+            home: Scaffold(
+              body: BillLinesPanel(
+                key: billLinesKey,
+                checkStock: ({required int itemId, required double newQtyGrams, int? excludeLineIndex}) async => true,
+                onInlineEditCompleted: () {
+                  editCompleted = true;
+                },
+              ),
+            ),
+          ),
+        ),
+      );
+      await tester.pumpAndSettle();
+
+      // Step 1: Open weight/quantity edit on row 0
+      billLinesKey.currentState?.startEditingLineQuantity(0);
+      await tester.pumpAndSettle();
+
+      // Quantity TextField is open
+      expect(find.byType(TextField), findsOneWidget);
+      final qtyField = tester.widget<TextField>(find.byType(TextField));
+      expect(qtyField.controller?.text, '1.000');
+
+      // Step 2: Submit new quantity (2.000 kg)
+      await tester.enterText(find.byType(TextField), '2.000');
+      await tester.testTextInput.receiveAction(TextInputAction.done);
+      await tester.pumpAndSettle();
+
+      // Step 3: Focus automatically moved to Unit Price TextField
+      expect(find.byType(TextField), findsOneWidget);
+      final priceField = tester.widget<TextField>(find.byType(TextField));
+      expect(priceField.controller?.text, '40.00');
+
+      // Step 4: Submit unit price
+      await tester.testTextInput.receiveAction(TextInputAction.done);
+      await tester.pumpAndSettle();
+
+      // Step 5: Focus automatically moved to Final Price (Amount) TextField
+      expect(find.byType(TextField), findsOneWidget);
+      final amountField = tester.widget<TextField>(find.byType(TextField));
+      expect(amountField.controller?.text, '80.00'); // 2.0 kg * 40.00
+
+      // Step 6: Up / Down arrow key moves between product amount fields
+      await tester.sendKeyEvent(LogicalKeyboardKey.arrowDown);
+      await tester.pumpAndSettle();
+
+      // Now row 1 Amount should be focused!
+      expect(find.byType(TextField), findsOneWidget);
+      final row1AmountField = tester.widget<TextField>(find.byType(TextField));
+      expect(row1AmountField.controller?.text, '300.00');
+
+      // Press Arrow Up to return to row 0 Amount
+      await tester.sendKeyEvent(LogicalKeyboardKey.arrowUp);
+      await tester.pumpAndSettle();
+      expect(find.byType(TextField), findsOneWidget);
+      final row0ReturnAmountField = tester.widget<TextField>(find.byType(TextField));
+      expect(row0ReturnAmountField.controller?.text, '80.00');
+
+      // Step 7: Press Enter on Amount -> commits and calls onInlineEditCompleted
+      await tester.testTextInput.receiveAction(TextInputAction.done);
+      await tester.pumpAndSettle();
+
+      expect(editCompleted, isTrue);
+      expect(find.byType(TextField), findsNothing);
+    });
+
+    testWidgets('Adding first product to empty bill opens quantity edit and updates quantity', (tester) async {
+      final container = ProviderContainer();
+      addTearDown(container.dispose);
+
+      final billLinesKey = GlobalKey<BillLinesPanelState>();
+      final p1 = Product(
+        id: 1,
+        categoryId: 1,
+        nameGujarati: 'ખાંડ',
+        nameEnglish: 'Sugar',
+        barcode: '12345',
+        transliterationKeys: 'khand sugar',
+        unitType: 'કિલો',
+        buyPrice: 35.0,
+        sellPrice: 40.0,
+        stockQty: 100.0,
+        minStockQty: 10.0,
+        isActive: true,
+      );
+
+      await tester.pumpWidget(
+        UncontrolledProviderScope(
+          container: container,
+          child: MaterialApp(
+            home: Scaffold(
+              body: BillLinesPanel(
+                key: billLinesKey,
+                checkStock: ({required int itemId, required double newQtyGrams, int? excludeLineIndex}) async => true,
+              ),
+            ),
+          ),
+        ),
+      );
+      await tester.pumpAndSettle();
+
+      // Bill starts empty
+      expect(find.text('બિલ ખાલી છે'), findsOneWidget);
+      expect(container.read(billingControllerProvider).billLines.isEmpty, isTrue);
+
+      // Add the first product
+      final controller = container.read(billingControllerProvider.notifier);
+      controller.addLine(
+        BillLineItem(draftKey: 'l_sugar_1', item: p1, qtyGrams: 1000.0, amount: 40.0),
+      );
+
+      // Trigger startEditingLineQuantity for the first product (index 0)
+      billLinesKey.currentState?.startEditingLineQuantity(0);
+      await tester.pumpAndSettle();
+
+      // Verify empty text is gone and TextField is open with initial quantity
+      expect(find.text('બિલ ખાલી છે'), findsNothing);
+      expect(find.byType(TextField), findsOneWidget);
+      final qtyField = tester.widget<TextField>(find.byType(TextField));
+      expect(qtyField.controller?.text, '1.000');
+
+      // Edit quantity to 3.500 kg
+      await tester.enterText(find.byType(TextField), '3.500');
+      await tester.testTextInput.receiveAction(TextInputAction.done);
+      await tester.pumpAndSettle();
+
+      // Verify the quantity on the bill line was updated in controller state
+      final lines = container.read(billingControllerProvider).billLines;
+      expect(lines.length, 1);
+      expect(lines.first.qtyGrams, 3500.0);
+      expect(lines.first.amount, 140.0);
     });
   });
 }

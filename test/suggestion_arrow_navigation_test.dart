@@ -95,7 +95,7 @@ void main() {
     await tester.pumpAndSettle();
 
     // Verify dropdown is visible and shows products in ListView
-    final dropdownList = find.byType(ListView);
+    final dropdownList = find.byWidgetPredicate((w) => w is ListView && w.shrinkWrap == true);
     expect(dropdownList, findsOneWidget);
     expect(find.descendant(of: dropdownList, matching: find.text('ઘઉં ૧ નંબર')), findsOneWidget);
     expect(find.descendant(of: dropdownList, matching: find.text('ચોખા બાસમતી')), findsOneWidget);
@@ -172,14 +172,15 @@ void main() {
     await tester.tap(find.byType(TextField).first);
     await tester.pumpAndSettle();
 
-    expect(find.byType(ListView), findsOneWidget);
-    expect(find.descendant(of: find.byType(ListView), matching: find.text('ચોખા બાસમતી')), findsOneWidget);
+    final dropdownList = find.byWidgetPredicate((w) => w is ListView && w.shrinkWrap == true);
+    expect(dropdownList, findsOneWidget);
+    expect(find.descendant(of: dropdownList, matching: find.text('ચોખા બાસમતી')), findsOneWidget);
 
     // Press Escape
     await tester.sendKeyEvent(LogicalKeyboardKey.escape);
     await tester.pumpAndSettle();
 
     // Dropdown ListView should be dismissed
-    expect(find.byType(ListView), findsNothing);
+    expect(dropdownList, findsNothing);
   });
 }

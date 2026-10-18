@@ -24,7 +24,7 @@ class AppShortcuts {
         const TogglePaymentModeIntent(),
   };
 
-  /// Global shortcuts for switching between app modules (Alt + 1 - 6)
+  /// Global shortcuts for switching between app modules (Alt + 1 - 7)
   static final Map<ShortcutActivator, Intent> moduleShortcuts = {
     // Alt + 1: Billing
     const SingleActivator(LogicalKeyboardKey.digit1, alt: true):
@@ -38,28 +38,34 @@ class AppShortcuts {
     const SingleActivator(LogicalKeyboardKey.numpad2, alt: true):
         const NavigateToModuleIntent(1),
 
-    // Alt + 3: Inventory / Khata
+    // Alt + 3: Expenses & Purchases
     const SingleActivator(LogicalKeyboardKey.digit3, alt: true):
         const NavigateToModuleIntent(2),
     const SingleActivator(LogicalKeyboardKey.numpad3, alt: true):
         const NavigateToModuleIntent(2),
 
-    // Alt + 4: Khata / Customers / Reports
+    // Alt + 4: Inventory
     const SingleActivator(LogicalKeyboardKey.digit4, alt: true):
         const NavigateToModuleIntent(3),
     const SingleActivator(LogicalKeyboardKey.numpad4, alt: true):
         const NavigateToModuleIntent(3),
 
-    // Alt + 5: Reports / Settings
+    // Alt + 5: Khata / Customers
     const SingleActivator(LogicalKeyboardKey.digit5, alt: true):
         const NavigateToModuleIntent(4),
     const SingleActivator(LogicalKeyboardKey.numpad5, alt: true):
         const NavigateToModuleIntent(4),
 
-    // Alt + 6: Settings
+    // Alt + 6: Reports
     const SingleActivator(LogicalKeyboardKey.digit6, alt: true):
         const NavigateToModuleIntent(5),
     const SingleActivator(LogicalKeyboardKey.numpad6, alt: true):
         const NavigateToModuleIntent(5),
+
+    // Alt + 7: Settings
+    const SingleActivator(LogicalKeyboardKey.digit7, alt: true):
+        const NavigateToModuleIntent(6),
+    const SingleActivator(LogicalKeyboardKey.numpad7, alt: true):
+        const NavigateToModuleIntent(6),
   };
 }

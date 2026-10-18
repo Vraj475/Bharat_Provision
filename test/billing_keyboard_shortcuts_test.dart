@@ -36,7 +36,7 @@ void main() {
       );
     });
 
-    test('Module shortcuts are mapped in AppShortcuts.moduleShortcuts (Alt + 1 - 6)', () {
+    test('Module shortcuts are mapped in AppShortcuts.moduleShortcuts (Alt + 1 - 7)', () {
       final moduleMap = AppShortcuts.moduleShortcuts;
       expect(moduleMap[const SingleActivator(LogicalKeyboardKey.digit1, alt: true)], isA<NavigateToModuleIntent>());
       expect(moduleMap[const SingleActivator(LogicalKeyboardKey.numpad1, alt: true)], isA<NavigateToModuleIntent>());
@@ -50,6 +50,8 @@ void main() {
       expect(moduleMap[const SingleActivator(LogicalKeyboardKey.numpad5, alt: true)], isA<NavigateToModuleIntent>());
       expect(moduleMap[const SingleActivator(LogicalKeyboardKey.digit6, alt: true)], isA<NavigateToModuleIntent>());
       expect(moduleMap[const SingleActivator(LogicalKeyboardKey.numpad6, alt: true)], isA<NavigateToModuleIntent>());
+      expect(moduleMap[const SingleActivator(LogicalKeyboardKey.digit7, alt: true)], isA<NavigateToModuleIntent>());
+      expect(moduleMap[const SingleActivator(LogicalKeyboardKey.numpad7, alt: true)], isA<NavigateToModuleIntent>());
     });
   });
 

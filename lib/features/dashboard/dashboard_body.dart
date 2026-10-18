@@ -364,14 +364,14 @@ class _DashboardBodyState extends ConsumerState<DashboardBody> {
                   () => context.push(AppRouter.billing),
                 ),
                 _buildActionButton(
-                  'સ્ટોક ઉમેરો',
-                  Icons.inventory,
-                  () => context.push(AppRouter.stockAdd),
+                  'ખરીદી ઉમેરો',
+                  Icons.shopping_cart_outlined,
+                  () => context.push(AppRouter.addPurchase),
                 ),
                 _buildActionButton(
-                  'ખર્ચ ઉમેરો',
-                  Icons.money_off,
-                  () => context.push(AppRouter.addExpense),
+                  'ખર્ચ / ખરીદી',
+                  Icons.account_balance_wallet_outlined,
+                  () => context.push(AppRouter.expenseList),
                 ),
                 _buildActionButton(
                   'રિપોર્ટ્સ',

@@ -6,6 +6,7 @@ class AppStrings {
 
   // Navigation
   static const String navBilling = 'બિલિંગ';
+  static const String navExpenses = 'ખર્ચ અને ખરીદી';
   static const String navInventory = 'ઇન્વેન્ટરી';
   static const String navKhata = 'ખાતા';
   static const String navReports = 'રિપોર્ટ્સ';

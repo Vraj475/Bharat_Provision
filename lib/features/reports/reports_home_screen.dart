@@ -216,6 +216,24 @@ class ReportsHomeScreen extends ConsumerWidget {
                   ),
                 ],
               ),
+              const SizedBox(height: 12),
+              SizedBox(
+                width: double.infinity,
+                child: OutlinedButton.icon(
+                  style: OutlinedButton.styleFrom(
+                    padding: const EdgeInsets.symmetric(vertical: 14),
+                    shape: RoundedRectangleBorder(
+                      borderRadius: BorderRadius.circular(10),
+                    ),
+                  ),
+                  onPressed: () => context.push(AppRouter.expenseList),
+                  icon: const Icon(Icons.shopping_bag_outlined, size: 20),
+                  label: const Text(
+                    'ખરીદી અને ખર્ચ (Purchases & Expenses)',
+                    style: TextStyle(fontSize: 15, fontWeight: FontWeight.bold),
+                  ),
+                ),
+              ),
               const SizedBox(height: 20),
             ],
           ),

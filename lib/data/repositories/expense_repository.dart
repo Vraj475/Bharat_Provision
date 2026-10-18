@@ -206,6 +206,10 @@ class ExpenseRepository {
       whereArgs.add(accountId);
     }
 
+    // Customer returns are not store operating expenses
+    if (where.isNotEmpty) where += ' AND ';
+    where += "(created_by IS NULL OR created_by != 'return')";
+
     final db = await _dbHelper.database;
     final results = await db.query(
       'expenses',

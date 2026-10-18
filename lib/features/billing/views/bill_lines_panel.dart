@@ -5,6 +5,7 @@ import '../../../core/theme/app_colors.dart';
 import '../models/bill_line_item.dart';
 import '../controllers/billing_controller.dart';
 import '../../../core/utils/currency_format.dart';
+import '../../../core/utils/weight_calculator.dart';
 
 enum _DraftEditableField { quantity, price, amount }
 
@@ -79,6 +80,7 @@ class BillLinesPanelState extends ConsumerState<BillLinesPanel> {
   _DraftEditableField? _editingField;
   bool _isCommittingInlineEdit = false;
   int? _selectedRowIndex;
+  bool _weightSuggestionAccepted = false;
 
   int? get selectedRowIndex => _selectedRowIndex;
 
@@ -250,6 +252,27 @@ class BillLinesPanelState extends ConsumerState<BillLinesPanel> {
         _moveToNextInlineEditField(reverse: isShift);
         return KeyEventResult.handled;
       }
+      if (event.logicalKey == LogicalKeyboardKey.arrowRight && field == _DraftEditableField.quantity) {
+        final currentKey = _editingLineKey;
+        if (currentKey != null) {
+          final lines = ref.read(billingControllerProvider).billLines;
+          final lineIdx = lines.indexWhere((l) => l.draftKey == currentKey);
+          if (lineIdx >= 0) {
+            final line = lines[lineIdx];
+            if (_isWeightItem(line)) {
+              final res = _lineResources[currentKey];
+              final raw = res?.qtyController.text.trim();
+              if (raw == '0.5' || raw == '.5') {
+                _weightSuggestionAccepted = true;
+                res?.qtyController.text = '0.500';
+                res?.qtyController.selection = const TextSelection.collapsed(offset: 5);
+                setState(() {});
+                return KeyEventResult.handled;
+              }
+            }
+          }
+        }
+      }
       if (event.logicalKey == LogicalKeyboardKey.escape) {
         _commitInlineEdit(clearStateOnSuccess: true);
         widget.onInlineEditCompleted?.call();
@@ -374,6 +397,7 @@ class BillLinesPanelState extends ConsumerState<BillLinesPanel> {
       _selectedRowIndex = index;
       _editingLineKey = lineKey;
       _editingField = field;
+      _weightSuggestionAccepted = false;
     });
 
     targetFocusNode.requestFocus();
@@ -418,16 +442,17 @@ class BillLinesPanelState extends ConsumerState<BillLinesPanel> {
       BillLineItem updatedLine = line;
       if (editingField == _DraftEditableField.quantity) {
         if (isWeight) {
-          final parsed = double.tryParse(raw);
-          if (raw.isEmpty || parsed == null || parsed <= 0) {
+          final newQtyGrams = WeightCalculator.parseWeightInputGrams(
+            raw,
+            suggestionAccepted: _weightSuggestionAccepted,
+          );
+          if (raw.isEmpty || newQtyGrams <= 0) {
             ScaffoldMessenger.of(
               context,
             ).showSnackBar(const SnackBar(content: Text('વજન શૂન્ય ન હોઈ શકે')));
             setState(_clearInlineEditState);
             return false;
           }
-
-          final newQtyGrams = parsed * 1000.0;
           final itemId = line.item.id;
           if (itemId != null) {
             final hasStock = await widget.checkStock(
@@ -673,32 +698,91 @@ class BillLinesPanelState extends ConsumerState<BillLinesPanel> {
     String? prefixText,
     bool allowDecimal = true,
     String? tooltip,
+    bool isWeight = false,
   }) {
     if (isEditing) {
-      return SizedBox(
-        width: 106,
-        child: TextField(
-          controller: controller,
-          focusNode: focusNode,
-          autofocus: true,
-          keyboardType: keyboardType,
-          textInputAction: TextInputAction.done,
-          inputFormatters: [
-            FilteringTextInputFormatter.allow(
-              allowDecimal ? RegExp(r'^\d*\.?\d*') : RegExp(r'^\d+'),
-            ),
-          ],
-          onSubmitted: onSubmitted,
-          onTapOutside: (_) => _commitInlineEdit(),
-          decoration: InputDecoration(
-            isDense: true,
-            prefixText: prefixText,
-            contentPadding: const EdgeInsets.symmetric(
-              horizontal: 10,
-              vertical: 8,
+      final text = controller?.text.trim() ?? '';
+      final showSuggestion = isWeight && (text == '0.5' || text == '.5');
+
+      return Column(
+        mainAxisSize: MainAxisSize.min,
+        crossAxisAlignment: CrossAxisAlignment.start,
+        children: [
+          SizedBox(
+            width: 106,
+            child: TextField(
+              controller: controller,
+              focusNode: focusNode,
+              autofocus: true,
+              keyboardType: keyboardType,
+              textInputAction: TextInputAction.done,
+              onChanged: (_) {
+                if (isWeight) {
+                  setState(() {});
+                }
+              },
+              inputFormatters: [
+                FilteringTextInputFormatter.allow(
+                  allowDecimal ? RegExp(r'^\d*\.?\d*') : RegExp(r'^\d+'),
+                ),
+              ],
+              onSubmitted: onSubmitted,
+              onTapOutside: (_) => _commitInlineEdit(),
+              decoration: InputDecoration(
+                isDense: true,
+                prefixText: prefixText,
+                contentPadding: const EdgeInsets.symmetric(
+                  horizontal: 10,
+                  vertical: 8,
+                ),
+              ),
             ),
           ),
-        ),
+          if (showSuggestion) ...[
+            const SizedBox(height: 3),
+            InkWell(
+              onTap: () {
+                _weightSuggestionAccepted = true;
+                controller?.text = '0.500';
+                controller?.selection = const TextSelection.collapsed(offset: 5);
+                setState(() {});
+              },
+              borderRadius: BorderRadius.circular(6),
+              child: Container(
+                padding: const EdgeInsets.symmetric(horizontal: 6, vertical: 2),
+                decoration: BoxDecoration(
+                  color: const Color(0xFFEFF6FF),
+                  borderRadius: BorderRadius.circular(6),
+                  border: Border.all(color: const Color(0xFF3B82F6), width: 1.2),
+                ),
+                child: const Row(
+                  mainAxisSize: MainAxisSize.min,
+                  children: [
+                    Text(
+                      '500g',
+                      style: TextStyle(
+                        fontSize: 11,
+                        fontWeight: FontWeight.bold,
+                        color: Color(0xFF1D4ED8),
+                      ),
+                    ),
+                    SizedBox(width: 3),
+                    Icon(Icons.arrow_forward, size: 12, color: Color(0xFF1D4ED8)),
+                    SizedBox(width: 2),
+                    Text(
+                      '(→)',
+                      style: TextStyle(
+                        fontSize: 10,
+                        fontWeight: FontWeight.w600,
+                        color: Color(0xFF1D4ED8),
+                      ),
+                    ),
+                  ],
+                ),
+              ),
+            ),
+          ],
+        ],
       );
     }
 
@@ -806,6 +890,7 @@ class BillLinesPanelState extends ConsumerState<BillLinesPanel> {
                         focusNode: res.qtyFocusNode,
                         value: qtyDisplay,
                         tooltip: 'વજન / સંખ્યા બદલો',
+                        isWeight: isWeight,
                         onTap: () => _startInlineEdit(
                             index, _DraftEditableField.quantity),
                         onSubmitted: (_) async {

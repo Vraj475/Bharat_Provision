@@ -45,6 +45,7 @@ class _ProductAdditionDialogState extends State<ProductAdditionDialog> {
   final _entryController = TextEditingController();
   final _entryFocusNode = FocusNode();
   bool _focusScheduled = false;
+  bool _weightSuggestionAccepted = false;
 
   bool get _isWeightProduct {
     final u = widget.item.unitType.trim().toLowerCase();
@@ -106,8 +107,11 @@ class _ProductAdditionDialogState extends State<ProductAdditionDialog> {
         finalAmount = _amountPaid;
       } else {
         final raw = _entryController.text.trim();
-        final parsed = double.tryParse(raw);
-        if (raw.isEmpty || parsed == null || parsed <= 0) {
+        final grams = WeightCalculator.parseWeightInputGrams(
+          raw,
+          suggestionAccepted: _weightSuggestionAccepted,
+        );
+        if (raw.isEmpty || grams <= 0) {
           ScaffoldMessenger.of(context).showSnackBar(
             const SnackBar(
               content: Text('વજન દાખલ કરો'),
@@ -117,7 +121,6 @@ class _ProductAdditionDialogState extends State<ProductAdditionDialog> {
           FocusScope.of(context).requestFocus(_entryFocusNode);
           return;
         }
-        final grams = parsed * 1000.0;
         finalAmount = WeightCalculator.calculateAmountFromWeight(
           weightGrams: grams,
           sellPricePerKg: item.sellPrice,
@@ -261,12 +264,24 @@ class _ProductAdditionDialogState extends State<ProductAdditionDialog> {
               ] else ...[
                 Focus(
                   onKeyEvent: (node, event) {
-                    if (event is KeyDownEvent &&
-                        _entryFocusNode.hasFocus &&
-                        (event.logicalKey == LogicalKeyboardKey.enter ||
-                            event.logicalKey == LogicalKeyboardKey.numpadEnter)) {
-                      _submit();
-                      return KeyEventResult.handled;
+                    if (event is KeyDownEvent && _entryFocusNode.hasFocus) {
+                      if (_isWeightProduct &&
+                          event.logicalKey == LogicalKeyboardKey.arrowRight) {
+                        final raw = _entryController.text.trim();
+                        if (raw == '0.5' || raw == '.5') {
+                          _weightSuggestionAccepted = true;
+                          _entryController.text = '0.500';
+                          _entryController.selection =
+                              const TextSelection.collapsed(offset: 5);
+                          setState(() {});
+                          return KeyEventResult.handled;
+                        }
+                      }
+                      if (event.logicalKey == LogicalKeyboardKey.enter ||
+                          event.logicalKey == LogicalKeyboardKey.numpadEnter) {
+                        _submit();
+                        return KeyEventResult.handled;
+                      }
                     }
                     return KeyEventResult.ignored;
                   },
@@ -297,6 +312,59 @@ class _ProductAdditionDialogState extends State<ProductAdditionDialog> {
                     onSubmitted: (_) => _submit(),
                   ),
                 ),
+                if (_isWeightProduct &&
+                    (_entryController.text.trim() == '0.5' ||
+                        _entryController.text.trim() == '.5')) ...[
+                  const SizedBox(height: 4),
+                  Align(
+                    alignment: Alignment.centerLeft,
+                    child: InkWell(
+                      onTap: () {
+                        _weightSuggestionAccepted = true;
+                        _entryController.text = '0.500';
+                        _entryController.selection =
+                            const TextSelection.collapsed(offset: 5);
+                        setState(() {});
+                      },
+                      borderRadius: BorderRadius.circular(6),
+                      child: Container(
+                        padding: const EdgeInsets.symmetric(
+                            horizontal: 8, vertical: 4),
+                        decoration: BoxDecoration(
+                          color: const Color(0xFFEFF6FF),
+                          borderRadius: BorderRadius.circular(6),
+                          border: Border.all(
+                              color: const Color(0xFF3B82F6), width: 1.2),
+                        ),
+                        child: const Row(
+                          mainAxisSize: MainAxisSize.min,
+                          children: [
+                            Text(
+                              '૫૦૦ ગ્રામ (500g)',
+                              style: TextStyle(
+                                fontSize: 12,
+                                fontWeight: FontWeight.bold,
+                                color: Color(0xFF1D4ED8),
+                              ),
+                            ),
+                            SizedBox(width: 4),
+                            Icon(Icons.arrow_forward,
+                                size: 14, color: Color(0xFF1D4ED8)),
+                            SizedBox(width: 2),
+                            Text(
+                              '(→)',
+                              style: TextStyle(
+                                fontSize: 11,
+                                fontWeight: FontWeight.w600,
+                                color: Color(0xFF1D4ED8),
+                              ),
+                            ),
+                          ],
+                        ),
+                      ),
+                    ),
+                  ),
+                ],
                 const SizedBox(height: 8),
                 if (calculatedAmount != null)
                   Text(

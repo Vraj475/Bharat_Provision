@@ -40,4 +40,30 @@ class WeightCalculator {
     final value = (returnedGrams * returnedPrice) / replacementPrice;
     return value;
   }
+
+  /// Parses raw weight input in provision store format.
+  /// - '0.50' or '.50' strictly represents 50 grams (0.050 kg).
+  /// - '0.5' or '.5' defaults to 50 grams unless the 500g suggestion is explicitly accepted (via Right Arrow key).
+  /// - Standard decimal values like '1' (1000g), '1.5' (1500g), '0.500' (500g), '0.25' (250g) parse to kg * 1000.
+  static double parseWeightInputGrams(
+    String raw, {
+    bool suggestionAccepted = false,
+  }) {
+    final clean = raw.trim();
+    if (clean.isEmpty) return 0.0;
+
+    // Grocery store shorthand: 0.50 represents 50 grams
+    if (clean == '0.50' || clean == '.50') {
+      return 50.0;
+    }
+
+    // 0.5 defaults to 50g unless suggestion of 500 was accepted via Right Arrow
+    if (clean == '0.5' || clean == '.5') {
+      return suggestionAccepted ? 500.0 : 50.0;
+    }
+
+    final parsed = double.tryParse(clean);
+    if (parsed == null || parsed <= 0) return 0.0;
+    return parsed * 1000.0;
+  }
 }

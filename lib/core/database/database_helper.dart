@@ -14,7 +14,7 @@ class DatabaseHelper {
 
   static final DatabaseHelper instance = DatabaseHelper._internal();
 
-  static const int schemaVersion = 2;
+  static const int schemaVersion = 3;
   static const String dbFileName = 'kirana.db';
 
   Database? _db;
@@ -443,6 +443,49 @@ class DatabaseHelper {
         balance_at_time REAL NOT NULL
       );
     ''');
+
+    await db.execute('''
+      CREATE TABLE IF NOT EXISTS purchases (
+        id INTEGER PRIMARY KEY AUTOINCREMENT,
+        purchase_no TEXT NOT NULL UNIQUE,
+        purchase_date TEXT NOT NULL,
+        supplier_name TEXT,
+        supplier_phone TEXT,
+        total_amount REAL NOT NULL,
+        paid_amount REAL NOT NULL DEFAULT 0,
+        payment_mode TEXT NOT NULL DEFAULT 'cash',
+        notes TEXT,
+        created_at TEXT NOT NULL
+      );
+    ''');
+    await db.execute(
+      'CREATE INDEX IF NOT EXISTS idx_purchases_date ON purchases(purchase_date);',
+    );
+    await db.execute(
+      'CREATE INDEX IF NOT EXISTS idx_purchases_supplier ON purchases(supplier_name);',
+    );
+
+    await db.execute('''
+      CREATE TABLE IF NOT EXISTS purchase_items (
+        id INTEGER PRIMARY KEY AUTOINCREMENT,
+        purchase_id INTEGER NOT NULL REFERENCES purchases(id) ON DELETE CASCADE,
+        product_id INTEGER NOT NULL REFERENCES products(id),
+        qty REAL NOT NULL,
+        unit_cost REAL NOT NULL,
+        total_cost REAL NOT NULL,
+        old_stock_qty REAL NOT NULL,
+        old_cost_price REAL NOT NULL,
+        new_cost_price REAL NOT NULL,
+        old_sell_price REAL NOT NULL,
+        new_sell_price REAL NOT NULL
+      );
+    ''');
+    await db.execute(
+      'CREATE INDEX IF NOT EXISTS idx_purchase_items_purchase_id ON purchase_items(purchase_id);',
+    );
+    await db.execute(
+      'CREATE INDEX IF NOT EXISTS idx_purchase_items_product_id ON purchase_items(product_id);',
+    );
 
     try {
       await db.execute('ALTER TABLE bills ADD COLUMN other_charges REAL DEFAULT 0;');
@@ -879,6 +922,8 @@ class DatabaseHelper {
         'expense_accounts',
         'expenses',
         'khata_ledger',
+        'purchases',
+        'purchase_items',
         'returns',
         'return_items',
         'replace_transactions',
@@ -911,6 +956,8 @@ class DatabaseHelper {
           'expense_accounts',
           'expenses',
           'khata_ledger',
+          'purchases',
+          'purchase_items',
           'returns',
           'return_items',
           'replace_transactions',

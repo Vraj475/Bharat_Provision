@@ -177,6 +177,9 @@ class StockRepository {
   //  AddStock — single transaction with 4 effects
   // ────────────────────────────────────────────────────────────────────────
 
+  /// Deprecated: Use [PurchaseRepository.createPurchase] which records multi-item purchases,
+  /// calculates weighted average cost price, and updates stock with full traceability.
+  @Deprecated('Use PurchaseRepository.createPurchase() instead')
   Future<AddStockResult> addStock({
     required int productId,
     required double qtyReceived,

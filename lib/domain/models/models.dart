@@ -8,6 +8,8 @@ export '../../shared/models/expense_model.dart';
 export '../../shared/models/expense_account_model.dart';
 export '../../shared/models/khata_ledger_model.dart';
 export '../../shared/models/product_model.dart';
+export '../../shared/models/purchase_model.dart';
+export '../../shared/models/purchase_item_model.dart';
 export '../../shared/models/reminder_log_model.dart';
 export '../../shared/models/replace_transaction_model.dart';
 export '../../shared/models/return_item_model.dart';

@@ -7,6 +7,7 @@ import 'repositories/customer_repository.dart';
 import 'repositories/expense_repository.dart';
 import 'repositories/item_repository.dart';
 import 'repositories/khata_repository.dart';
+import 'repositories/purchase_repository.dart';
 import 'repositories/report_repository.dart';
 import 'repositories/return_repository.dart';
 import 'repositories/settings_repository.dart';
@@ -44,6 +45,10 @@ final expenseRepositoryProvider = Provider<ExpenseRepository>((ref) {
   return ExpenseRepository(ref.watch(databaseHelperProvider));
 });
 
+final purchaseRepositoryProvider = Provider<PurchaseRepository>((ref) {
+  return PurchaseRepository(ref.watch(databaseHelperProvider));
+});
+
 final stockRepositoryProvider = Provider<StockRepository>((ref) {
   return StockRepository(ref.watch(databaseHelperProvider));
 });
@@ -55,3 +60,4 @@ final returnRepositoryProvider = Provider<ReturnRepository>((ref) {
 final backupServiceProvider = Provider<BackupService>((ref) {
   return BackupService(ref.watch(databaseHelperProvider));
 });
+

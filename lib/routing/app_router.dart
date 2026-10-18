@@ -38,6 +38,8 @@ import '../features/reports/pl_report_screen.dart';
 import '../features/reports/daily_report_screen.dart';
 import '../features/expenses/add_expense_screen.dart';
 import '../features/expenses/expense_list_screen.dart';
+import '../features/expenses/views/add_purchase_screen.dart';
+import '../features/expenses/views/purchase_detail_screen.dart';
 import '../shared/models/expense_model.dart';
 import '../shared/models/bill_model.dart';
 
@@ -255,9 +257,32 @@ final appRouter = GoRouter(
     GoRoute(
       path: AppRouter.expenseList,
       builder: (context, state) => const RoleGuard(
-        allowedRoles: ['admin'],
-        child: ExpenseListScreen(),
+        allowedRoles: ['admin', 'superadmin'],
+        child: _ShellRoute(
+          currentRoute: AppRouter.expenseList,
+          child: ExpenseListScreen(),
+        ),
       ),
+    ),
+    GoRoute(
+      path: AppRouter.addPurchase,
+      builder: (context, state) => const RoleGuard(
+        allowedRoles: ['admin', 'superadmin'],
+        child: AddPurchaseScreen(),
+      ),
+    ),
+    GoRoute(
+      path: AppRouter.purchaseDetail,
+      builder: (context, state) {
+        final extra = state.extra;
+        final int id = extra is int
+            ? extra
+            : int.tryParse(state.uri.queryParameters['id'] ?? '') ?? 0;
+        return RoleGuard(
+          allowedRoles: const ['admin', 'superadmin'],
+          child: PurchaseDetailScreen(purchaseId: id),
+        );
+      },
     ),
     GoRoute(
       path: AppRouter.billDetail,
@@ -355,6 +380,8 @@ class AppRouter {
   static const String dailyReport = '/reports/daily';
   static const String addExpense = '/expenses/add';
   static const String expenseList = '/expenses';
+  static const String addPurchase = '/expenses/purchases/add';
+  static const String purchaseDetail = '/expenses/purchases/detail';
   static const String billDetail = '/bill-detail';
   static const String changePin = '/settings/change-pin';
   static const String roleSelection = '/role-selection';
@@ -369,6 +396,7 @@ class AppRouter {
     return [
       billing,
       if (isAdmin) billHistory,
+      if (isAdmin) expenseList,
       inventory,
       customers,
       reports,
@@ -432,6 +460,9 @@ class _ShellRouteState extends ConsumerState<_ShellRoute> {
     } else if (key == LogicalKeyboardKey.digit6 ||
         key == LogicalKeyboardKey.numpad6) {
       targetIndex = 5;
+    } else if (key == LogicalKeyboardKey.digit7 ||
+        key == LogicalKeyboardKey.numpad7) {
+      targetIndex = 6;
     }
 
     if (targetIndex != null) {

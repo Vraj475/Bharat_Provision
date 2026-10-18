@@ -301,10 +301,11 @@ class AppScaffold extends ConsumerWidget {
     return [
       const _NavItem('${AppStrings.navBilling} (Alt+1)', Icons.point_of_sale),
       if (isAdmin) const _NavItem('બિલ ઇતિહાસ (Alt+2)', Icons.receipt_long),
-      _NavItem('${AppStrings.navInventory} (${isAdmin ? 'Alt+3' : 'Alt+2'})', Icons.inventory_2),
-      _NavItem('${AppStrings.navKhata} (${isAdmin ? 'Alt+4' : 'Alt+3'})', Icons.people),
-      _NavItem('${AppStrings.navReports} (${isAdmin ? 'Alt+5' : 'Alt+4'})', Icons.assessment),
-      _NavItem('${AppStrings.navSettings} (${isAdmin ? 'Alt+6' : 'Alt+5'})', Icons.settings),
+      if (isAdmin) const _NavItem('${AppStrings.navExpenses} (Alt+3)', Icons.account_balance_wallet),
+      _NavItem('${AppStrings.navInventory} (${isAdmin ? 'Alt+4' : 'Alt+2'})', Icons.inventory_2),
+      _NavItem('${AppStrings.navKhata} (${isAdmin ? 'Alt+5' : 'Alt+3'})', Icons.people),
+      _NavItem('${AppStrings.navReports} (${isAdmin ? 'Alt+6' : 'Alt+4'})', Icons.assessment),
+      _NavItem('${AppStrings.navSettings} (${isAdmin ? 'Alt+7' : 'Alt+5'})', Icons.settings),
     ];
   }
 }

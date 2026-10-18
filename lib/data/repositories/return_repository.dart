@@ -411,19 +411,6 @@ class ReturnRepository {
       whereArgs: [billId],
     );
 
-    // P&L impact: record as expense only on cash refund
-    if (returnMode == 'cash_refund') {
-      await txn.insert('expenses', {
-        'expense_account_id': null,
-        'account_name_snapshot': 'Return adjustment',
-        'amount': totalReturnValue,
-        'description': 'Return for bill #$billId: $computedNotes',
-        'expense_date': today,
-        'created_by': 'return',
-        'created_at': now,
-      });
-    }
-
     // Handle refund modes
     if (returnMode == 'cash_refund') {
       await txn.insert('khata_ledger', {

@@ -1,4 +1,5 @@
 import '../../core/database/database_helper.dart';
+import '../../core/services/notification_service.dart';
 import '../../shared/models/product_model.dart';
 import '../../shared/models/stock_log_model.dart';
 import '../../shared/models/expense_account_model.dart';
@@ -275,6 +276,14 @@ class StockRepository {
         khataLedgerId: khataId,
       );
     });
+
+    try {
+      await NotificationService.instance.onProductRestocked(
+        productId: productId,
+        newStockQty: result.updatedProduct.stockQty,
+        minStockQty: result.updatedProduct.minStockQty,
+      );
+    } catch (_) {}
 
     return result;
   }

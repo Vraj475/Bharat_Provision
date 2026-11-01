@@ -5,7 +5,6 @@ import 'package:go_router/go_router.dart';
 import '../../../../core/theme/app_colors.dart';
 import '../../../../core/utils/currency_format.dart';
 import '../../../../routing/app_router.dart';
-import '../../../../shared/models/expense_account_model.dart';
 import '../../../../shared/models/expense_model.dart';
 import '../expense_repository_provider.dart';
 
@@ -20,7 +19,7 @@ class ExpenseListView extends ConsumerStatefulWidget {
 class _ExpenseListViewState extends ConsumerState<ExpenseListView> {
   DateTime? _startDate;
   DateTime? _endDate;
-  ExpenseAccount? _selectedAccount;
+  int? _selectedAccountId;
 
   @override
   Widget build(BuildContext context) {
@@ -99,15 +98,12 @@ class _ExpenseListViewState extends ConsumerState<ExpenseListView> {
   }
 
   Widget _buildAccountDropdown() {
-    final repo = ref.watch(expenseRepositoryProvider);
-    return FutureBuilder<List<ExpenseAccount>>(
-      future: repo.getExpenseAccounts(),
-      builder: (context, snapshot) {
-        if (!snapshot.hasData) return const SizedBox.shrink();
-        final accounts = snapshot.data!;
-        return DropdownButtonFormField<ExpenseAccount?>(
-          key: ValueKey(_selectedAccount?.id),
-          initialValue: _selectedAccount,
+    final accountsAsync = ref.watch(allExpenseAccountsProvider);
+    return accountsAsync.when(
+      data: (accounts) {
+        return DropdownButtonFormField<int?>(
+          key: ValueKey(_selectedAccountId),
+          initialValue: _selectedAccountId,
           isExpanded: true,
           decoration: InputDecoration(
             labelText: 'ખાતું (Account)',
@@ -115,20 +111,22 @@ class _ExpenseListViewState extends ConsumerState<ExpenseListView> {
             border: OutlineInputBorder(borderRadius: BorderRadius.circular(8)),
           ),
           items: [
-            const DropdownMenuItem(
+            const DropdownMenuItem<int?>(
               value: null,
               child: Text('બધા ખાતા (All Accounts)'),
             ),
             ...accounts.map((account) {
-              return DropdownMenuItem(
-                value: account,
+              return DropdownMenuItem<int?>(
+                value: account.id,
                 child: Text(account.accountNameGujarati),
               );
             }),
           ],
-          onChanged: (value) => setState(() => _selectedAccount = value),
+          onChanged: (value) => setState(() => _selectedAccountId = value),
         );
       },
+      loading: () => const SizedBox.shrink(),
+      error: (_, __) => const SizedBox.shrink(),
     );
   }
 
@@ -155,7 +153,7 @@ class _ExpenseListViewState extends ConsumerState<ExpenseListView> {
       future: repo.getExpenses(
         startDate: _startDate,
         endDate: _endDate,
-        accountId: _selectedAccount?.id,
+        accountId: _selectedAccountId,
       ),
       builder: (context, snapshot) {
         if (snapshot.connectionState == ConnectionState.waiting) {
@@ -184,7 +182,9 @@ class _ExpenseListViewState extends ConsumerState<ExpenseListView> {
         // Group by date
         final grouped = <String, List<Expense>>{};
         for (final expense in expenses) {
-          final date = expense.expenseDate.split('T').first;
+          final date = expense.expenseDate.length >= 10
+              ? expense.expenseDate.substring(0, 10)
+              : expense.expenseDate;
           grouped.putIfAbsent(date, () => []).add(expense);
         }
 
@@ -262,47 +262,33 @@ class _ExpenseListViewState extends ConsumerState<ExpenseListView> {
   }
 
   Widget _buildExpenseTile(Expense expense) {
-    return FutureBuilder<ExpenseAccount?>(
-      future: _getAccountName(expense.expenseAccountId),
-      builder: (context, snapshot) {
-        final accountName = snapshot.data?.accountNameGujarati ??
-            expense.accountNameSnapshot ??
-            'ખર્ચ';
-        return ListTile(
-          dense: true,
-          title: Text(
-            accountName,
-            style: const TextStyle(fontWeight: FontWeight.w600),
+    final accountName = expense.accountNameSnapshot ?? 'ખર્ચ';
+    return ListTile(
+      dense: true,
+      title: Text(
+        accountName,
+        style: const TextStyle(fontWeight: FontWeight.w600),
+      ),
+      subtitle: expense.description != null ? Text(expense.description!) : null,
+      trailing: Row(
+        mainAxisSize: MainAxisSize.min,
+        children: [
+          Text(
+            formatCurrency(expense.amount),
+            style: const TextStyle(fontWeight: FontWeight.bold, fontSize: 14),
           ),
-          subtitle: expense.description != null ? Text(expense.description!) : null,
-          trailing: Row(
-            mainAxisSize: MainAxisSize.min,
-            children: [
-              Text(
-                formatCurrency(expense.amount),
-                style: const TextStyle(fontWeight: FontWeight.bold, fontSize: 14),
-              ),
-              const SizedBox(width: 8),
-              IconButton(
-                icon: const Icon(Icons.edit, size: 18),
-                onPressed: () => _editExpense(expense),
-              ),
-              IconButton(
-                icon: const Icon(Icons.delete_outline, size: 18, color: AppColors.alert),
-                onPressed: () => _deleteExpense(expense),
-              ),
-            ],
+          const SizedBox(width: 8),
+          IconButton(
+            icon: const Icon(Icons.edit, size: 18),
+            onPressed: () => _editExpense(expense),
           ),
-        );
-      },
+          IconButton(
+            icon: const Icon(Icons.delete_outline, size: 18, color: AppColors.alert),
+            onPressed: () => _deleteExpense(expense),
+          ),
+        ],
+      ),
     );
-  }
-
-  Future<ExpenseAccount?> _getAccountName(int? accountId) async {
-    if (accountId == null) return null;
-    final repo = ref.read(expenseRepositoryProvider);
-    final accounts = await repo.getExpenseAccounts();
-    return accounts.where((a) => a.id == accountId).firstOrNull;
   }
 
   void _editExpense(Expense expense) async {
@@ -312,6 +298,7 @@ class _ExpenseListViewState extends ConsumerState<ExpenseListView> {
   }
 
   void _deleteExpense(Expense expense) async {
+    if (expense.id == null) return;
     final confirm = await showDialog<bool>(
       context: context,
       builder: (context) => AlertDialog(
@@ -332,13 +319,26 @@ class _ExpenseListViewState extends ConsumerState<ExpenseListView> {
     );
 
     if (confirm == true) {
-      final repo = ref.read(expenseRepositoryProvider);
-      await repo.deleteExpense(expense.id!);
-      if (!mounted) return;
-      setState(() {});
-      ScaffoldMessenger.of(context).showSnackBar(
-        const SnackBar(content: Text('ખર્ચ કાઢી નાખવામાં આવ્યો છે.')),
-      );
+      try {
+        final repo = ref.read(expenseRepositoryProvider);
+        await repo.deleteExpense(expense.id!);
+        if (!mounted) return;
+        setState(() {});
+        ScaffoldMessenger.of(context).showSnackBar(
+          const SnackBar(
+            content: Text('ખર્ચ સફળતાપૂર્વક કાઢી નાખવામાં આવ્યો છે.'),
+            backgroundColor: AppColors.success,
+          ),
+        );
+      } catch (e) {
+        if (!mounted) return;
+        ScaffoldMessenger.of(context).showSnackBar(
+          SnackBar(
+            content: Text('ખર્ચ કાઢી નાખવામાં ભૂલ આવી: $e'),
+            backgroundColor: AppColors.alert,
+          ),
+        );
+      }
     }
   }
 }

@@ -74,8 +74,8 @@ final expenseAccountsProvider = FutureProvider<List<ExpenseAccount>>((
   ref,
 ) async {
   try {
-    final repo = ref.watch(stockRepositoryProvider);
-    return repo.getExpenseAccounts();
+    final repo = ref.watch(expenseRepositoryProvider);
+    return repo.getExpenseAccounts(activeOnly: true);
   } catch (e, st) {
     throw ErrorHandler.handle(
       e,

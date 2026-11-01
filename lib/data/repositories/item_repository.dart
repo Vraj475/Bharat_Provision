@@ -1,4 +1,5 @@
 import '../../core/database/database_helper.dart';
+import '../../core/services/notification_service.dart';
 import '../../domain/models/models.dart';
 
 class ItemRepository {
@@ -101,7 +102,7 @@ class ItemRepository {
     if (item.id == null) return 0;
     final now = DateTime.now().toIso8601String();
     final db = await _dbHelper.database;
-    return db.update(
+    final count = await db.update(
       'products',
       {
         'name_gujarati': item.nameGujarati,
@@ -120,6 +121,16 @@ class ItemRepository {
       where: 'id = ?',
       whereArgs: [item.id],
     );
+    if (item.id != null) {
+      try {
+        await NotificationService.instance.onProductRestocked(
+          productId: item.id!,
+          newStockQty: item.stockQty,
+          minStockQty: item.minStockQty,
+        );
+      } catch (_) {}
+    }
+    return count;
   }
 
   Future<int> delete(int id) async {
@@ -153,10 +164,15 @@ class ItemRepository {
 
   Future<void> increaseStock(int itemId, double qty, {String? note}) async {
     final db = await _dbHelper.database;
+    double? newQty;
+    double? minQty;
     await db.transaction((txn) async {
-      final rows = await txn.query('products', columns: ['stock_qty'], where: 'id = ?', whereArgs: [itemId]);
+      final rows = await txn.query('products', columns: ['stock_qty', 'min_stock_qty'], where: 'id = ?', whereArgs: [itemId]);
       final qtyBefore = rows.isNotEmpty ? (rows.first['stock_qty'] as num?)?.toDouble() ?? 0.0 : 0.0;
+      final minStockQty = rows.isNotEmpty ? (rows.first['min_stock_qty'] as num?)?.toDouble() ?? 0.0 : 0.0;
       final qtyAfter = qtyBefore + qty;
+      newQty = qtyAfter;
+      minQty = minStockQty;
 
       await txn.rawUpdate(
         'UPDATE products SET stock_qty = ?, updated_at = ? WHERE id = ?',
@@ -173,6 +189,16 @@ class ItemRepository {
         'created_at': DateTime.now().toIso8601String(),
       });
     });
+
+    if (newQty != null && minQty != null) {
+      try {
+        await NotificationService.instance.onProductRestocked(
+          productId: itemId,
+          newStockQty: newQty!,
+          minStockQty: minQty!,
+        );
+      } catch (_) {}
+    }
   }
 
   // Categories

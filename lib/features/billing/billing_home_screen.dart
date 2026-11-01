@@ -712,33 +712,42 @@ class _BillingHomeScreenState extends ConsumerState<BillingHomeScreen> {
     final alertResult = await stockRepo.checkStockAlerts(productIds);
     final userRole = await _getCurrentUserRole();
 
-    if (alertResult.lowStock.isNotEmpty || alertResult.outOfStock.isNotEmpty) {
-      final names = [
-        ...alertResult.lowStock.map((p) => p.nameGujarati),
-        ...alertResult.outOfStock.map((p) => p.nameGujarati),
-      ].join(', ');
-      
-      setState(() {
-        _bannerMessage = 'સ્ટોક ઓછો/ખૂટ્યો: $names';
-      });
+    final newlyAlertedNames = <String>[];
 
-      if (userRole != 'employee') {
-        for (final p in alertResult.lowStock) {
-          await NotificationService.instance.showLowStockAlert(
-            productName: p.nameGujarati,
-            qty: p.stockQty,
-          );
-        }
-        for (final p in alertResult.outOfStock) {
-          await NotificationService.instance.showOutOfStockAlert(
-            productName: p.nameGujarati,
-          );
+    if (userRole != 'employee') {
+      for (final p in alertResult.lowStock) {
+        final notified = await NotificationService.instance.showLowStockAlert(
+          productId: p.id,
+          productName: p.nameGujarati,
+          qty: p.stockQty,
+        );
+        if (notified) {
+          newlyAlertedNames.add(p.nameGujarati);
         }
       }
-    } else {
-      setState(() {
-        _bannerMessage = null;
-      });
+      for (final p in alertResult.outOfStock) {
+        final notified = await NotificationService.instance.showOutOfStockAlert(
+          productId: p.id,
+          productName: p.nameGujarati,
+        );
+        if (notified) {
+          newlyAlertedNames.add(p.nameGujarati);
+        }
+      }
+    }
+
+    if (mounted) {
+      if (newlyAlertedNames.isNotEmpty) {
+        setState(() {
+          _bannerMessage = 'સ્ટોક ઓછો/ખૂટ્યો: ${newlyAlertedNames.join(', ')}';
+        });
+      } else {
+        if (_bannerMessage != null) {
+          setState(() {
+            _bannerMessage = null;
+          });
+        }
+      }
     }
   }
 
@@ -1012,7 +1021,7 @@ class _BillingHomeScreenState extends ConsumerState<BillingHomeScreen> {
                 if (_bannerMessage != null)
                   Container(
                     color: Colors.red.shade100,
-                    padding: const EdgeInsets.all(8),
+                    padding: const EdgeInsets.symmetric(horizontal: 12, vertical: 4),
                     child: Row(
                       children: [
                         const Icon(Icons.warning, color: Colors.red),
@@ -1025,6 +1034,15 @@ class _BillingHomeScreenState extends ConsumerState<BillingHomeScreen> {
                               fontWeight: FontWeight.bold,
                             ),
                           ),
+                        ),
+                        IconButton(
+                          icon: const Icon(Icons.close, color: Colors.red, size: 20),
+                          tooltip: 'બંધ કરો',
+                          onPressed: () {
+                            setState(() {
+                              _bannerMessage = null;
+                            });
+                          },
                         ),
                       ],
                     ),

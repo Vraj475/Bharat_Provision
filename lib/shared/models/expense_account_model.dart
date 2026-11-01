@@ -20,12 +20,12 @@ class ExpenseAccount {
   factory ExpenseAccount.fromMap(Map<String, dynamic> map) {
     return ExpenseAccount(
       id: map['id'] as int?,
-      accountNameGujarati: map['account_name_gujarati'] as String,
+      accountNameGujarati: (map['account_name_gujarati'] as String?) ?? '',
       accountNameEnglish: map['account_name_english'] as String?,
       accountType: (map['account_type'] as String?) ?? 'variable',
-      typicalAmount: (map['typical_amount'] as num?)?.toDouble() ?? 0,
+      typicalAmount: (map['typical_amount'] as num?)?.toDouble() ?? 0.0,
       isActive: (map['is_active'] as int? ?? 1) == 1,
-      createdAt: map['created_at'] as String,
+      createdAt: (map['created_at'] as String?) ?? DateTime.now().toIso8601String(),
     );
   }
 
@@ -40,4 +40,14 @@ class ExpenseAccount {
       'created_at': createdAt,
     };
   }
+
+  @override
+  bool operator ==(Object other) =>
+      identical(this, other) ||
+      other is ExpenseAccount &&
+          runtimeType == other.runtimeType &&
+          id == other.id;
+
+  @override
+  int get hashCode => id.hashCode;
 }

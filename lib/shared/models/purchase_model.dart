@@ -30,15 +30,15 @@ class Purchase {
   factory Purchase.fromMap(Map<String, dynamic> map, [List<PurchaseItem>? items]) {
     return Purchase(
       id: map['id'] as int?,
-      purchaseNo: map['purchase_no'] as String,
-      purchaseDate: map['purchase_date'] as String,
+      purchaseNo: (map['purchase_no'] as String?) ?? '',
+      purchaseDate: (map['purchase_date'] as String?) ?? '',
       supplierName: map['supplier_name'] as String?,
       supplierPhone: map['supplier_phone'] as String?,
-      totalAmount: (map['total_amount'] as num).toDouble(),
-      paidAmount: (map['paid_amount'] as num?)?.toDouble() ?? 0,
+      totalAmount: (map['total_amount'] as num?)?.toDouble() ?? 0.0,
+      paidAmount: (map['paid_amount'] as num?)?.toDouble() ?? 0.0,
       paymentMode: (map['payment_mode'] as String?) ?? 'cash',
       notes: map['notes'] as String?,
-      createdAt: map['created_at'] as String,
+      createdAt: (map['created_at'] as String?) ?? '',
       items: items,
     );
   }

@@ -18,6 +18,7 @@ class AddExpenseScreen extends ConsumerStatefulWidget {
 
 class _AddExpenseScreenState extends ConsumerState<AddExpenseScreen> {
   final _formKey = GlobalKey<FormState>();
+  int? _selectedAccountId;
   ExpenseAccount? _selectedAccount;
   final _amountController = TextEditingController();
   final _descriptionController = TextEditingController();
@@ -46,6 +47,7 @@ class _AddExpenseScreenState extends ConsumerState<AddExpenseScreen> {
       _amountController.text = initial.amount.toStringAsFixed(2);
       _descriptionController.text = initial.description ?? '';
       _selectedDate = DateTime.tryParse(initial.expenseDate) ?? DateTime.now();
+      _selectedAccountId = initial.expenseAccountId;
       _amountEdited = true;
     }
   }
@@ -71,7 +73,7 @@ class _AddExpenseScreenState extends ConsumerState<AddExpenseScreen> {
 
   void _saveExpense() async {
     if (!_formKey.currentState!.validate()) return;
-    if (_selectedAccount == null) {
+    if (_selectedAccountId == null) {
       ScaffoldMessenger.of(context).showSnackBar(
         const SnackBar(
           content: Text('કૃપા કરીને ખર્ચ ખાતું પસંદ કરો.'),
@@ -97,8 +99,10 @@ class _AddExpenseScreenState extends ConsumerState<AddExpenseScreen> {
     try {
       final expense = Expense(
         id: widget.expense?.id,
-        expenseAccountId: _selectedAccount!.id!,
-        accountNameSnapshot: _selectedAccount!.accountNameGujarati,
+        expenseAccountId: _selectedAccountId,
+        accountNameSnapshot: _selectedAccount?.accountNameGujarati ??
+            widget.expense?.accountNameSnapshot ??
+            'ખર્ચ',
         amount: amount,
         description: _descriptionController.text.trim().isEmpty
             ? null
@@ -109,9 +113,9 @@ class _AddExpenseScreenState extends ConsumerState<AddExpenseScreen> {
 
       final repo = ref.read(expenseRepositoryProvider);
       if (widget.expense == null) {
-        await repo.addExpense(expense);
+        await repo.addExpense(expense, paymentMode: _paymentMode);
       } else {
-        await repo.updateExpense(expense);
+        await repo.updateExpense(expense, paymentMode: _paymentMode);
       }
 
       if (mounted) {
@@ -214,13 +218,27 @@ class _AddExpenseScreenState extends ConsumerState<AddExpenseScreen> {
                       const SizedBox(height: 20),
 
                       // 1. Expense Account Selector
-                      const Text(
-                        'ખર્ચ ખાતું (Expense Account) *',
-                        style: TextStyle(
-                          fontSize: 13,
-                          fontWeight: FontWeight.w600,
-                          color: Color(0xFF334155),
-                        ),
+                      Row(
+                        mainAxisAlignment: MainAxisAlignment.spaceBetween,
+                        children: [
+                          const Text(
+                            'ખર્ચ ખાતું (Expense Account) *',
+                            style: TextStyle(
+                              fontSize: 13,
+                              fontWeight: FontWeight.w600,
+                              color: Color(0xFF334155),
+                            ),
+                          ),
+                          TextButton.icon(
+                            style: TextButton.styleFrom(
+                              visualDensity: VisualDensity.compact,
+                              padding: const EdgeInsets.symmetric(horizontal: 6),
+                            ),
+                            onPressed: _showQuickAddAccountDialog,
+                            icon: const Icon(Icons.add_circle_outline, size: 16),
+                            label: const Text('+ નવું ખાતું'),
+                          ),
+                        ],
                       ),
                       const SizedBox(height: 6),
                       _buildAccountDropdown(),
@@ -465,45 +483,55 @@ class _AddExpenseScreenState extends ConsumerState<AddExpenseScreen> {
   }
 
   Widget _buildAccountDropdown() {
-    final repo = ref.watch(expenseRepositoryProvider);
-    return FutureBuilder<List<ExpenseAccount>>(
-      future: repo.getExpenseAccounts(),
-      builder: (context, snapshot) {
-        if (!snapshot.hasData) {
-          return const LinearProgressIndicator();
-        }
-        final accounts = snapshot.data!;
-        if (_selectedAccount == null && widget.expense?.expenseAccountId != null) {
-          _selectedAccount = accounts
-              .where((a) => a.id == widget.expense!.expenseAccountId)
-              .firstOrNull;
+    final accountsAsync = ref.watch(activeExpenseAccountsProvider);
+
+    return accountsAsync.when(
+      data: (accounts) {
+        if (_selectedAccountId == null &&
+            widget.expense?.expenseAccountId != null) {
+          _selectedAccountId = widget.expense!.expenseAccountId;
         }
 
-        return DropdownButtonFormField<ExpenseAccount>(
-          initialValue: _selectedAccount,
+        final effectiveId = accounts.any((a) => a.id == _selectedAccountId)
+            ? _selectedAccountId
+            : null;
+
+        if (effectiveId != null && _selectedAccount == null) {
+          _selectedAccount =
+              accounts.where((a) => a.id == effectiveId).firstOrNull;
+        }
+
+        return DropdownButtonFormField<int>(
+          key: ValueKey(effectiveId),
+          initialValue: effectiveId,
           isExpanded: true,
           decoration: InputDecoration(
-            prefixIcon: const Icon(Icons.account_balance_wallet_outlined, size: 20),
-            contentPadding: const EdgeInsets.symmetric(horizontal: 12, vertical: 12),
+            prefixIcon:
+                const Icon(Icons.account_balance_wallet_outlined, size: 20),
+            contentPadding:
+                const EdgeInsets.symmetric(horizontal: 12, vertical: 12),
             border: OutlineInputBorder(borderRadius: BorderRadius.circular(10)),
           ),
           hint: const Text('ખાતું પસંદ કરો (Select Account)'),
           items: accounts.map((account) {
             final isFixed = account.accountType == 'fixed';
-            return DropdownMenuItem(
-              value: account,
+            return DropdownMenuItem<int>(
+              value: account.id,
               child: Row(
                 children: [
                   Expanded(
                     child: Text(
                       '${account.accountNameGujarati} (${account.accountNameEnglish ?? ''})',
-                      style: const TextStyle(fontWeight: FontWeight.w600, fontSize: 14),
+                      style: const TextStyle(
+                          fontWeight: FontWeight.w600, fontSize: 14),
                     ),
                   ),
                   Container(
-                    padding: const EdgeInsets.symmetric(horizontal: 6, vertical: 2),
+                    padding:
+                        const EdgeInsets.symmetric(horizontal: 6, vertical: 2),
                     decoration: BoxDecoration(
-                      color: isFixed ? Colors.blue.shade50 : Colors.orange.shade50,
+                      color:
+                          isFixed ? Colors.blue.shade50 : Colors.orange.shade50,
                       borderRadius: BorderRadius.circular(4),
                     ),
                     child: Text(
@@ -511,7 +539,9 @@ class _AddExpenseScreenState extends ConsumerState<AddExpenseScreen> {
                       style: TextStyle(
                         fontSize: 10,
                         fontWeight: FontWeight.bold,
-                        color: isFixed ? Colors.blue.shade800 : Colors.orange.shade900,
+                        color: isFixed
+                            ? Colors.blue.shade800
+                            : Colors.orange.shade900,
                       ),
                     ),
                   ),
@@ -519,17 +549,142 @@ class _AddExpenseScreenState extends ConsumerState<AddExpenseScreen> {
               ),
             );
           }).toList(),
-          onChanged: (value) {
+          onChanged: (id) {
+            final account = accounts.where((a) => a.id == id).firstOrNull;
             setState(() {
-              _selectedAccount = value;
-              if (!_amountEdited && value != null && value.typicalAmount > 0) {
-                _amountController.text = value.typicalAmount.toStringAsFixed(0);
+              _selectedAccountId = id;
+              _selectedAccount = account;
+              if (!_amountEdited &&
+                  account != null &&
+                  account.typicalAmount > 0) {
+                _amountController.text =
+                    account.typicalAmount.toStringAsFixed(0);
               }
             });
           },
-          validator: (value) => value == null ? 'કૃપા કરીને ખાતું પસંદ કરો' : null,
+          validator: (value) =>
+              value == null ? 'કૃપા કરીને ખાતું પસંદ કરો' : null,
         );
       },
+      loading: () => const LinearProgressIndicator(),
+      error: (e, st) => Text(
+        'ખાતા લોડ કરવામાં ભૂલ: $e',
+        style: const TextStyle(color: Colors.red),
+      ),
+    );
+  }
+
+  void _showQuickAddAccountDialog() {
+    final nameController = TextEditingController();
+
+    showDialog(
+      context: context,
+      builder: (ctx) => AlertDialog(
+        shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(16)),
+        title: const Row(
+          children: [
+            Icon(Icons.add_circle_outline, color: AppColors.primary),
+            SizedBox(width: 8),
+            Text(
+              'નવું ખર્ચ ખાતું',
+              style: TextStyle(fontSize: 18, fontWeight: FontWeight.bold),
+            ),
+          ],
+        ),
+        content: Column(
+          mainAxisSize: MainAxisSize.min,
+          crossAxisAlignment: CrossAxisAlignment.start,
+          children: [
+            const Text(
+              'ખાતાનું નામ (ગુજરાતી અથવા English) *',
+              style: TextStyle(fontSize: 13, fontWeight: FontWeight.w600),
+            ),
+            const SizedBox(height: 8),
+            TextField(
+              controller: nameController,
+              autofocus: true,
+              decoration: InputDecoration(
+                hintText: 'દા.ત. ચા-નાસ્તો / Tea & Snacks',
+                prefixIcon: const Icon(Icons.label_outline, size: 20),
+                border: OutlineInputBorder(
+                  borderRadius: BorderRadius.circular(10),
+                ),
+              ),
+            ),
+          ],
+        ),
+        actions: [
+          TextButton(
+            onPressed: () => Navigator.of(ctx).pop(),
+            child: const Text('રદ કરો (Cancel)'),
+          ),
+          ElevatedButton(
+            style: ElevatedButton.styleFrom(
+              backgroundColor: AppColors.primary,
+              foregroundColor: Colors.white,
+            ),
+            onPressed: () async {
+              final enteredName = nameController.text.trim();
+              if (enteredName.isEmpty) {
+                ScaffoldMessenger.of(context).showSnackBar(
+                  const SnackBar(
+                    content: Text('કૃપા કરીને ખાતાનું નામ દાખલ કરો'),
+                  ),
+                );
+                return;
+              }
+
+              try {
+                final repo = ref.read(expenseRepositoryProvider);
+                final newAccount = ExpenseAccount(
+                  accountNameGujarati: enteredName,
+                  accountNameEnglish: enteredName,
+                  accountType: 'variable',
+                  typicalAmount: 0.0,
+                  isActive: true,
+                  createdAt: DateTime.now().toIso8601String(),
+                );
+                final newId = await repo.addExpenseAccount(newAccount);
+
+                ref.invalidate(activeExpenseAccountsProvider);
+                ref.invalidate(allExpenseAccountsProvider);
+
+                if (!mounted) return;
+                Navigator.of(ctx).pop();
+
+                setState(() {
+                  _selectedAccountId = newId;
+                  _selectedAccount = ExpenseAccount(
+                    id: newId,
+                    accountNameGujarati: enteredName,
+                    accountNameEnglish: enteredName,
+                    accountType: 'variable',
+                    typicalAmount: 0.0,
+                    isActive: true,
+                    createdAt: newAccount.createdAt,
+                  );
+                });
+
+                ScaffoldMessenger.of(context).showSnackBar(
+                  SnackBar(
+                    content: Text("'$enteredName' ખાતું સફળતાપૂર્વક ઉમેરાયું!"),
+                    backgroundColor: AppColors.success,
+                  ),
+                );
+              } catch (e) {
+                if (!mounted) return;
+                ScaffoldMessenger.of(context).showSnackBar(
+                  SnackBar(
+                    content: Text('ભૂલ: $e'),
+                    backgroundColor: AppColors.alert,
+                  ),
+                );
+              }
+            },
+            child: const Text('સાચવો (Save)'),
+          ),
+        ],
+      ),
     );
   }
 }

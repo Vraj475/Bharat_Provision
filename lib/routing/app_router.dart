@@ -249,7 +249,7 @@ final appRouter = GoRouter(
       builder: (context, state) {
         final expense = state.extra as Expense?;
         return RoleGuard(
-          allowedRoles: const ['admin'],
+          allowedRoles: const ['admin', 'superadmin'],
           child: AddExpenseScreen(expense: expense),
         );
       },
@@ -332,21 +332,18 @@ final appRouter = GoRouter(
     GoRoute(
       path: AppRouter.superadminPanel,
       builder: (context, state) => const RoleGuard(
-        allowedRoles: ['admin'],
+        allowedRoles: ['admin', 'superadmin'],
         child: SuperadminPanelScreen(),
       ),
     ),
     GoRoute(
       path: AppRouter.expenseAccounts,
-      builder: (context, state) => const RoleGuard(
-        allowedRoles: ['admin'],
-        child: ExpenseAccountsManagerScreen(),
-      ),
+      builder: (context, state) => const ExpenseAccountsManagerScreen(),
     ),
     GoRoute(
       path: AppRouter.transliterationDict,
       builder: (context, state) => const RoleGuard(
-        allowedRoles: ['admin'],
+        allowedRoles: ['admin', 'superadmin'],
         child: TransliterationDictionaryScreen(),
       ),
     ),

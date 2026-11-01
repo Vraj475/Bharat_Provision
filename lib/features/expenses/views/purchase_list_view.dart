@@ -167,9 +167,9 @@ class _PurchaseListViewState extends ConsumerState<PurchaseListView> {
   }
 
   Widget _buildSummaryCards(Map<String, dynamic> summary) {
-    final count = summary['total_count'] as int? ?? 0;
-    final totalAmount = summary['total_amount'] as double? ?? 0.0;
-    final totalPaid = summary['total_paid'] as double? ?? 0.0;
+    final count = (summary['total_count'] as num?)?.toInt() ?? 0;
+    final totalAmount = (summary['total_amount'] as num?)?.toDouble() ?? 0.0;
+    final totalPaid = (summary['total_paid'] as num?)?.toDouble() ?? 0.0;
     final totalPending = (totalAmount - totalPaid).clamp(0.0, double.infinity);
 
     return Container(

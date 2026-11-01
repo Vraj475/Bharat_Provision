@@ -119,7 +119,7 @@ class _AddPurchaseScreenState extends ConsumerState<AddPurchaseScreen> {
     try {
       final purchaseRepo = ref.read(purchaseRepositoryProvider);
 
-      final inputs = draft.items.map((item) {
+      final inputs = draft.items.where((i) => i.product.id != null).map((item) {
         final customPrice = sellPriceUpdates.containsKey(item.product.id)
             ? sellPriceUpdates[item.product.id]
             : item.customSellPrice;
@@ -130,6 +130,16 @@ class _AddPurchaseScreenState extends ConsumerState<AddPurchaseScreen> {
           customSellPrice: customPrice,
         );
       }).toList();
+
+      if (inputs.isEmpty) {
+        ScaffoldMessenger.of(context).showSnackBar(
+          const SnackBar(
+            content: Text('કૃપા કરીને માન્ય વસ્તુઓ પસંદ કરો.'),
+            backgroundColor: AppColors.alert,
+          ),
+        );
+        return;
+      }
 
       final paidVal = double.tryParse(_paidAmountCtrl.text.trim()) ??
           (draft.paymentMode == 'khata' ? 0.0 : draft.totalAmount);

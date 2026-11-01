@@ -24,7 +24,7 @@ class SellPriceAlertItem {
 
   factory SellPriceAlertItem.fromDraft(PurchaseLineDraft draft) {
     return SellPriceAlertItem(
-      productId: draft.product.id!,
+      productId: draft.product.id ?? 0,
       productName: draft.product.nameGujarati,
       oldCost: draft.product.buyPrice,
       newCost: draft.newAvgCost,

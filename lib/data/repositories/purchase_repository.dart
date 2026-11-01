@@ -1,6 +1,7 @@
 import 'package:sqflite/sqflite.dart';
 
 import '../../core/database/database_helper.dart';
+import '../../core/services/notification_service.dart';
 import '../../core/utils/weighted_average.dart';
 import '../../shared/models/purchase_item_model.dart';
 import '../../shared/models/purchase_model.dart';
@@ -117,7 +118,7 @@ class PurchaseRepository {
     final now = DateTime.now().toIso8601String();
     final dateStr = purchaseDate.toIso8601String().substring(0, 10);
 
-    return db.transaction((txn) async {
+    final res = await db.transaction((txn) async {
       // 1. Determine purchase number
       final effectivePurchaseNo = purchaseNo ?? await _generatePurchaseNoInTxn(txn);
 
@@ -142,13 +143,14 @@ class PurchaseRepository {
       });
 
       final priceAlerts = <PriceAlertInfo>[];
+      final restockedItems = <({int id, double newStock, double minStock})>[];
 
       // 4. Process each line item
       for (final item in items) {
         // Fetch current product state
         final prodRows = await txn.query(
           'products',
-          columns: ['id', 'name_gujarati', 'stock_qty', 'buy_price', 'sell_price'],
+          columns: ['id', 'name_gujarati', 'stock_qty', 'min_stock_qty', 'buy_price', 'sell_price'],
           where: 'id = ?',
           whereArgs: [item.productId],
         );
@@ -172,6 +174,8 @@ class PurchaseRepository {
         );
 
         final newStockQty = oldStockQty + item.qty;
+        final minStockQty = (prodRow['min_stock_qty'] as num?)?.toDouble() ?? 0.0;
+        restockedItems.add((id: item.productId, newStock: newStockQty, minStock: minStockQty));
         final newSellPrice = item.customSellPrice ?? oldSellPrice;
         final itemTotalCost = double.parse((item.qty * item.unitCost).toStringAsFixed(2));
 
@@ -290,14 +294,29 @@ class PurchaseRepository {
         'created_at': now,
       });
 
-      return CreatePurchaseResult(
-        purchaseId: purchaseId,
-        purchaseNo: effectivePurchaseNo,
-        totalAmount: totalAmount,
-        itemsCount: items.length,
-        priceAlerts: priceAlerts,
+      return (
+        result: CreatePurchaseResult(
+          purchaseId: purchaseId,
+          purchaseNo: effectivePurchaseNo,
+          totalAmount: totalAmount,
+          itemsCount: items.length,
+          priceAlerts: priceAlerts,
+        ),
+        restocked: restockedItems,
       );
     });
+
+    for (final item in res.restocked) {
+      try {
+        await NotificationService.instance.onProductRestocked(
+          productId: item.id,
+          newStockQty: item.newStock,
+          minStockQty: item.minStock,
+        );
+      } catch (_) {}
+    }
+
+    return res.result;
   }
 
   Future<String> _generatePurchaseNoInTxn(Transaction txn) async {
@@ -471,10 +490,11 @@ class PurchaseRepository {
       );
 
       for (final item in items) {
-        final productId = item['product_id'] as int;
-        final qty = (item['qty'] as num).toDouble();
-        final oldCostPrice = (item['old_cost_price'] as num).toDouble();
-        final oldSellPrice = (item['old_sell_price'] as num).toDouble();
+        final productId = (item['product_id'] as int?) ?? 0;
+        if (productId == 0) continue;
+        final qty = (item['qty'] as num?)?.toDouble() ?? 0.0;
+        final oldCostPrice = (item['old_cost_price'] as num?)?.toDouble() ?? 0.0;
+        final oldSellPrice = (item['old_sell_price'] as num?)?.toDouble() ?? 0.0;
 
         // Fetch current stock
         final pRows = await txn.query('products', where: 'id = ?', whereArgs: [productId]);
@@ -513,12 +533,14 @@ class PurchaseRepository {
       // 4. Delete related expense
       final pRow = await txn.query('purchases', where: 'id = ?', whereArgs: [purchaseId]);
       if (pRow.isNotEmpty) {
-        final pNo = pRow.first['purchase_no'] as String;
-        await txn.delete(
-          'expenses',
-          where: "description LIKE ?",
-          whereArgs: ['%#$pNo%'],
-        );
+        final pNo = pRow.first['purchase_no'] as String?;
+        if (pNo != null && pNo.isNotEmpty) {
+          await txn.delete(
+            'expenses',
+            where: "description LIKE ?",
+            whereArgs: ['%#$pNo%'],
+          );
+        }
       }
 
       // 5. Delete purchase items and purchase record

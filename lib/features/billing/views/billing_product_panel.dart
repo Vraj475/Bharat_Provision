@@ -13,8 +13,7 @@ import '../billing_providers.dart';
 import '../controllers/billing_controller.dart';
 import '../models/bill_line_item.dart';
 import '../../../data/providers.dart';
-import 'dialogs/product_addition_dialog.dart';
-import 'package:go_router/go_router.dart';
+import '../../../core/services/notification_service.dart';
 
 import '../../inventory/inventory_providers.dart';
 import '../../inventory/category_dialogs.dart';
@@ -44,7 +43,6 @@ class _BillingProductPanelState extends ConsumerState<BillingProductPanel> {
   final _productPanelStackKey = GlobalKey();
   final _productFieldKey = GlobalKey();
   BillingDropdownType _activeDropdown = BillingDropdownType.none;
-  bool _lowStockPopupShown = false;
   int _draftLineCounter = 0;
   int? _selectedCategoryId;
   int _highlightedIndex = -1;
@@ -338,15 +336,22 @@ class _BillingProductPanelState extends ConsumerState<BillingProductPanel> {
         return;
       }
 
-      if (item.isLowStock) {
-        ScaffoldMessenger.of(context).showSnackBar(
-          SnackBar(
-            content: Text(
-              '${item.nameGujarati} નો સ્ટોક ઓછો છે (${item.stockQty.toStringAsFixed(2)})',
-            ),
-            duration: const Duration(seconds: 1),
-          ),
+      if (item.isLowStock && item.id != null) {
+        final notified = await NotificationService.instance.showLowStockAlert(
+          productId: item.id,
+          productName: item.nameGujarati,
+          qty: item.stockQty,
         );
+        if (notified && mounted) {
+          ScaffoldMessenger.of(context).showSnackBar(
+            SnackBar(
+              content: Text(
+                '${item.nameGujarati} નો સ્ટોક ઓછો છે (${item.stockQty.toStringAsFixed(2)})',
+              ),
+              duration: const Duration(seconds: 2),
+            ),
+          );
+        }
       }
 
       if (!mounted) return;
@@ -668,49 +673,6 @@ class _BillingProductPanelState extends ConsumerState<BillingProductPanel> {
                     );
                   }
 
-                  if (!_lowStockPopupShown) {
-                    final lowStockItems = displayItems
-                        .where((p) => p.stockQty > 0 && p.isLowStock)
-                        .toList();
-                    if (lowStockItems.isNotEmpty) {
-                      _lowStockPopupShown = true;
-                      WidgetsBinding.instance.addPostFrameCallback((_) {
-                        if (!mounted) return;
-                        showDialog<void>(
-                          context: context,
-                          builder: (ctx) => AlertDialog(
-                            title: const Text('લો સ્ટોક એલર્ટ'),
-                            content: SingleChildScrollView(
-                              child: Column(
-                                mainAxisSize: MainAxisSize.min,
-                                crossAxisAlignment:
-                                    CrossAxisAlignment.start,
-                                children: lowStockItems
-                                    .take(6)
-                                    .map(
-                                      (p) => Padding(
-                                        padding: const EdgeInsets.only(
-                                          bottom: 6,
-                                        ),
-                                        child: Text(
-                                          '• ${p.nameGujarati}: ${p.stockQty.toStringAsFixed(2)} ${p.unitType}',
-                                        ),
-                                      ),
-                                    )
-                                    .toList(),
-                              ),
-                            ),
-                            actions: [
-                              TextButton(
-                                onPressed: () => ctx.pop(),
-                                child: const Text('બરાબર'),
-                              ),
-                            ],
-                          ),
-                        );
-                      });
-                    }
-                  }
 
                   return ListView.builder(
                     itemCount: displayItems.length,

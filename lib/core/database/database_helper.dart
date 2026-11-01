@@ -55,6 +55,7 @@ class DatabaseHelper {
           },
           onOpen: (db) async {
             await _createSchema(db);
+            await insertDefaultExpenseAccounts(db);
           },
         );
       } else {
@@ -79,12 +80,14 @@ class DatabaseHelper {
             },
             onOpen: (db) async {
               await _createSchema(db);
+              await insertDefaultExpenseAccounts(db);
             },
           ),
         );
       }
 
       await _createSchema(db);
+      await insertDefaultExpenseAccounts(db);
       return db;
     } catch (e, st) {
       throw ErrorHandler.handle(

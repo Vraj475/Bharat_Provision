@@ -28,6 +28,7 @@ class _DashboardBodyState extends ConsumerState<DashboardBody> {
   DateTime? _billFromDate;
   DateTime? _billToDate;
   String _billQuery = '';
+  bool _isLowStockBannerDismissed = false;
 
   @override
   void dispose() {
@@ -233,14 +234,19 @@ class _DashboardBodyState extends ConsumerState<DashboardBody> {
   }
 
   Widget _buildLowStockAlert() {
+    if (_isLowStockBannerDismissed) return const SizedBox.shrink();
     return ref
         .watch(lowStockProductsProvider)
         .when(
           data: (products) {
             if (products.isEmpty) return const SizedBox.shrink();
             return Container(
-              padding: const EdgeInsets.all(12),
-              color: Colors.red.shade100,
+              padding: const EdgeInsets.symmetric(horizontal: 12, vertical: 8),
+              margin: const EdgeInsets.only(bottom: 8),
+              decoration: BoxDecoration(
+                color: Colors.red.shade100,
+                borderRadius: BorderRadius.circular(8),
+              ),
               child: Row(
                 children: [
                   const Icon(Icons.warning, color: Colors.red),
@@ -248,12 +254,24 @@ class _DashboardBodyState extends ConsumerState<DashboardBody> {
                   Expanded(
                     child: Text(
                       'Low Stock Alert: ${products.length} products below minimum stock',
-                      style: const TextStyle(color: Colors.red),
+                      style: const TextStyle(
+                        color: Colors.red,
+                        fontWeight: FontWeight.w600,
+                      ),
                     ),
                   ),
                   TextButton(
                     onPressed: () => context.push(AppRouter.inventory),
                     child: const Text('View'),
+                  ),
+                  IconButton(
+                    icon: const Icon(Icons.close, color: Colors.red, size: 20),
+                    tooltip: 'Dismiss',
+                    onPressed: () {
+                      setState(() {
+                        _isLowStockBannerDismissed = true;
+                      });
+                    },
                   ),
                 ],
               ),

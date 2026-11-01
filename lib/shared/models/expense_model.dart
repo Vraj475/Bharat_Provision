@@ -24,11 +24,11 @@ class Expense {
       id: map['id'] as int?,
       expenseAccountId: map['expense_account_id'] as int?,
       accountNameSnapshot: map['account_name_snapshot'] as String?,
-      amount: (map['amount'] as num).toDouble(),
+      amount: (map['amount'] as num?)?.toDouble() ?? 0.0,
       description: map['description'] as String?,
-      expenseDate: map['expense_date'] as String,
+      expenseDate: (map['expense_date'] as String?) ?? DateTime.now().toIso8601String(),
       createdBy: map['created_by'] as String?,
-      createdAt: map['created_at'] as String,
+      createdAt: (map['created_at'] as String?) ?? DateTime.now().toIso8601String(),
     );
   }
 

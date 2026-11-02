@@ -147,7 +147,7 @@ class BillRepository {
       if (hasPaymentStatus) {
         billValues['payment_status'] = dueAmount <= 0.0
             ? 'paid'
-            : (paidAmount <= 0.0 ? 'unpaid' : 'partial');
+            : (effectivePaidAmount <= 0.0 ? 'unpaid' : 'partial');
       }
       if (hasCustomerNameSnapshot) {
         billValues['customer_name_snapshot'] =

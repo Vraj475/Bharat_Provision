@@ -392,17 +392,26 @@ class ReturnRepository {
       });
     }
 
+    // Fetch original bill to keep discount & other charges
+    final originalBillRows = await txn.query('bills', where: 'id = ?', whereArgs: [billId]);
+    final originalDiscount = (originalBillRows.firstOrNull?['discount'] as num?)?.toDouble() ?? 0.0;
+    final originalOtherCharges = (originalBillRows.firstOrNull?['other_charges'] as num?)?.toDouble() ?? 0.0;
+
     // Update bill total amount and status
     final remaining = await txn.rawQuery(
       'SELECT COUNT(*) as cnt, COALESCE(SUM(amount), 0) as total FROM bill_items WHERE bill_id = ? AND is_returned = 0',
       [billId],
     );
     final remainingCount = (remaining.first['cnt'] as int?) ?? 0;
-    final remainingTotal = (remaining.first['total'] as num?)?.toDouble() ?? 0.0;
+    final remainingItemsSubtotal = (remaining.first['total'] as num?)?.toDouble() ?? 0.0;
+    final remainingTotal = remainingCount == 0
+        ? 0.0
+        : (remainingItemsSubtotal - originalDiscount + originalOtherCharges).clamp(0.0, double.infinity);
     final status = remainingCount == 0 ? 'fully_returned' : 'partial_return';
     await txn.update(
       'bills',
       {
+        'subtotal': remainingItemsSubtotal,
         'total_amount': remainingTotal,
         'payment_status': status,
         'is_returned': remainingCount == 0 ? 1 : 0,
@@ -441,9 +450,43 @@ class ReturnRepository {
           'created_at': now,
         });
       }
+
+      // Check current customer balance from khata_entries first, fallback to customers table
+      final lastEntry = await txn.rawQuery(
+        '''
+        SELECT balance_after FROM khata_entries
+        WHERE customer_id = ?
+        ORDER BY date_time DESC, id DESC
+        LIMIT 1
+        ''',
+        [customerId],
+      );
+      double currentBalance = 0.0;
+      if (lastEntry.isNotEmpty) {
+        currentBalance = (lastEntry.first['balance_after'] as num?)?.toDouble() ?? 0.0;
+      } else {
+        final cRow = await txn.query('customers', columns: ['total_outstanding'], where: 'id = ?', whereArgs: [customerId]);
+        currentBalance = (cRow.firstOrNull?['total_outstanding'] as num?)?.toDouble() ?? 0.0;
+      }
+      final newBalance = (currentBalance - totalReturnValue).clamp(0.0, double.infinity);
+
+      // Insert into khata_entries so customer passbook/statement reflects the return credit
+      final hasKhataEntries = await _tableExists(txn, 'khata_entries');
+      if (hasKhataEntries) {
+        await txn.insert('khata_entries', {
+          'customer_id': customerId,
+          'related_bill_id': billId,
+          'date_time': DateTime.now().millisecondsSinceEpoch,
+          'type': 'credit',
+          'amount': totalReturnValue,
+          'note': 'રીટર્ન જમા: બિલ #$billId',
+          'balance_after': newBalance,
+        });
+      }
+
       await txn.rawUpdate(
-        'UPDATE customers SET total_outstanding = MAX(0, total_outstanding - ?) WHERE id = ?',
-        [totalReturnValue, customerId],
+        'UPDATE customers SET total_outstanding = ? WHERE id = ?',
+        [newBalance, customerId],
       );
     }
 
@@ -776,15 +819,36 @@ class ReturnRepository {
         });
       }
 
-      // 5. Update bills table preserving original payment_status
+      final priceDiff = newTotal - originalTotal;
+      String newPaymentStatus = originalPaymentStatus;
+      double newPaidAmount = (billRows.first['paid_amount'] as num?)?.toDouble() ?? originalTotal;
+
+      if (priceDiff > 0.01) {
+        if (paymentMode == 'cash_refund' || paymentMode == 'cash') {
+          newPaidAmount += priceDiff;
+          newPaymentStatus = 'paid';
+        } else {
+          // Extra charged to customer's udhaar / khata
+          newPaymentStatus = 'partial';
+        }
+      } else if (priceDiff < -0.01) {
+        newPaidAmount = newTotal;
+        newPaymentStatus = 'paid';
+      }
+
+      // 5. Update bills table with accurate total, paid_amount and payment_status
       await txn.update(
         'bills',
-        {'total_amount': newTotal, 'is_returned': 0, 'payment_status': originalPaymentStatus},
+        {
+          'total_amount': newTotal,
+          'paid_amount': newPaidAmount,
+          'is_returned': 0,
+          'payment_status': newPaymentStatus,
+        },
         where: 'id = ?',
         whereArgs: [billId],
       );
 
-      final priceDiff = newTotal - originalTotal;
       if (priceDiff.abs() > 0.01) {
         if (priceDiff > 0) {
           if (paymentMode == 'cash_refund' || paymentMode == 'cash') {
@@ -816,9 +880,42 @@ class ReturnRepository {
                 'created_at': now,
               });
             }
+
+            // Sync with customer passbook (khata_entries)
+            final lastEntry = await txn.rawQuery(
+              '''
+              SELECT balance_after FROM khata_entries
+              WHERE customer_id = ?
+              ORDER BY date_time DESC, id DESC
+              LIMIT 1
+              ''',
+              [customerId],
+            );
+            double currentBalance = 0.0;
+            if (lastEntry.isNotEmpty) {
+              currentBalance = (lastEntry.first['balance_after'] as num?)?.toDouble() ?? 0.0;
+            } else {
+              final cRow = await txn.query('customers', columns: ['total_outstanding'], where: 'id = ?', whereArgs: [customerId]);
+              currentBalance = (cRow.firstOrNull?['total_outstanding'] as num?)?.toDouble() ?? 0.0;
+            }
+            final newBalance = currentBalance + priceDiff;
+
+            final hasKhataEntries = await _tableExists(txn, 'khata_entries');
+            if (hasKhataEntries) {
+              await txn.insert('khata_entries', {
+                'customer_id': customerId,
+                'related_bill_id': billId,
+                'date_time': DateTime.now().millisecondsSinceEpoch,
+                'type': 'debit',
+                'amount': priceDiff,
+                'note': 'બદલી વધારાની રકમ: બિલ #$billId',
+                'balance_after': newBalance,
+              });
+            }
+
             await txn.rawUpdate(
-              'UPDATE customers SET total_outstanding = total_outstanding + ? WHERE id = ?',
-              [priceDiff, customerId],
+              'UPDATE customers SET total_outstanding = ? WHERE id = ?',
+              [newBalance, customerId],
             );
           }
         } else {
@@ -861,9 +958,42 @@ class ReturnRepository {
                 'created_at': now,
               });
             }
+
+            // Sync with customer passbook (khata_entries)
+            final lastEntry = await txn.rawQuery(
+              '''
+              SELECT balance_after FROM khata_entries
+              WHERE customer_id = ?
+              ORDER BY date_time DESC, id DESC
+              LIMIT 1
+              ''',
+              [customerId],
+            );
+            double currentBalance = 0.0;
+            if (lastEntry.isNotEmpty) {
+              currentBalance = (lastEntry.first['balance_after'] as num?)?.toDouble() ?? 0.0;
+            } else {
+              final cRow = await txn.query('customers', columns: ['total_outstanding'], where: 'id = ?', whereArgs: [customerId]);
+              currentBalance = (cRow.firstOrNull?['total_outstanding'] as num?)?.toDouble() ?? 0.0;
+            }
+            final newBalance = (currentBalance - refundAmount).clamp(0.0, double.infinity);
+
+            final hasKhataEntries = await _tableExists(txn, 'khata_entries');
+            if (hasKhataEntries) {
+              await txn.insert('khata_entries', {
+                'customer_id': customerId,
+                'related_bill_id': billId,
+                'date_time': DateTime.now().millisecondsSinceEpoch,
+                'type': 'credit',
+                'amount': refundAmount,
+                'note': 'બદલી જમા: બિલ #$billId',
+                'balance_after': newBalance,
+              });
+            }
+
             await txn.rawUpdate(
-              'UPDATE customers SET total_outstanding = MAX(0, total_outstanding - ?) WHERE id = ?',
-              [refundAmount, customerId],
+              'UPDATE customers SET total_outstanding = ? WHERE id = ?',
+              [newBalance, customerId],
             );
           }
         }

@@ -179,42 +179,22 @@ class ReportsHomeScreen extends ConsumerWidget {
                     ),
                   ),
               const SizedBox(height: 24),
-              Row(
-                children: [
-                  Expanded(
-                    child: ElevatedButton.icon(
-                      style: ElevatedButton.styleFrom(
-                        padding: const EdgeInsets.symmetric(vertical: 14),
-                        shape: RoundedRectangleBorder(
-                          borderRadius: BorderRadius.circular(10),
-                        ),
-                      ),
-                      onPressed: () => context.push(AppRouter.plReport),
-                      icon: const Icon(Icons.analytics_outlined, size: 20),
-                      label: const Text(
-                        'P&L Report',
-                        style: TextStyle(fontSize: 15, fontWeight: FontWeight.bold),
-                      ),
+              SizedBox(
+                width: double.infinity,
+                child: ElevatedButton.icon(
+                  style: ElevatedButton.styleFrom(
+                    padding: const EdgeInsets.symmetric(vertical: 14),
+                    shape: RoundedRectangleBorder(
+                      borderRadius: BorderRadius.circular(10),
                     ),
                   ),
-                  const SizedBox(width: 12),
-                  Expanded(
-                    child: OutlinedButton.icon(
-                      style: OutlinedButton.styleFrom(
-                        padding: const EdgeInsets.symmetric(vertical: 14),
-                        shape: RoundedRectangleBorder(
-                          borderRadius: BorderRadius.circular(10),
-                        ),
-                      ),
-                      onPressed: () => context.push(AppRouter.dailyReport),
-                      icon: const Icon(Icons.event_note_outlined, size: 20),
-                      label: const Text(
-                        'Daily Report',
-                        style: TextStyle(fontSize: 15, fontWeight: FontWeight.bold),
-                      ),
-                    ),
+                  onPressed: () => context.push(AppRouter.plReport),
+                  icon: const Icon(Icons.analytics_outlined, size: 22),
+                  label: const Text(
+                    'નફો-નુકસાન અને દૈનિક રિપોર્ટ (P&L & Daily Report)',
+                    style: TextStyle(fontSize: 15, fontWeight: FontWeight.bold),
                   ),
-                ],
+                ),
               ),
               const SizedBox(height: 12),
               SizedBox(

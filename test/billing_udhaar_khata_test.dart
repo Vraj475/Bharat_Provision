@@ -11,7 +11,6 @@ import 'package:bharat_provision/data/repositories/bill_repository.dart';
 import 'package:bharat_provision/data/repositories/customer_repository.dart';
 import 'package:bharat_provision/data/repositories/khata_repository.dart';
 import 'package:bharat_provision/shared/models/bill_item_model.dart';
-import 'package:bharat_provision/shared/models/customer_model.dart';
 
 class MockPathProviderPlatform extends Fake
     with MockPlatformInterfaceMixin
@@ -43,6 +42,7 @@ void main() {
       final khataRepo = KhataRepository(DatabaseHelper.instance);
 
       // Create an item in items/products table so stock deduction succeeds
+      final nowStr = DateTime.now().toIso8601String();
       final productId = await db.insert('products', {
         'name_gujarati': 'ઘઉં',
         'name_english': 'Wheat',
@@ -52,7 +52,8 @@ void main() {
         'stock_qty': 100.0,
         'min_stock_qty': 5.0,
         'is_active': 1,
-        'created_at': DateTime.now().toIso8601String(),
+        'created_at': nowStr,
+        'updated_at': nowStr,
       });
 
       final billItems = [

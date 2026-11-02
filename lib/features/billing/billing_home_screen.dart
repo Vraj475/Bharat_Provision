@@ -34,8 +34,6 @@ import 'views/billing_product_panel.dart';
 import 'views/mobile_express_billing_view.dart';
 import 'controllers/billing_controller.dart';
 import '../../core/auth/role_provider.dart';
-import 'views/dialogs/discount_dialog.dart';
-import 'views/dialogs/grand_total_dialog.dart';
 import 'package:go_router/go_router.dart';
 
 /// Simplified single-screen billing - Create bills and print them.
@@ -167,85 +165,6 @@ class _BillingHomeScreenState extends ConsumerState<BillingHomeScreen> {
     });
   }
 
-  void _focusFirstItemWeight() {
-    if (!mounted) return;
-    final lines = ref.read(billingControllerProvider).billLines;
-    if (lines.isEmpty) {
-      ScaffoldMessenger.of(context).hideCurrentSnackBar();
-      ScaffoldMessenger.of(context).showSnackBar(
-        const SnackBar(
-          content: Text('કાર્ટ ખાલી છે. પહેલા ઉત્પાદન ઉમેરો (Ctrl+F).'),
-          duration: Duration(seconds: 2),
-        ),
-      );
-      _focusProductSearch();
-      return;
-    }
-    _billLinesKey.currentState?.startEditingFirstItemWeight();
-  }
-
-  void _editDiscount() {
-    if (!mounted) return;
-    if (_billSummaryKey.currentState != null) {
-      _billSummaryKey.currentState?.startDiscountEdit();
-    } else {
-      _openMobileDiscountDialog();
-    }
-  }
-
-  void _editGrandTotal() {
-    if (!mounted) return;
-    if (_billSummaryKey.currentState != null) {
-      _billSummaryKey.currentState?.startGrandTotalEdit();
-    } else {
-      _openMobileGrandTotalDialog();
-    }
-  }
-
-  Future<void> _openMobileDiscountDialog() async {
-    final currentDiscount = ref.read(billingControllerProvider).discount;
-    final result = await DiscountDialog.show(
-      context,
-      currentDiscount,
-    );
-    if (result != null && mounted) {
-      ref.read(billingControllerProvider.notifier).setDiscount(result);
-    }
-  }
-
-  Future<void> _openMobileGrandTotalDialog() async {
-    final total = ref.read(billingControllerProvider).total;
-    final newTotal = await GrandTotalDialog.show(context, total);
-    if (newTotal != null && mounted) {
-      ref.read(billingControllerProvider.notifier).commitGrandTotalEdit(newTotal);
-    }
-  }
-
-  void _clearBillFromShortcut() {
-    if (!mounted) return;
-    final lines = ref.read(billingControllerProvider).billLines;
-    final hasCustomer = _customerId != null ||
-        (_customerName != null && _customerName!.trim().isNotEmpty);
-    if (lines.isEmpty && !hasCustomer) {
-      ScaffoldMessenger.of(context).hideCurrentSnackBar();
-      ScaffoldMessenger.of(context).showSnackBar(
-        const SnackBar(
-          content: Text('બિલ પહેલેથી જ ખાલી છે.'),
-          duration: Duration(seconds: 2),
-        ),
-      );
-      return;
-    }
-    _clearCurrentBillDraft();
-    ScaffoldMessenger.of(context).hideCurrentSnackBar();
-    ScaffoldMessenger.of(context).showSnackBar(
-      const SnackBar(
-        content: Text('બિલ ક્લીયર થઈ ગયું.'),
-        duration: Duration(seconds: 2),
-      ),
-    );
-  }
-
   void _focusCustomerSearch() {
     if (!mounted) return;
     _customerSearchFocusNode.requestFocus();
@@ -298,42 +217,9 @@ class _BillingHomeScreenState extends ConsumerState<BillingHomeScreen> {
     }
   }
 
-  void _setUdhaarMode() {
-    ref.read(billingTabsProvider.notifier).setTransactionTypeForActive('khata');
-    final messenger = ScaffoldMessenger.of(context);
-    messenger.hideCurrentSnackBar();
-    messenger.showSnackBar(
-      const SnackBar(
-        content: Text('ઉધાર (ખાતા) મોડ પસંદ થયો. ગ્રાહકનું નામ ઉમેરો (F2).'),
-        duration: Duration(seconds: 2),
-      ),
-    );
-    final name = _normalizedCustomerName(_customerName);
-    if (name == null || name.isEmpty) {
-      _focusCustomerSearch();
-    }
-  }
-
-  void _setCashMode() {
-    ref.read(billingTabsProvider.notifier).setTransactionTypeForActive('cash');
-    final messenger = ScaffoldMessenger.of(context);
-    messenger.hideCurrentSnackBar();
-    messenger.showSnackBar(
-      const SnackBar(
-        content: Text('રોકડ (Cash) મોડ પસંદ થયો.'),
-        duration: Duration(seconds: 2),
-      ),
-    );
-  }
-
   void _handleEscape() {
     _billLinesKey.currentState?.deselectRow();
     _focusProductSearch();
-  }
-
-  void _deleteSelectedProductLine() {
-    if (!mounted) return;
-    _billLinesKey.currentState?.deleteSelectedRow();
   }
 
   Future<void> _handleSaveBillShortcut() async {

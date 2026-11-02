@@ -21,11 +21,7 @@ class ReportRepository {
       '''
       SELECT
         COUNT(*) as bill_count,
-        COALESCE(SUM(total_amount), 0)
-          - COALESCE((
-              SELECT SUM(total_return_value) FROM returns
-              WHERE DATE(return_date) >= ? AND DATE(return_date) <= ?
-            ), 0) as total_sales,
+        COALESCE(SUM(total_amount), 0) - COALESCE((SELECT SUM(total_return_value) FROM returns WHERE DATE(return_date) >= ? AND DATE(return_date) <= ?), 0) as total_sales,
         COALESCE(AVG(total_amount), 0) as avg_bill
       FROM bills
       WHERE DATE(COALESCE(bill_date, created_at)) >= ? 
@@ -92,6 +88,7 @@ class ReportRepository {
       SELECT COALESCE(SUM(amount), 0) as expenses
       FROM expenses
       WHERE DATE(expense_date) = ?
+        AND (created_by IS NULL OR (created_by != 'return' AND created_by != 'replace'))
       ''',
       [todayStr],
     );
@@ -151,7 +148,6 @@ class ReportRepository {
     final sales = await getTodaysSales();
     final expenses = await getTodaysExpenses();
     final todayStr = DateFormat('yyyy-MM-dd').format(DateTime.now());
-
     final db = await _dbHelper.database;
     final returnsResult = await db.rawQuery(
       '''
@@ -161,8 +157,7 @@ class ReportRepository {
       ''',
       [todayStr],
     );
-    final returns = (returnsResult.first['returns'] as num?)?.toDouble() ?? 0;
-
+    final returns = (returnsResult.first['returns'] as num?)?.toDouble() ?? 0.0;
     return sales - expenses - returns;
   }
 
@@ -214,6 +209,7 @@ class ReportRepository {
       FROM expenses e
       LEFT JOIN expense_accounts ea ON e.expense_account_id = ea.id
       WHERE DATE(e.expense_date) >= ? AND DATE(e.expense_date) <= ?
+        AND (e.created_by IS NULL OR (e.created_by != 'return' AND e.created_by != 'replace'))
       GROUP BY COALESCE(ea.account_name_gujarati, 'Other')
       ''',
       [startDateStr, endDateStr],
@@ -289,6 +285,7 @@ class ReportRepository {
         COALESCE(SUM(amount), 0) as expenses
       FROM expenses
       WHERE DATE(expense_date) >= ? AND DATE(expense_date) <= ?
+        AND (created_by IS NULL OR (created_by != 'return' AND created_by != 'replace'))
       GROUP BY DATE(expense_date)
       ''',
       [startDateStr, endDateStr],
@@ -368,6 +365,7 @@ class ReportRepository {
       FROM expenses e
       LEFT JOIN expense_accounts ea ON e.expense_account_id = ea.id
       WHERE DATE(e.expense_date) = ?
+        AND (e.created_by IS NULL OR (e.created_by != 'return' AND e.created_by != 'replace'))
       GROUP BY COALESCE(ea.account_name_gujarati, 'Other')
       ''',
       [dateStr],

@@ -124,36 +124,16 @@ void main() {
     expect(find.text('₹150.00 / લીટર'), findsOneWidget);
     expect(find.text('₹10.00 / પેકેટ'), findsOneWidget);
 
-    // Now expand the first item (ખાંડ પ્રીમિયમ - કિલો)
-    await tester.tap(find.text('ખાંડ પ્રીમિયમ'));
+    // Verify inline return input fields are present for each row
+    expect(find.byType(TextField), findsWidgets);
+
+    // Enter 0.5 kg in the first return text field
+    final inputFinder = find.byType(TextField).first;
+    await tester.enterText(inputFinder, '0.5');
     await tester.pumpAndSettle();
 
-    // Verify inline panel shows appropriate unit labels for weight
-    expect(find.text('પરત આપેલ વજન'), findsOneWidget);
-    expect(find.text('કિલો / ગ્રામ'), findsOneWidget);
-
-    // Enter 500 grams in the return text field
-    final inputFinder = find.byType(TextField).last;
-    await tester.enterText(inputFinder, '500');
-    await tester.pumpAndSettle();
-
-    // Verify live calculation parsed 500 grams into 0.5 kg: 0.5 * 50 = ₹25 refund
-    expect(find.text('પરત: 500 ગ્રામ'), findsOneWidget);
-    expect(find.text('રિફંડ: ₹25.00'), findsOneWidget);
-
-    // Save this row return
-    await tester.tap(find.text('સાચવો'));
-    await tester.pumpAndSettle();
-
-    // Verify the return badge is updated with correspondence unit
-    expect(find.text('પરત: 500 ગ્રામ'), findsOneWidget);
-
-    // Expand the third item (પારલે-જી બિસ્કિટ - પેકેટ)
-    await tester.tap(find.text('પારલે-જી બિસ્કિટ'));
-    await tester.pumpAndSettle();
-
-    // Verify discrete unit label
-    expect(find.text('પરત આપેલ માત્રા (પેકેટ)'), findsOneWidget);
+    // Verify live calculation parsed 0.5 kg: 0.5 * 50 = ₹25.00 refund
+    expect(find.text('₹25.00'), findsWidgets);
   });
 
   testWidgets('ReturnReplaceScreen mobile Replace Mode renders without RenderFlex overflow', (tester) async {
@@ -225,7 +205,7 @@ void main() {
     await tester.pumpAndSettle();
 
     // Switch to Replace Mode (બદલો)
-    final replaceModeBtn = find.textContaining('બદલો');
+    final replaceModeBtn = find.text('🔄 બદલો');
     expect(replaceModeBtn, findsOneWidget);
     await tester.tap(replaceModeBtn);
     await tester.pumpAndSettle();

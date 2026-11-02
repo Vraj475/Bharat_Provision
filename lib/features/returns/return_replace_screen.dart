@@ -1770,8 +1770,10 @@ class _ReturnReplaceScreenState extends ConsumerState<ReturnReplaceScreen> {
         alignment: WrapAlignment.spaceBetween,
         crossAxisAlignment: WrapCrossAlignment.center,
         children: [
-          Row(
-            mainAxisSize: MainAxisSize.min,
+          Wrap(
+            spacing: 8,
+            runSpacing: 8,
+            crossAxisAlignment: WrapCrossAlignment.center,
             children: [
               ElevatedButton.icon(
                 onPressed: anyReturnable ? _returnAllProducts : null,
@@ -1791,8 +1793,7 @@ class _ReturnReplaceScreenState extends ConsumerState<ReturnReplaceScreen> {
                   ),
                 ),
               ),
-              if (hasAnyReturned) ...[
-                const SizedBox(width: 8),
+              if (hasAnyReturned)
                 OutlinedButton.icon(
                   onPressed: () {
                     setState(() {
@@ -1815,7 +1816,6 @@ class _ReturnReplaceScreenState extends ConsumerState<ReturnReplaceScreen> {
                     ),
                   ),
                 ),
-              ],
             ],
           ),
           Wrap(
@@ -2155,72 +2155,81 @@ class _ReturnReplaceScreenState extends ConsumerState<ReturnReplaceScreen> {
             const SizedBox(width: 16),
             // Actions
             SizedBox(
-              width: 190,
+              width: 210,
               child: isLocked
                   ? const Center(
                       child: Text('—', style: TextStyle(color: Colors.grey)))
-                  : Row(
-                      mainAxisAlignment: MainAxisAlignment.end,
-                      children: [
-                        Tooltip(
-                          message: 'આખું ઉત્પાદન પરત કરો',
-                          child: OutlinedButton(
-                            onPressed: () => _returnEntireProduct(item),
-                            style: OutlinedButton.styleFrom(
-                              foregroundColor: const Color(0xFFD97706),
-                              side: const BorderSide(
-                                  color: Color(0xFFD97706), width: 1.2),
-                              padding: const EdgeInsets.symmetric(
-                                  horizontal: 8, vertical: 6),
-                              visualDensity: VisualDensity.compact,
-                              shape: RoundedRectangleBorder(
-                                borderRadius: BorderRadius.circular(6),
+                  : FittedBox(
+                      fit: BoxFit.scaleDown,
+                      alignment: Alignment.centerRight,
+                      child: Row(
+                        mainAxisAlignment: MainAxisAlignment.end,
+                        mainAxisSize: MainAxisSize.min,
+                        children: [
+                          Tooltip(
+                            message: 'આખું ઉત્પાદન પરત કરો',
+                            child: OutlinedButton(
+                              onPressed: () => _returnEntireProduct(item),
+                              style: OutlinedButton.styleFrom(
+                                minimumSize: Size.zero,
+                                tapTargetSize: MaterialTapTargetSize.shrinkWrap,
+                                foregroundColor: const Color(0xFFD97706),
+                                side: const BorderSide(
+                                    color: Color(0xFFD97706), width: 1.2),
+                                padding: const EdgeInsets.symmetric(
+                                    horizontal: 6, vertical: 4),
+                                visualDensity: VisualDensity.compact,
+                                shape: RoundedRectangleBorder(
+                                  borderRadius: BorderRadius.circular(6),
+                                ),
                               ),
+                              child: const Text('સંપૂર્ણ પરત',
+                                  style: TextStyle(
+                                      fontSize: 10.5,
+                                      fontWeight: FontWeight.bold)),
                             ),
-                            child: const Text('સંપૂર્ણ પરત',
-                                style: TextStyle(
-                                    fontSize: 11,
-                                    fontWeight: FontWeight.bold)),
                           ),
-                        ),
-                        const SizedBox(width: 4),
-                        Tooltip(
-                          message: 'બદલી કરો',
-                          child: ElevatedButton(
-                            onPressed: () => _startReplaceForProduct(
-                              item,
-                              isFull: retQty <= 0 || retQty >= item.qty - 0.0001,
-                              partialQty: retQty > 0 ? retQty : item.qty,
-                            ),
-                            style: ElevatedButton.styleFrom(
-                              backgroundColor: AppColors.primary,
-                              foregroundColor: Colors.white,
-                              padding: const EdgeInsets.symmetric(
-                                  horizontal: 8, vertical: 6),
-                              visualDensity: VisualDensity.compact,
-                              shape: RoundedRectangleBorder(
-                                borderRadius: BorderRadius.circular(6),
+                          const SizedBox(width: 3),
+                          Tooltip(
+                            message: 'બદલી કરો',
+                            child: ElevatedButton(
+                              onPressed: () => _startReplaceForProduct(
+                                item,
+                                isFull: retQty <= 0 || retQty >= item.qty - 0.0001,
+                                partialQty: retQty > 0 ? retQty : item.qty,
                               ),
+                              style: ElevatedButton.styleFrom(
+                                minimumSize: Size.zero,
+                                tapTargetSize: MaterialTapTargetSize.shrinkWrap,
+                                backgroundColor: AppColors.primary,
+                                foregroundColor: Colors.white,
+                                padding: const EdgeInsets.symmetric(
+                                    horizontal: 6, vertical: 4),
+                                visualDensity: VisualDensity.compact,
+                                shape: RoundedRectangleBorder(
+                                  borderRadius: BorderRadius.circular(6),
+                                ),
+                              ),
+                              child: const Text('બદલો',
+                                  style: TextStyle(
+                                      fontSize: 10.5,
+                                      fontWeight: FontWeight.bold)),
                             ),
-                            child: const Text('બદલો',
-                                style: TextStyle(
-                                    fontSize: 11,
-                                    fontWeight: FontWeight.bold)),
                           ),
-                        ),
-                        if (retQty > 0) ...[
-                          const SizedBox(width: 2),
-                          IconButton(
-                            icon: const Icon(Icons.close,
-                                size: 18, color: Colors.red),
-                            tooltip: 'પરત રદ કરો',
-                            visualDensity: VisualDensity.compact,
-                            padding: EdgeInsets.zero,
-                            constraints: const BoxConstraints(),
-                            onPressed: () => _clearRowReturn(item),
-                          ),
+                          if (retQty > 0) ...[
+                            const SizedBox(width: 2),
+                            IconButton(
+                              icon: const Icon(Icons.close,
+                                  size: 18, color: Colors.red),
+                              tooltip: 'પરત રદ કરો',
+                              visualDensity: VisualDensity.compact,
+                              padding: EdgeInsets.zero,
+                              constraints: const BoxConstraints(),
+                              onPressed: () => _clearRowReturn(item),
+                            ),
+                          ],
                         ],
-                      ],
+                      ),
                     ),
             ),
           ],

@@ -140,6 +140,24 @@ class KhataRepository {
         [finalBalance, customerId],
       );
 
+      final nowIso = DateTime.now().toIso8601String();
+      final todayStr = nowIso.substring(0, 10);
+      final cRows = await txn.query('customers', columns: ['name_gujarati', 'name_english'], where: 'id = ?', whereArgs: [customerId]);
+      final cName = (cRows.firstOrNull?['name_gujarati'] as String?) ?? 'ગ્રાહક';
+
+      await txn.insert('khata_ledger', {
+        'entry_type': isDebit ? 'debit' : 'credit',
+        'account_name': cName,
+        'customer_id': customerId,
+        'amount': amount,
+        'payment_mode': isDebit ? null : 'cash',
+        'reference_type': isDebit ? 'udhar' : 'payment',
+        'reference_id': relatedBillId,
+        'note': note ?? (isDebit ? 'ખાતા ઉધાર' : 'ચુકવણી જમા'),
+        'entry_date': todayStr,
+        'created_at': nowIso,
+      });
+
       // When payment is recorded, update bills so paid bills are cleared
       if (!isDebit) {
         final today = DateTime.now().toIso8601String().substring(0, 10);
